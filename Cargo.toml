@@ -6,3 +6,5 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
+macroquad = "0.2.9"
+image = "0.23"
