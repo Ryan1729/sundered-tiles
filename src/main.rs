@@ -5,6 +5,7 @@ use std::{
 
 use macroquad::{
     drawing::Image,
+    KeyCode,
     Texture2D,
     clear_background,
     draw_texture,
@@ -12,6 +13,7 @@ use macroquad::{
     next_frame,
     screen_height,
     screen_width,
+    is_key_pressed,
     BLACK,
     WHITE,
 };
@@ -46,8 +48,33 @@ async fn main() {
     let spritesheet_texture: Texture2D = load_spritesheet()
         .expect("Embedded spritesheet could not be loaded!");
 
+    let mut state = game::State::default();
     loop {
+        let input;
+        {
+            use game::Input::*;
+
+            input = if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
+                Some(Interact)
+            } else if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W) {
+                Some(Up)
+            } else if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S) {
+                Some(Down)
+            } else if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::A) {
+                Some(Left)
+            } else if is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::D) {
+                Some(Right)
+            } else {
+                None
+            };
+        }
+
+        if let Some(input) = input {
+            game::update(&mut state, input);
+        }
+
         clear_background(BLACK);
+
         draw_texture(
             spritesheet_texture,
             screen_width() / 2. - spritesheet_texture.width() / 2.,
