@@ -1,10 +1,5 @@
 #![no_std]
 
-#[derive(Debug, Default)]
-pub struct State {
-    ui_pos: UIPos,
-}
-
 #[derive(Clone, Copy)]
 pub enum Input {
     Up,
@@ -12,6 +7,120 @@ pub enum Input {
     Left,
     Right,
     Interact,
+}
+
+pub enum Command {
+    Sprite(Sprite),
+}
+
+pub struct SpriteSpec {
+    sprite: SpriteKind,
+    x: X,
+    y: Y,
+}
+
+mod bi_unit {
+    ///! `bi_unit` is short for bilateral-unit. AKA the range [-1.0, 1.0]
+    ///! This range has the following advantages:
+    ///! * uses half of the available precision of a floating point number as 
+    ///!   opposed to say [0.0, 1.0] whch only uses a quarter of it.
+    ///! * +0.0, (the natural default) is in the middle of the range (subjective)
+    
+    macro_rules! tuple_new_type {
+        ($name: ident) => {
+            #[derive(Clone, Copy, Debug, Default)]
+            pub struct $name(F32);
+        
+            impl From<$name> for f32 {
+                fn from(thing: $name) -> Self {
+                    Self::from(thing.0)
+                }
+            }
+        }
+    }
+
+    tuple_new_type!{X}
+    tuple_new_type!{Y}
+
+    struct F32(f32);
+
+    impl From<F32> for f32 {
+        fn from(f: F32) -> Self {
+            f.0
+        }
+    }
+}
+pub use bi_unit::{X, Y};
+
+mod unit {
+    ///! `unit` in this case refers to the range [0.0, 1.0]
+
+    macro_rules! tuple_new_type {
+        (struct $struct_name: ident, macro_rules! $macro_name: ident) => {
+            #[derive(Clone, Copy, Debug, Default)]
+            pub struct $struct_name(F32);
+        
+            impl From<$struct_name> for f32 {
+                fn from(thing: $struct_name) -> Self {
+                    Self::from(thing.0)
+                }
+            }
+
+            impl $struct_name {
+                const fn from_f32(f: f32) -> Self {
+                    if 
+                }
+            }
+
+            macro_rules! $macro_name {
+                ($f32: literal) => {
+                    $crate::$struct_name::from_f32($f32)
+                };
+                ($e: expr) => {
+                    $crate::$struct_name($e)
+                };
+            }
+        }
+    }
+
+    tuple_new_type!{struct W, macro_rules! w}
+    tuple_new_type!{struct H, macro_rules! h}
+
+    struct F32(f32);
+
+    impl From<F32> for f32 {
+        fn from(f: F32) -> Self {
+            f.0
+        }
+    }
+}
+pub use unit::{W, H};
+
+pub struct XYWH {
+    pub x: X,
+    pub y: Y,
+    pub w: W,
+    pub h: H,
+}
+
+const TILES_XYWH: bi_unit::XYWH = bi_unit::XYWH {
+    x: bi_unit::x!(-0.5),
+    y: bi_unit::y!(-1.0),
+    w: unit::w!(0.5),
+    h: unit::h!(1.0),
+}
+
+pub enum SpriteKind {
+    Blank,
+    Red,
+    Blue,
+    Green,
+    Selectrum,
+}
+
+#[derive(Debug, Default)]
+pub struct State {
+    ui_pos: UIPos,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -25,9 +134,11 @@ impl Default for UIPos {
     }
 }
 
-pub fn update(state: &mut State, input: Input) {
+pub fn update(state: &mut State, commands: &mut Vec<Command>, input: Input) {
     use Input::*;
     use UIPos::*;
+
+    commands.clear();
 
     match (input, &mut state.ui_pos) {
         (Up, Tile(_, ref mut y)) => {
@@ -54,6 +165,11 @@ pub fn update(state: &mut State, input: Input) {
             
         },
     }
+
+    
+    commands.push(Sprite(SpriteSpec{
+        SpriteKind
+    }));
 }
 
 mod checked {
@@ -117,11 +233,11 @@ mod tile {
                 $($variants,)+
             }
 
-            impl core::convert::TryInto<Coord> for u8 {
+            impl core::convert::TryFrom<u8> for Coord {
                 type Error = ();
 
-                fn try_into(self) -> Result<Coord, Self::Error> {
-                    match self {
+                fn try_from(byte :u8) -> Result<Self, Self::Error> {
+                    match byte {
                         $($number => Ok(Coord::$variants),)+
                         _ => Err(()),
                     }

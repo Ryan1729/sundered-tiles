@@ -1,10 +1,13 @@
-use std::{
+use core::{
     convert::TryInto,
     error::Error,
 };
 
+use alloc::vec::Vec;
+
 use macroquad::{
-    drawing::Image,
+    Image,
+    DrawTextureParams,
     KeyCode,
     Texture2D,
     clear_background,
@@ -43,12 +46,18 @@ fn load_spritesheet() -> Res<Texture2D> {
     Ok(load_texture_from_image(&img))
 }
 
+// TODO: make these a function of the screen size later?
+const PIXELS_PER_TILE: f32 = 16.0;
+const TILES_PER_PIXEL: f32 = 1.0 / PIXELS_PER_TILE;
+
 #[macroquad::main("Sundered Tiles")]
 async fn main() {
     let spritesheet_texture: Texture2D = load_spritesheet()
         .expect("Embedded spritesheet could not be loaded!");
 
     let mut state = game::State::default();
+    let mut commands = Vec::with_cacpacity(1024);
+
     loop {
         let input;
         {
@@ -70,17 +79,53 @@ async fn main() {
         }
 
         if let Some(input) = input {
-            game::update(&mut state, input);
+            game::update_and_render(&mut state, &mut commands, input);
         }
 
         clear_background(BLACK);
 
-        draw_texture(
-            spritesheet_texture,
-            screen_width() / 2. - spritesheet_texture.width() / 2.,
-            screen_height() / 2. - spritesheet_texture.height() / 2.,
-            WHITE,
+        let s_width = screen_width();
+        let s_height = screen_height();
+        let tile_dest_size: Vec2 = Vec2::new(
+            TILES_PER_SCREEN_PIXEL * s_width,
+            TILES_PER_SCREEN_PIXEL * s_height,
         );
+
+        let tile_base_source_rect = Rect {
+            w: SPRITE_PIXELS_PER_TILE,
+            h: SPRITE_PIXELS_PER_TILE,
+            ..<_>::default()
+        };
+
+        for cmd in commands.iter() {
+            use game::Command::*;
+            match cmd {
+                Sprite(s) => {
+                    let (x, y) = (
+                        s_width * (f32::from(s.x) + 1.0) / 2.0,
+                        s_height * (f32::from(s.y) + 1.0) / 2.0,
+                    );
+
+                    draw_texture_ex(
+                        spritesheet_texture,
+                        x,
+                        y,
+                        WHITE,
+                        DrawTextureParams {
+                            dest_size: Some(tile_dest_size),
+                            source: Some(Rect {
+                                x: s.sprite * SPRITE_PIXELS_PER_TILE,
+                                y: 0.0,
+                                ..<_>::default()
+                            })
+                            ..<_>::default()
+                        }
+                    );
+                }
+                // Later we'll want Text at the very least.
+            }
+        }
+
         next_frame().await
     }
 }
