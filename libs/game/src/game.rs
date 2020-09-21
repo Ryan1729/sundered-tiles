@@ -1,4 +1,6 @@
 #![no_std]
+#![deny(unused)]
+
 
 #[derive(Clone, Copy)]
 pub enum Input {
@@ -27,27 +29,135 @@ mod bi_unit {
     ///! * +0.0, (the natural default) is in the middle of the range (subjective)
     
     macro_rules! tuple_new_type {
-        ($name: ident) => {
+        (struct $struct_name: ident, macro_rules! $macro_name) => {
             #[derive(Clone, Copy, Debug, Default)]
-            pub struct $name(F32);
+            pub struct $struct_name(F32);
         
-            impl From<$name> for f32 {
-                fn from(thing: $name) -> Self {
+            impl From<$struct_name> for f32 {
+                fn from(thing: $struct_name) -> Self {
                     Self::from(thing.0)
+                }
+            }
+
+            macro_rules! $macro_name {
+                ($float: literal) => {{
+                    const_assert_valid!($float);
+
+                    $crate::$struct_name::new_saturating($float)
+                }};
+                ($float: expr) => {
+                    $crate::$struct_name::new_saturating($float)
+                };
+            }
+
+            impl $struct_name {
+                pub const fn new_saturating(f: f32) -> Self {
+                    Self(F32::new_saturating(f))
                 }
             }
         }
     }
 
-    tuple_new_type!{X}
-    tuple_new_type!{Y}
+    tuple_new_type!{struct X, macro_rules! x}
+    tuple_new_type!{struct Y, macro_rules! y}
 
+    #[macro_export]
+    macro_rules! const_assert_valid {
+        ($f32: literal) => {
+            #[allow(unknown_lints, eq_op)]
+            const _: [(); 0 - !{
+                $crate::is_pos_zero!($float)
+                || $crate::is_pos_normal_and_one_or_below!($float)
+                || $crate::is_neg_normal_and_above_negative_one!($float)
+             } as usize] = [];
+        }
+    }
+
+    #[macro_export]
+    macro_rules! is_pos_zero {
+        ($f32: expr) => {{
+            let f: f32 = $f32;
+
+            f == 0.0 && {
+                // This is a const version of f32::is_sign_positive
+                let f_bits = unsafe {
+                    core::mem::transmute::<f32, u32>(f)
+                };
+
+                f_bits & 0x8000_0000 == 0
+            }
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! is_pos_normal_and_one_or_below {
+        ($f32: expr) => {{
+            let f: f32 = $f32;
+
+            f >= f32::MIN_POSITIVE && f <= 1.0
+        }}
+    }
+
+    #[macro_export]
+    macro_rules! is_neg_normal_and_above_negative_one {
+        ($f32: expr) => {{
+            let f: f32 = $f32;
+
+            f >= -1.0 && f <= -f32::MIN_POSITIVE
+        }}
+    }
+
+    #[derive(Clone, Copy, Debug, Default)]
     struct F32(f32);
 
     impl From<F32> for f32 {
         fn from(f: F32) -> Self {
             f.0
         }
+    }
+
+    impl F32 {
+        pub const MIN: Self = F32(-1.0);
+        pub const NEG_MIN_POSITIVE: Self = F32(-f32::MIN_POSITIVE);
+        pub const ZERO: Self = F32(0.0);
+        pub const MIN_POSITIVE: Self = F32(f32::MIN_POSITIVE);
+        pub const MAX: Self = F32(1.0);
+
+        pub const fn new_saturating(f: f32) -> Self {
+            Self(
+                // This is known incorrect, to test the tests.
+                if is_pos_zero!(f) {
+                    f
+                } else if is_pos_normal_and_one_or_below!(f) {
+                    f
+                } else if is_neg_normal_and_above_negative_one!(f) {
+                    f
+                } else {
+                    0.0
+                }
+            )
+        }
+    }
+
+    #[test]
+    fn new_saturating_saturates_properly() {
+        assert_eq!(F32::new_saturating(-f32::INFINITY), F32::MIN);
+        assert_eq!(F32::new_saturating(-2.0), F32::MIN);
+        assert_eq!(F32::new_saturating(-1.0), F32::MIN);
+
+        assert_eq!(F32::new_saturating(-f32::MIN_POSITIVE), F32::NEG_MIN_POSITIVE);
+        assert_eq!(F32::new_saturating(-f32::MIN_POSITIVE / 2.0), F32::ZERO);
+
+        assert_eq!(F32::new_saturating(-0.0), F32::ZERO);
+        assert_eq!(F32::new_saturating(f32::NAN), F32::ZERO);
+        assert_eq!(F32::new_saturating(0.0), F32::ZERO);
+
+        assert_eq!(F32::new_saturating(f32::MIN_POSITIVE / 2.0), F32::ZERO);
+        assert_eq!(F32::new_saturating(f32::MIN_POSITIVE), F32::MIN_POSITIVE);
+
+        assert_eq!(F32::new_saturating(1.0), F32::MAX);
+        assert_eq!(F32::new_saturating(2.0), F32::MAX);
+        assert_eq!(F32::new_saturating(f32::INFINITY), F32::MAX);
     }
 }
 pub use bi_unit::{X, Y};
@@ -86,6 +196,7 @@ mod unit {
     tuple_new_type!{struct W, macro_rules! w}
     tuple_new_type!{struct H, macro_rules! h}
 
+    #[derive(Clone, Copy, Debug, Default)]
     struct F32(f32);
 
     impl From<F32> for f32 {
@@ -96,25 +207,71 @@ mod unit {
 }
 pub use unit::{W, H};
 
-pub struct XYWH {
+#[derive(Clone, Copy, Debug, Default)]
+pub struct Point {
     pub x: X,
     pub y: Y,
-    pub w: W,
-    pub h: H,
 }
 
-const TILES_XYWH: bi_unit::XYWH = bi_unit::XYWH {
-    x: bi_unit::x!(-0.5),
-    y: bi_unit::y!(-1.0),
-    w: unit::w!(0.5),
-    h: unit::h!(1.0),
+impl Point {
+    const fn minimum(a: Self, b: Self) -> Self {
+        if a.x < b.x && a.x < b.y {
+            a
+        } else {
+            b
+        }
+    }
+
+    const fn maximum(a: Self, b: Self) -> Self {
+        if a.x > b.x && a.x > b.y {
+            a
+        } else {
+            b
+        }
+    }
 }
+
+/// A min/max Rect. This way of defining a rectangle has nicer behaviour when 
+/// clamping the rectangle within a rectangular area, than say an x,y,w,h version.
+/// The fields aren't public so we can maintain the min/max relationship internally.
+pub struct Rect {
+    min: Point,
+    max: Point,
+}
+
+impl Rect {
+    pub const fn new_xyxy(x1: X, y1: Y, x2: X, y2: Y) -> Self {
+        Self::new(Point{x: x1, y: y1}, Point{x: x2, y: y2})
+    }
+
+    pub const fn new(a: Point, b: Point) -> Self {
+        Self {
+            min: Point::minimum(a, b),
+            max: Point::maximum(a, b),
+        }
+    }
+
+    pub const fn min(&self) -> Self {
+        self.min
+    }
+
+    pub const fn max(&self) -> Self {
+        self.max
+    }
+}
+
+const TILES_RECT: Rect = Rect::new_xyxy(
+    bi_unit::x!(-0.5),
+    bi_unit::y!(-0.5),
+    bi_unit::x!(0.5),
+    bi_unit::y!(0.5),
+);
 
 pub enum SpriteKind {
     Blank,
     Red,
-    Blue,
     Green,
+    Blue,
     Selectrum,
 }
 
@@ -126,6 +283,24 @@ pub struct State {
 #[derive(Clone, Copy, Debug)]
 enum UIPos {
     Tile(tile::X, tile::Y),
+}
+
+impl UIPos {
+    const fn xy(&self) -> (X, Y) {
+        use UIPos::*;
+
+        match self {
+            Tile(ref tx, ref ty) => {
+                let (w, h) = TILES_RECT.wh();
+                let min = TILES_RECT.min();
+
+                (
+                    min.x + w * tx.proportion(),
+                    min.y + h * ty.proportion(),
+                )
+            }
+        }
+    }
 }
 
 impl Default for UIPos {
@@ -165,10 +340,13 @@ pub fn update(state: &mut State, commands: &mut Vec<Command>, input: Input) {
             
         },
     }
-
     
+    let (x, y) = state.ui_pos.xy();
+
     commands.push(Sprite(SpriteSpec{
-        SpriteKind
+        sprite: SpriteKind::Selectrum,
+        x,
+        y,
     }));
 }
 

@@ -49,6 +49,8 @@ fn load_spritesheet() -> Res<Texture2D> {
 // TODO: make these a function of the screen size later?
 const PIXELS_PER_TILE: f32 = 16.0;
 const TILES_PER_PIXEL: f32 = 1.0 / PIXELS_PER_TILE;
+const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
+
 
 #[macroquad::main("Sundered Tiles")]
 async fn main() {
@@ -106,6 +108,8 @@ async fn main() {
                         s_height * (f32::from(s.y) + 1.0) / 2.0,
                     );
 
+                    let (source_x, source_y) = source_coords(s.sprite);
+
                     draw_texture_ex(
                         spritesheet_texture,
                         x,
@@ -114,8 +118,8 @@ async fn main() {
                         DrawTextureParams {
                             dest_size: Some(tile_dest_size),
                             source: Some(Rect {
-                                x: s.sprite * SPRITE_PIXELS_PER_TILE,
-                                y: 0.0,
+                                x: source_x,
+                                y: source_y,
                                 ..<_>::default()
                             })
                             ..<_>::default()
@@ -128,4 +132,21 @@ async fn main() {
 
         next_frame().await
     }
+}
+
+fn source_coords(sprite: SpriteKind) -> (f32, f32) {
+    use SpriteKind::*;
+
+    let sx = match sprite {
+        Blank => 0.0,
+        Red => 1.0,
+        Green => 2.0,
+        Blue => 3.0,
+        Selectrum => 15.0,
+    };
+
+    (
+        sx * SPRITE_PIXELS_PER_TILE_SIDE,
+        0.0,
+    )
 }
