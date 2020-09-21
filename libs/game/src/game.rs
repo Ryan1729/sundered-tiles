@@ -140,7 +140,7 @@ mod bi_unit {
     }
 
     #[test]
-    fn new_saturating_saturates_properly() {
+    fn new_saturating_saturates_properly_on_these_edge_cases() {
         assert_eq!(F32::new_saturating(-f32::INFINITY), F32::MIN);
         assert_eq!(F32::new_saturating(-2.0), F32::MIN);
         assert_eq!(F32::new_saturating(-1.0), F32::MIN);
@@ -251,20 +251,77 @@ impl Rect {
         }
     }
 
-    pub const fn min(&self) -> Self {
+    pub const fn min(&self) -> Point {
         self.min
     }
 
-    pub const fn max(&self) -> Self {
+    pub const fn max(&self) -> Point {
         self.max
+    }
+
+    pub const fn wh(&self) -> (W, H) {
+        (
+            self.max.x - self.min.x,
+            self.max.y - self.min.y,
+        )
     }
 }
 
-const TILES_RECT: Rect = Rect::new_xyxy(
-    bi_unit::x!(-0.5),
-    bi_unit::y!(-0.5),
-    bi_unit::x!(0.5),
-    bi_unit::y!(0.5),
+macro_rules! rect_xyxy {
+    (
+        $min_x: literal,
+        $min_y: literal,
+        $max_x: literal,
+        $max_y: literal $(,)?
+    ) => {
+        Rect::new_xyxy(
+            bi_unit::x!($min_x),
+            bi_unit::y!($min_y),
+            bi_unit::x!($max_x),
+            bi_unit::y!($max_y),
+        )
+    }
+}
+
+#[test]
+fn wh_gives_expected_results_on_these_rects() {
+    let w0_h0 = rect_xyxy!();
+
+    assert_eq!(w0_h0 .wh(), (unit::w!(1.0), unit::h!(2.0)));
+
+    let w1_h2 = rect_xyxy!(
+        -0.5,
+        -1.0,
+        0.5,
+        1.0,
+    );
+
+    assert_eq!(w1_h2.wh(), (unit::w!(1.0), unit::h!(2.0)));
+
+    let w2_h1 = rect_xyxy!(
+        -1.0,
+        -0.5,
+        1.0,
+        0.5,
+    );
+
+    assert_eq!(w2_h1.wh(), (unit::w!(2.0), unit::h!(1.0)));
+
+    let w_half_h_quarter = rect_xyxy!(
+        -0.5,
+        0.0,
+        0.0,
+        0.25,
+    );
+
+    assert_eq!(w_half_h_quarter.wh(), (unit::w!(0.5), unit::h!(0.25)));
+}
+
+const TILES_RECT: Rect = rect_xyxy!(
+    -0.5,
+    -0.5,
+    0.5,
+    0.5,
 );
 
 pub enum SpriteKind {
@@ -362,42 +419,43 @@ mod checked {
 use checked::{AddOne, SubOne};
 
 mod tile {
-    use crate::checked::{
-        AddOne,
-        SubOne
+    use crate::{
+        checked::{
+            AddOne,
+            SubOne,
+        },
+        unit,
     };
 
     use core::convert::TryInto;
 
-    #[derive(Clone, Copy, Debug, Default)]
-    pub struct X(Coord);
+    macro_rules! tuple_new_type {
+        ($struct_name: ident) => {
+            #[derive(Clone, Copy, Debug, Default)]
+            pub struct $struct_name(Coord);
+        
+            impl AddOne for $struct_name {
+                fn checked_add_one(&self) -> Option<Self> {
+                    self.0.checked_add_one().map($struct_name)
+                }
+            }
+        
+            impl SubOne for $struct_name {
+                fn checked_sub_one(&self) -> Option<Self> {
+                    self.0.checked_sub_one().map($struct_name)
+                }
+            }
 
-    impl AddOne for X {
-        fn checked_add_one(&self) -> Option<Self> {
-            self.0.checked_add_one().map(X)
+            impl $struct_name {
+                pub fn proportion(&self) -> uint::F32 {
+                    self.0.proportion()
+                }
+            }
         }
     }
 
-    impl SubOne for X {
-        fn checked_sub_one(&self) -> Option<Self> {
-            self.0.checked_sub_one().map(X)
-        }
-    }
-
-    #[derive(Clone, Copy, Debug, Default)]
-    pub struct Y(Coord);
-
-    impl AddOne for Y {
-        fn checked_add_one(&self) -> Option<Self> {
-            self.0.checked_add_one().map(Y)
-        }
-    }
-
-    impl SubOne for Y {
-        fn checked_sub_one(&self) -> Option<Self> {
-            self.0.checked_sub_one().map(Y)
-        }
-    }
+    tuple_new_type!{X}
+    tuple_new_type!{Y}
 
     macro_rules! coord_def {
         ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
@@ -409,6 +467,30 @@ mod tile {
             /// [0, 50), then that preseves the desired property.
             enum Coord {
                 $($variants,)+
+            }
+
+            impl Coord {
+                const COUNT: u8 = {
+                    let mut count = 0;
+                    
+                    $(
+                        // I think some reference to the vars is needed to use 
+                        // the repetitions.
+                        let _ = $number;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+            }
+
+            impl From<Coord> for u8 {
+                fn from(coord: Coord) -> u8 {
+                    match coord {
+                        $(Coord::$variants => $number,)+
+                    }
+                }
             }
 
             impl core::convert::TryFrom<u8> for Coord {
@@ -494,6 +576,12 @@ mod tile {
         fn checked_sub_one(&self) -> Option<Self> {
             (*self as u8).checked_sub(1)
                 .and_then(|byte| byte.try_into().ok())
+        }
+    }
+
+    impl Coord {
+        fn proportion(&self) -> uint::F32 {
+            (u8::from(*self) as f32) / (Self::COUNT as f32)
         }
     }
 }
