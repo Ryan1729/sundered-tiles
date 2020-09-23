@@ -1,12 +1,10 @@
 [package]
-name = "game"
+name = "f32_is"
 version = "0.1.0"
 authors = ["Ryan1729 <Ryan1729@gmail.com>"]
 edition = "2018"
 
 [lib]
-path = "./src/game.rs"
+path = "./src/f32_is.rs"
 
 [dependencies]
-bi_unit = { path = "../bi_unit" }
-unit = { path = "../unit" }
