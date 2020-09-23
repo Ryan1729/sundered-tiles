@@ -29,7 +29,7 @@ mod bi_unit {
     ///! * +0.0, (the natural default) is in the middle of the range (subjective)
     
     macro_rules! tuple_new_type {
-        (struct $struct_name: ident, macro_rules! $macro_name) => {
+        (struct $struct_name: ident, macro_rules! $macro_name: ident) => {
             #[derive(Clone, Copy, Debug, Default)]
             pub struct $struct_name(F32);
         
@@ -178,7 +178,7 @@ mod unit {
 
             impl $struct_name {
                 const fn from_f32(f: f32) -> Self {
-                    if 
+
                 }
             }
 
@@ -196,6 +196,25 @@ mod unit {
     tuple_new_type!{struct W, macro_rules! w}
     tuple_new_type!{struct H, macro_rules! h}
 
+    #[macro_export]
+    macro_rules! const_assert_valid {
+        ($f32: literal) => {
+            #[allow(unknown_lints, eq_op)]
+            const _: [(); 0 - !{
+                $crate::is_pos_zero!($float)
+                || $crate::is_pos_normal!($float)
+             } as usize] = [];
+        }
+    }
+
+    #[macro_export]
+     macro_rules! is_pos_normal {
+        ($f32: expr) => {
+            $f32 >= f32::MIN_POSITIVE
+        }
+    }
+
+
     #[derive(Clone, Copy, Debug, Default)]
     struct F32(f32);
 
@@ -203,6 +222,46 @@ mod unit {
         fn from(f: F32) -> Self {
             f.0
         }
+    }
+
+    impl F32 {
+        pub const ZERO: Self = F32(0.0);
+        pub const MIN_POSITIVE: Self = F32(f32::MIN_POSITIVE);
+        pub const ONE: Self = F32(1.0);
+        pub const TWO: Self = F32(2.0);
+        pub const INFINITY: Self = F32(f32::INFINITY);
+
+        pub const fn new_saturating(f: f32) -> Self {
+            Self(
+                if is_pos_normal!(f) {
+                    f
+                } else {
+                    // NaN ends up here
+                    0.0
+                }
+            )
+        }
+    }
+
+    #[test]
+    fn new_saturating_saturates_properly_on_these_edge_cases() {
+        assert_eq!(F32::new_saturating(-f32::INFINITY), F32::ZERO);
+        assert_eq!(F32::new_saturating(-2.0), F32::ZERO);
+        assert_eq!(F32::new_saturating(-1.0), F32::ZERO);
+
+        assert_eq!(F32::new_saturating(-f32::MIN_POSITIVE), F32::ZERO);
+        assert_eq!(F32::new_saturating(-f32::MIN_POSITIVE / 2.0), F32::ZERO);
+
+        assert_eq!(F32::new_saturating(-0.0), F32::ZERO);
+        assert_eq!(F32::new_saturating(f32::NAN), F32::ZERO);
+        assert_eq!(F32::new_saturating(0.0), F32::ZERO);
+
+        assert_eq!(F32::new_saturating(f32::MIN_POSITIVE / 2.0), F32::ZERO);
+        assert_eq!(F32::new_saturating(f32::MIN_POSITIVE), F32::MIN_POSITIVE);
+
+        assert_eq!(F32::new_saturating(1.0), F32::ONE);
+        assert_eq!(F32::new_saturating(2.0), F32::TWO);
+        assert_eq!(F32::new_saturating(f32::INFINITY), F32::INFINITY);
     }
 }
 pub use unit::{W, H};
@@ -261,8 +320,8 @@ impl Rect {
 
     pub const fn wh(&self) -> (W, H) {
         (
-            self.max.x - self.min.x,
-            self.max.y - self.min.y,
+            unit::w!(f32::from(self.max.x) - f32::from(self.min.x)),
+            unit::h!(f32::from(self.max.y) - f32::from(self.min.y)),
         )
     }
 }
@@ -424,7 +483,6 @@ mod tile {
             AddOne,
             SubOne,
         },
-        unit,
     };
 
     use core::convert::TryInto;
