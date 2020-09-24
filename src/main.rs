@@ -5,6 +5,16 @@ use core::{
 
 use alloc::vec::Vec;
 
+impl <A> game::ClearableStorage<A> for Vec<A> {
+    fn clear(&mut self) {
+        self.clear(a);
+    }
+
+    fn push(&mut self, a: A) {
+        self.push(a);
+    }
+}
+
 use macroquad::{
     Image,
     DrawTextureParams,

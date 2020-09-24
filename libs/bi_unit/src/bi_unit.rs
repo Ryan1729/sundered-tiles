@@ -17,12 +17,18 @@ macro_rules! tuple_new_type {
             }
         }
 
+        /// If you run into an error about `new_saturating` not being allowed in 
+        /// `const`s try `$macro_name!(const expression)` instead of 
+        /// `$macro_name!(expression)`.
         #[macro_export]
         macro_rules! $macro_name {
             ($float: literal) => {{
-                const_assert_valid!($float);
+                $macro_name!(const $float)
+            }};
+            (const $float: expr) => {{
+                $crate::const_assert_valid!($float);
 
-                $crate::$struct_name::new_saturating($float)
+                $crate::$struct_name::new_unchecked($float)
             }};
             ($float: expr) => {
                 $crate::$struct_name::new_saturating($float)
@@ -30,8 +36,37 @@ macro_rules! tuple_new_type {
         }
 
         impl $struct_name {
-            pub const fn new_saturating(f: f32) -> Self {
+            pub fn new_saturating(f: f32) -> Self {
                 Self(F32::new_saturating(f))
+            }
+
+            /// This exists for use in the construction macro, where a const 
+            /// assertion performs the checks, allowing this to be a const fn
+            /// even though float operations are not allowed in const fn, on 
+            /// stable, as of this writing.
+            /// Use outside of that macro is heavily discouraged.
+            pub fn new_unchecked(f: f32) -> Self {
+                Self(F32::new_unchecked(f))
+            }
+        }
+
+        impl core::cmp::PartialEq for $struct_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.eq(&other.0)
+            }
+        }
+
+        impl core::cmp::Eq for $struct_name {}
+
+        impl core::cmp::Ord for $struct_name {
+            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+                self.0.cmp(&other.0)
+            }
+        }
+        
+        impl core::cmp::PartialOrd for $struct_name {
+            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+                Some(self.cmp(other))
             }
         }
     }
@@ -40,14 +75,18 @@ macro_rules! tuple_new_type {
 tuple_new_type!{struct X, macro_rules! x}
 tuple_new_type!{struct Y, macro_rules! y}
 
+/// Only works with literals or other expressions that are allowed in `const`s.
 #[macro_export]
 macro_rules! const_assert_valid {
-    ($f32: literal) => {
+    ($float: literal) => {
+        $crate::const_assert_valid!({$float})
+    };
+    ($float: expr) => {
         #[allow(unknown_lints, eq_op)]
         const _: [(); 0 - !{
-            $crate::f32_is::is_pos_zero!($float)
-            || $crate::f32_is::is_pos_normal_and_one_or_below!($float)
-            || $crate::f32_is::is_neg_normal_and_above_negative_one!($float)
+            $crate::f32_is::pos_zero!($float)
+            || $crate::f32_is::pos_normal_and_one_or_below!($float)
+            || $crate::f32_is::neg_normal_and_above_negative_one!($float)
          } as usize] = [];
     }
 }
@@ -61,14 +100,49 @@ impl From<F32> for f32 {
     }
 }
 
-impl F32 {
-    pub const MIN: Self = F32(-1.0);
-    pub const NEG_MIN_POSITIVE: Self = F32(-f32::MIN_POSITIVE);
-    pub const ZERO: Self = F32(0.0);
-    pub const MIN_POSITIVE: Self = F32(f32::MIN_POSITIVE);
-    pub const MAX: Self = F32(1.0);
+impl core::cmp::PartialEq for F32 {
+    fn eq(&self, other: &Self) -> bool {
+        // We rely on the fact that an `F32` should not contain a NaN.
+        self.0.eq(&other.0)
+    }
+}
 
-    pub const fn new_saturating(f: f32) -> Self {
+impl core::cmp::Eq for F32 {}
+
+impl core::cmp::Ord for F32 {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // We rely on the fact that an `F32` should not contain a NaN.
+        self.0.partial_cmp(&other.0).expect("comparing F32 failed!")
+    }
+}
+
+impl core::cmp::PartialOrd for F32 {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+/// Only works with literals or other expressions that are allowed in `const`s.
+macro_rules! F32 {
+    ($float: expr) => {{
+        const_assert_valid!($float);
+
+        F32::new_unchecked($float)
+    }};
+}
+
+impl F32 {
+    #![allow(unused)]
+
+    pub const MIN: Self = F32!(-1.0);
+    pub const NEG_MIN_POSITIVE: Self = F32!(-f32::MIN_POSITIVE);
+    pub const ZERO: Self = F32!(0.0);
+    pub const MIN_POSITIVE: Self = F32!(f32::MIN_POSITIVE);
+    pub const MAX: Self = F32!(1.0);
+}
+
+impl F32 {
+    pub fn new_saturating(f: f32) -> Self {
         Self(
             // This is known incorrect, to test the tests.
             if f32_is::pos_normal_and_one_or_below!(f) {
@@ -79,6 +153,10 @@ impl F32 {
                 0.0
             }
         )
+    }
+
+    const fn new_unchecked(f: f32) -> Self {
+        Self(f)
     }
 }
 

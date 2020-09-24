@@ -1,6 +1,11 @@
 #![no_std]
 #![deny(unused)]
 
+pub trait ClearableStorage<A> {
+    fn clear(&mut self);
+
+    fn push(&mut self, a: A);
+}
 
 #[derive(Clone, Copy)]
 pub enum Input {
@@ -12,7 +17,7 @@ pub enum Input {
 }
 
 pub enum Command {
-    Sprite(Sprite),
+    Sprite(SpriteSpec),
 }
 
 pub struct SpriteSpec {
@@ -184,9 +189,14 @@ impl Default for UIPos {
     }
 }
 
-pub fn update(state: &mut State, commands: &mut Vec<Command>, input: Input) {
+pub fn update(
+    state: &mut State,
+    commands: &mut dyn ClearableStorage<Command>,
+    input: Input
+) {
     use Input::*;
     use UIPos::*;
+    use Command::*;
 
     commands.clear();
 
@@ -264,7 +274,7 @@ mod tile {
             }
 
             impl $struct_name {
-                pub fn proportion(&self) -> uint::F32 {
+                pub fn proportion(&self) -> unit::Proportion {
                     self.0.proportion()
                 }
             }
@@ -397,7 +407,7 @@ mod tile {
     }
 
     impl Coord {
-        fn proportion(&self) -> uint::F32 {
+        fn proportion(&self) -> unit::Proportion {
             (u8::from(*self) as f32) / (Self::COUNT as f32)
         }
     }
