@@ -140,6 +140,32 @@ fn wh_gives_expected_results_on_these_rects() {
     assert_eq!(w_half_h_quarter.wh(), (unit::w!(0.5), unit::h!(0.25)));
 }
 
+#[test]
+fn this_same_distance_from_0_point_case_produces_a_positive_wh_rect() {
+    let (w, h) = rect_xyxy!(
+        0.25,
+        0.5,
+        0.5,
+        0.25,
+    );
+
+    assert!(w > unit::w!(0.0));
+    assert!(h > unit::h!(0.0));
+}
+
+#[test]
+fn this_same_distance_from_0_point_case_produces_the_expected_normalized_rect() {
+    let r = rect_xyxy!(
+        0.25,
+        0.5,
+        0.5,
+        0.25,
+    );
+
+    assert_eq!(r.min, Point{ x: bi_unit::x!(0.25), y: bi_unit::y!(0.25) });
+    assert_eq!(r.max, Point{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
+}
+
 const TILES_RECT: Rect = rect_xyxy!(
     -0.5,
     -0.5,
