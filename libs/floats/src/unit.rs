@@ -3,7 +3,7 @@
 pub use f32_is;
 
 macro_rules! tuple_new_type {
-    (struct $struct_name: ident, macro_rules! $macro_name: ident) => {
+    (struct $struct_name: ident, macro_rules! $macro_name: ident $_macro_name: ident) => {
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $struct_name(F32);
     
@@ -17,19 +17,23 @@ macro_rules! tuple_new_type {
         /// `const`s try `$macro_name!(const expression)` instead of 
         /// `$macro_name!(expression)`.
         #[macro_export]
-        macro_rules! $macro_name {
+        macro_rules! $_macro_name {
             ($float: literal) => {{
                 $macro_name!(const $float)
             }};
             (const $float: expr) => {{
-                $crate::const_assert_valid!($float);
+                $crate::const_assert_valid_unit!($float);
 
-                $crate::$struct_name::new_unchecked($float)
+                $struct_name::new_unchecked($float)
             }};
             ($float: expr) => {
-                $crate::$struct_name::new_saturating($float)
+                $struct_name::new_saturating($float)
             };
         }
+
+        /// Re-export the macro so it also lives in this module, as well as at the
+        /// root of this crate.
+        pub use $_macro_name as $macro_name;
 
         impl $struct_name {
             pub fn new_saturating(f: f32) -> Self {
@@ -48,15 +52,61 @@ macro_rules! tuple_new_type {
     }
 }
 
-tuple_new_type!{struct W, macro_rules! w}
-tuple_new_type!{struct H, macro_rules! h}
-tuple_new_type!{struct Proportion, macro_rules! proportion}
+tuple_new_type!{struct W, macro_rules! w _w}
+tuple_new_type!{struct H, macro_rules! h _h}
+tuple_new_type!{struct Proportion, macro_rules! proportion _proportion}
+
+use core::ops::Mul;
+
+impl Mul<W> for Proportion {
+    type Output = W;
+
+    fn mul(self, rhs: W) -> Self::Output {
+        let p: f32 = self.into();
+        let w: f32 = rhs.into();
+
+        w!(p * w)
+    }
+}
+
+impl Mul<Proportion> for W {
+    type Output = Self;
+
+    fn mul(self, rhs: Proportion) -> Self::Output {
+        let w: f32 = self.into();
+        let p: f32 = rhs.into();
+
+        w!(w * p)
+    }
+}
+
+impl Mul<H> for Proportion {
+    type Output = H;
+
+    fn mul(self, rhs: H) -> Self::Output {
+        let p: f32 = self.into();
+        let h: f32 = rhs.into();
+
+        h!(p * h)
+    }
+}
+
+impl Mul<Proportion> for H {
+    type Output = Self;
+
+    fn mul(self, rhs: Proportion) -> Self::Output {
+        let h: f32 = self.into();
+        let p: f32 = rhs.into();
+
+        h!(h * p)
+    }
+}
 
 /// Only works with literals or other expressions that are allowed in `const`s.
 #[macro_export]
-macro_rules! const_assert_valid {
+macro_rules! const_assert_valid_unit {
     ($float: literal) => {
-        $crate::const_assert_valid!({$float})
+        const_assert_valid_unit!({$float})
     };
     ($float: expr) => {
         #[allow(unknown_lints, eq_op)]
@@ -79,7 +129,7 @@ impl From<F32> for f32 {
 /// Only works with literals or other expressions that are allowed in `const`s.
 macro_rules! F32 {
     ($float: expr) => {{
-        const_assert_valid!($float);
+        const_assert_valid_unit!($float);
 
         F32::new_unchecked($float)
     }};

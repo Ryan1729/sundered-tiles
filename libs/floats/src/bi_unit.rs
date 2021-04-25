@@ -7,7 +7,7 @@
 pub use f32_is;
 
 macro_rules! tuple_new_type {
-    (struct $struct_name: ident, macro_rules! $macro_name: ident) => {
+    (struct $struct_name: ident, macro_rules! $macro_name: ident $_macro_name: ident) => {
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $struct_name(F32);
     
@@ -21,12 +21,12 @@ macro_rules! tuple_new_type {
         /// `const`s try `$macro_name!(const expression)` instead of 
         /// `$macro_name!(expression)`.
         #[macro_export]
-        macro_rules! $macro_name {
+        macro_rules! $_macro_name {
             ($float: literal) => {{
                 $macro_name!(const $float)
             }};
             (const $float: expr) => {{
-                $crate::const_assert_valid!($float);
+                $crate::const_assert_valid_bi_unit!($float);
 
                 $crate::$struct_name::new_unchecked($float)
             }};
@@ -34,6 +34,10 @@ macro_rules! tuple_new_type {
                 $crate::$struct_name::new_saturating($float)
             };
         }
+
+        /// Re-export the macro so it also lives in this module, as well as at the
+        /// root of this crate.
+        pub use $_macro_name as $macro_name;
 
         impl $struct_name {
             pub fn new_saturating(f: f32) -> Self {
@@ -45,7 +49,7 @@ macro_rules! tuple_new_type {
             /// even though float operations are not allowed in const fn, on 
             /// stable, as of this writing.
             /// Use outside of that macro is heavily discouraged.
-            pub fn new_unchecked(f: f32) -> Self {
+            pub const fn new_unchecked(f: f32) -> Self {
                 Self(F32::new_unchecked(f))
             }
         }
@@ -72,14 +76,14 @@ macro_rules! tuple_new_type {
     }
 }
 
-tuple_new_type!{struct X, macro_rules! x}
-tuple_new_type!{struct Y, macro_rules! y}
+tuple_new_type!{struct X, macro_rules! x _x}
+tuple_new_type!{struct Y, macro_rules! y _y}
 
 /// Only works with literals or other expressions that are allowed in `const`s.
 #[macro_export]
-macro_rules! const_assert_valid {
+macro_rules! const_assert_valid_bi_unit {
     ($float: literal) => {
-        $crate::const_assert_valid!({$float})
+        const_assert_valid_bi_unit!({$float})
     };
     ($float: expr) => {
         #[allow(unknown_lints, eq_op)]
@@ -125,7 +129,7 @@ impl core::cmp::PartialOrd for F32 {
 /// Only works with literals or other expressions that are allowed in `const`s.
 macro_rules! F32 {
     ($float: expr) => {{
-        const_assert_valid!($float);
+        const_assert_valid_bi_unit!($float);
 
         F32::new_unchecked($float)
     }};

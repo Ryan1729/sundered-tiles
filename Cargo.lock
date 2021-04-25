@@ -22,13 +22,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
-name = "bi_unit"
-version = "0.1.0"
-dependencies = [
- "f32_is",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,11 +144,17 @@ name = "f32_is"
 version = "0.1.0"
 
 [[package]]
+name = "floats"
+version = "0.1.0"
+dependencies = [
+ "f32_is",
+]
+
+[[package]]
 name = "game"
 version = "0.1.0"
 dependencies = [
- "bi_unit",
- "unit",
+ "floats",
 ]
 
 [[package]]
@@ -578,11 +577,4 @@ dependencies = [
  "byteorder",
  "lzw",
  "miniz_oxide",
-]
-
-[[package]]
-name = "unit"
-version = "0.1.0"
-dependencies = [
- "f32_is",
 ]

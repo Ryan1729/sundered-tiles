@@ -8,5 +8,4 @@ edition = "2018"
 path = "./src/game.rs"
 
 [dependencies]
-bi_unit = { path = "../bi_unit" }
-unit = { path = "../unit" }
+floats = { path = "../floats" }

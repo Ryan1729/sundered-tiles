@@ -26,9 +26,13 @@ pub struct SpriteSpec {
     y: Y,
 }
 
-pub use bi_unit::{X, Y, x, y};
+use floats;
 
-pub use unit::{W, H, w, h};
+pub use floats::{const_assert_valid_bi_unit, const_assert_valid_unit};
+
+pub use floats::bi_unit::{self, X, Y, x, y};
+
+pub use floats::unit::{self, W, H, w, h, proportion, Proportion};
 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Point {
@@ -37,16 +41,16 @@ pub struct Point {
 }
 
 impl Point {
-    const fn minimum(a: Self, b: Self) -> Self {
-        if a.x < b.x && a.x < b.y {
+    fn minimum(a: Self, b: Self) -> Self {
+        if a.x < b.x && a.y < b.y {
             a
         } else {
             b
         }
     }
 
-    const fn maximum(a: Self, b: Self) -> Self {
-        if a.x > b.x && a.x > b.y {
+    fn maximum(a: Self, b: Self) -> Self {
+        if a.x > b.x && a.y > b.y {
             a
         } else {
             b
@@ -84,8 +88,8 @@ impl Rect {
 
     pub const fn wh(&self) -> (W, H) {
         (
-            unit::w!(f32::from(self.max.x) - f32::from(self.min.x)),
-            unit::h!(f32::from(self.max.y) - f32::from(self.min.y)),
+            w!(f32::from(self.max.x) - f32::from(self.min.x)),
+            h!(f32::from(self.max.y) - f32::from(self.min.y)),
         )
     }
 }
@@ -98,10 +102,10 @@ macro_rules! rect_xyxy {
         $max_y: literal $(,)?
     ) => {
         Rect::new_xyxy(
-            bi_unit::x!($min_x),
-            bi_unit::y!($min_y),
-            bi_unit::x!($max_x),
-            bi_unit::y!($max_y),
+            x!($min_x),
+            y!($min_y),
+            x!($max_x),
+            y!($max_y),
         )
     }
 }
@@ -274,6 +278,9 @@ use checked::{AddOne, SubOne};
 
 mod tile {
     use crate::{
+        proportion,
+        Proportion,
+        unit,
         checked::{
             AddOne,
             SubOne,
@@ -434,7 +441,7 @@ mod tile {
 
     impl Coord {
         fn proportion(&self) -> unit::Proportion {
-            (u8::from(*self) as f32) / (Self::COUNT as f32)
+            proportion!((u8::from(*self) as f32) / (Self::COUNT as f32))
         }
     }
 }
