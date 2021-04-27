@@ -21,16 +21,16 @@ pub enum Command {
 }
 
 pub struct SpriteSpec {
-    sprite: SpriteKind,
-    x: X,
-    y: Y,
+    pub sprite: SpriteKind,
+    pub x: X,
+    pub y: Y,
 }
 
 use floats;
 
-pub use floats::{const_assert_valid_bi_unit, const_assert_valid_unit};
+pub use floats::{f32_is, const_assert_valid_bi_unit, const_assert_valid_unit};
 
-pub use floats::bi_unit::{self, X, Y, x, y};
+pub use floats::bi_unit::{self, X, Y, x, y, x_lt, x_gt};
 
 pub use floats::unit::{self, W, H, w, h, proportion, Proportion};
 
@@ -40,21 +40,37 @@ pub struct Point {
     pub y: Y,
 }
 
+macro_rules! point_minimum {
+    ($point_a: expr, $point_b: expr) => {{
+        let p_a: Point = $point_a;
+        let p_b: Point = $point_b;
+        if x_lt!(p_a.x, p_b.x) && x_lt!(p_a.x, p_b.x) {
+            p_a
+        } else {
+            p_b
+        }
+    }}
+}
+
+macro_rules! point_maximum {
+    ($point_a: expr, $point_b: expr) => {{
+        let p_a: Point = $point_a;
+        let p_b: Point = $point_b;
+        if x_gt!(p_a.x, p_b.x) && x_gt!(p_a.x, p_b.x) {
+            p_a
+        } else {
+            p_b
+        }
+    }}
+}
+
 impl Point {
     fn minimum(a: Self, b: Self) -> Self {
-        if a.x < b.x && a.y < b.y {
-            a
-        } else {
-            b
-        }
+        point_minimum!(a, b)
     }
 
     fn maximum(a: Self, b: Self) -> Self {
-        if a.x > b.x && a.y > b.y {
-            a
-        } else {
-            b
-        }
+        point_maximum!(a, b)
     }
 }
 
@@ -67,11 +83,11 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub const fn new_xyxy(x1: X, y1: Y, x2: X, y2: Y) -> Self {
+    pub fn new_xyxy(x1: X, y1: Y, x2: X, y2: Y) -> Self {
         Self::new(Point{x: x1, y: y1}, Point{x: x2, y: y2})
     }
 
-    pub const fn new(a: Point, b: Point) -> Self {
+    pub fn new(a: Point, b: Point) -> Self {
         Self {
             min: Point::minimum(a, b),
             max: Point::maximum(a, b),
@@ -86,7 +102,7 @@ impl Rect {
         self.max
     }
 
-    pub const fn wh(&self) -> (W, H) {
+    pub fn wh(&self) -> (W, H) {
         (
             w!(f32::from(self.max.x) - f32::from(self.min.x)),
             h!(f32::from(self.max.y) - f32::from(self.min.y)),
@@ -100,14 +116,14 @@ macro_rules! rect_xyxy {
         $min_y: literal,
         $max_x: literal,
         $max_y: literal $(,)?
-    ) => {
-        Rect::new_xyxy(
-            x!($min_x),
-            y!($min_y),
-            x!($max_x),
-            y!($max_y),
-        )
-    }
+    ) => {{
+        let a = Point{x: x!($min_x), y: y!($min_y)};
+        let b = Point{x: x!($max_x), y: y!($max_y)};
+        Rect {
+            min: point_minimum!(a, b),
+            max: point_maximum!(a, b),
+        }
+    }}
 }
 
 #[test]
@@ -177,6 +193,7 @@ const TILES_RECT: Rect = rect_xyxy!(
     0.5,
 );
 
+#[derive(Clone, Copy)]
 pub enum SpriteKind {
     Blank,
     Red,
@@ -196,7 +213,7 @@ enum UIPos {
 }
 
 impl UIPos {
-    const fn xy(&self) -> (X, Y) {
+    fn xy(&self) -> (X, Y) {
         use UIPos::*;
 
         match self {

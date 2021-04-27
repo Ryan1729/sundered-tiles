@@ -126,6 +126,28 @@ impl From<F32> for f32 {
     }
 }
 
+impl core::cmp::PartialEq for F32 {
+    fn eq(&self, other: &Self) -> bool {
+        // We rely on the fact that an `F32` should not contain a NaN.
+        self.0.eq(&other.0)
+    }
+}
+
+impl core::cmp::Eq for F32 {}
+
+impl core::cmp::Ord for F32 {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        // We rely on the fact that an `F32` should not contain a NaN.
+        self.0.partial_cmp(&other.0).expect("comparing F32 failed!")
+    }
+}
+
+impl core::cmp::PartialOrd for F32 {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 /// Only works with literals or other expressions that are allowed in `const`s.
 macro_rules! F32 {
     ($float: expr) => {{

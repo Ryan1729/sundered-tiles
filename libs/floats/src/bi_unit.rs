@@ -7,7 +7,16 @@
 pub use f32_is;
 
 macro_rules! tuple_new_type {
-    (struct $struct_name: ident, macro_rules! $macro_name: ident $_macro_name: ident) => {
+    (
+        struct $struct_name: ident,
+        macro_rules! 
+        $macro_name: ident 
+        $_macro_name: ident
+        $lt_macro_name: ident
+        $_lt_macro_name: ident
+        $gt_macro_name: ident
+        $_gt_macro_name: ident
+    ) => {
         #[derive(Clone, Copy, Debug, Default)]
         pub struct $struct_name(F32);
     
@@ -52,6 +61,10 @@ macro_rules! tuple_new_type {
             pub const fn new_unchecked(f: f32) -> Self {
                 Self(F32::new_unchecked(f))
             }
+
+            pub const fn to_f32(self) -> f32 {
+                self.0.0
+            }
         }
 
         impl core::cmp::PartialEq for $struct_name {
@@ -73,11 +86,35 @@ macro_rules! tuple_new_type {
                 Some(self.cmp(other))
             }
         }
+
+        #[macro_export]
+        macro_rules! $_lt_macro_name {
+            ($x_a: expr, $x_b: expr) => {{
+                f32_is::lt!(
+                    $crate::$struct_name::to_f32($x_a), 
+                    $crate::$struct_name::to_f32($x_b)
+                )
+            }}
+        }
+
+        pub use $_lt_macro_name as $lt_macro_name;
+
+        #[macro_export]
+        macro_rules! $_gt_macro_name {
+            ($x_a: expr, $x_b: expr) => {{
+                f32_is::gt!(
+                    $crate::$struct_name::to_f32($x_a), 
+                    $crate::$struct_name::to_f32($x_b)
+                )
+            }}
+        }
+
+        pub use $_gt_macro_name as $gt_macro_name;
     }
 }
 
-tuple_new_type!{struct X, macro_rules! x _x}
-tuple_new_type!{struct Y, macro_rules! y _y}
+tuple_new_type!{struct X, macro_rules! x _x x_lt _x_lt x_gt _x_gt}
+tuple_new_type!{struct Y, macro_rules! y _y y_lt _y_lt y_gt _y_gt}
 
 /// Only works with literals or other expressions that are allowed in `const`s.
 #[macro_export]
@@ -149,11 +186,15 @@ impl F32 {
     pub fn new_saturating(f: f32) -> Self {
         Self(
             // This is known incorrect, to test the tests.
-            if f32_is::pos_normal_and_one_or_below!(f) {
+            if f32_is::pos_normal_and_one_or_below!(f)
+            || f32_is::neg_normal_and_above_negative_one!(f) {
                 f
-            } else if f32_is::neg_normal_and_above_negative_one!(f) {
-                f
+            } else if f < -1.0 {
+                -1.0
+            } else if f > 1.0 {
+                1.0
             } else {
+                // NaN ends up here
                 0.0
             }
         )
@@ -183,4 +224,16 @@ fn new_saturating_saturates_properly_on_these_edge_cases() {
     assert_eq!(F32::new_saturating(1.0), F32::MAX);
     assert_eq!(F32::new_saturating(2.0), F32::MAX);
     assert_eq!(F32::new_saturating(f32::INFINITY), F32::MAX);
+}
+
+#[test]
+fn x_lt_is_usable_in_const() {
+    const A: bool = x_lt!(x!(0.25), x!(0.75));
+    assert!(A);
+}
+
+#[test]
+fn x_gt_is_usable_in_const() {
+    const A: bool = x_gt!(x!(0.75), x!(0.25));
+    assert!(A);
 }

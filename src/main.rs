@@ -1,32 +1,38 @@
+#![deny(unused)]
+
 use core::{
     convert::TryInto,
-    error::Error,
 };
 
+extern crate alloc;
 use alloc::vec::Vec;
 
-impl <A> game::ClearableStorage<A> for Vec<A> {
+struct Storage<A>(Vec<A>);
+
+impl <A> game::ClearableStorage<A> for Storage<A> {
     fn clear(&mut self) {
-        self.clear(a);
+        self.0.clear();
     }
 
     fn push(&mut self, a: A) {
-        self.push(a);
+        self.0.push(a);
     }
 }
 
 use macroquad::{
+    Rect,
     Image,
     DrawTextureParams,
     KeyCode,
     Texture2D,
     clear_background,
-    draw_texture,
+    draw_texture_ex,
     load_texture_from_image,
     next_frame,
     screen_height,
     screen_width,
     is_key_pressed,
+    Vec2,
     BLACK,
     WHITE,
 };
@@ -34,31 +40,38 @@ use macroquad::{
 const SPRITESHEET_BYTES: &[u8] = include_bytes!("../assets/spritesheet.png");
 
 use image::{
-    ImageFormat
+    ImageFormat,
+    ImageError,
 };
 
-type Res<A> = Result<A, Box<dyn Error>>;
+use game::SpriteKind;
 
-fn load_spritesheet() -> Res<Texture2D> {
+#[derive(Debug)]
+enum E {
+    ImageError(ImageError),
+    TryFromIntError(core::num::TryFromIntError),
+}
+
+fn load_spritesheet() -> Result<Texture2D, E> {
     let rbga = image::load_from_memory_with_format(
         SPRITESHEET_BYTES,
         ImageFormat::Png
-    )?.into_rgba();
+    ).map_err(E::ImageError)?.into_rgba();
 
     let (width, height) = rbga.dimensions();
 
     let img = Image {
         bytes: rbga.into_raw(),
-        width: width.try_into()?,
-        height: height.try_into()?,
+        width: width.try_into().map_err(E::TryFromIntError)?,
+        height: height.try_into().map_err(E::TryFromIntError)?,
     };
 
     Ok(load_texture_from_image(&img))
 }
 
 // TODO: make these a function of the screen size later?
-const PIXELS_PER_TILE: f32 = 16.0;
-const TILES_PER_PIXEL: f32 = 1.0 / PIXELS_PER_TILE;
+const SCREEN_PIXELS_PER_TILE: f32 = 16.0;
+const TILES_PER_SCREEN_PIXEL: f32 = 1.0 / SCREEN_PIXELS_PER_TILE;
 const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
 
 
@@ -68,7 +81,7 @@ async fn main() {
         .expect("Embedded spritesheet could not be loaded!");
 
     let mut state = game::State::default();
-    let mut commands = Vec::with_cacpacity(1024);
+    let mut commands = Storage(Vec::with_capacity(1024));
 
     loop {
         let input;
@@ -91,7 +104,7 @@ async fn main() {
         }
 
         if let Some(input) = input {
-            game::update_and_render(&mut state, &mut commands, input);
+            game::update(&mut state, &mut commands, input);
         }
 
         clear_background(BLACK);
@@ -104,12 +117,13 @@ async fn main() {
         );
 
         let tile_base_source_rect = Rect {
-            w: SPRITE_PIXELS_PER_TILE,
-            h: SPRITE_PIXELS_PER_TILE,
-            ..<_>::default()
+            x: 0.,
+            y: 0.,
+            w: SPRITE_PIXELS_PER_TILE_SIDE,
+            h: SPRITE_PIXELS_PER_TILE_SIDE,
         };
 
-        for cmd in commands.iter() {
+        for cmd in commands.0.iter() {
             use game::Command::*;
             match cmd {
                 Sprite(s) => {
@@ -130,8 +144,8 @@ async fn main() {
                             source: Some(Rect {
                                 x: source_x,
                                 y: source_y,
-                                ..<_>::default()
-                            })
+                                ..tile_base_source_rect
+                            }),
                             ..<_>::default()
                         }
                     );
