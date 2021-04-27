@@ -83,6 +83,9 @@ async fn main() {
     let mut state = game::State::default();
     let mut commands = Storage(Vec::with_capacity(1024));
 
+    // generate the commands for the first frame
+    game::update(&mut state, &mut commands, game::Input::NoChange);
+
     loop {
         let input;
         {

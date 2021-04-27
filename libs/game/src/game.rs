@@ -7,25 +7,6 @@ pub trait ClearableStorage<A> {
     fn push(&mut self, a: A);
 }
 
-#[derive(Clone, Copy)]
-pub enum Input {
-    Up,
-    Down,
-    Left,
-    Right,
-    Interact,
-}
-
-pub enum Command {
-    Sprite(SpriteSpec),
-}
-
-pub struct SpriteSpec {
-    pub sprite: SpriteKind,
-    pub x: X,
-    pub y: Y,
-}
-
 use floats;
 
 pub use floats::{f32_is, const_assert_valid_bi_unit, const_assert_valid_unit};
@@ -202,11 +183,6 @@ pub enum SpriteKind {
     Selectrum,
 }
 
-#[derive(Debug, Default)]
-pub struct State {
-    ui_pos: UIPos,
-}
-
 #[derive(Clone, Copy, Debug)]
 enum UIPos {
     Tile(tile::X, tile::Y),
@@ -234,52 +210,6 @@ impl Default for UIPos {
     fn default() -> Self {
         Self::Tile(<_>::default(), <_>::default())
     }
-}
-
-pub fn update(
-    state: &mut State,
-    commands: &mut dyn ClearableStorage<Command>,
-    input: Input
-) {
-    use Input::*;
-    use UIPos::*;
-    use Command::*;
-
-    commands.clear();
-
-    match (input, &mut state.ui_pos) {
-        (Up, Tile(_, ref mut y)) => {
-            if let Some(new_y) = y.checked_sub_one() {
-                *y = new_y;
-            }
-        },
-        (Down, Tile(_, ref mut y)) => {
-            if let Some(new_y) = y.checked_add_one() {
-                *y = new_y;
-            }
-        },
-        (Left, Tile(ref mut x, _)) => {
-            if let Some(new_x) = x.checked_sub_one() {
-                *x = new_x;
-            }
-        },
-        (Right, Tile(ref mut x, _)) => {
-            if let Some(new_x) = x.checked_add_one() {
-                *x = new_x;
-            }
-        },
-        (Interact, _) => {
-            
-        },
-    }
-    
-    let (x, y) = state.ui_pos.xy();
-
-    commands.push(Sprite(SpriteSpec{
-        sprite: SpriteKind::Selectrum,
-        x,
-        y,
-    }));
 }
 
 mod checked {
@@ -461,4 +391,76 @@ mod tile {
             proportion!((u8::from(*self) as f32) / (Self::COUNT as f32))
         }
     }
+}
+
+#[derive(Clone, Copy)]
+pub enum Input {
+    NoChange,
+    Up,
+    Down,
+    Left,
+    Right,
+    Interact,
+}
+
+#[derive(Debug, Default)]
+pub struct State {
+    ui_pos: UIPos,
+}
+
+pub enum Command {
+    Sprite(SpriteSpec),
+}
+
+pub struct SpriteSpec {
+    pub sprite: SpriteKind,
+    pub x: X,
+    pub y: Y,
+}
+
+pub fn update(
+    state: &mut State,
+    commands: &mut dyn ClearableStorage<Command>,
+    input: Input
+) {
+    use Input::*;
+    use UIPos::*;
+    use Command::*;
+
+    commands.clear();
+
+    match (input, &mut state.ui_pos) {
+        (NoChange, _) => {},
+        (Up, Tile(_, ref mut y)) => {
+            if let Some(new_y) = y.checked_sub_one() {
+                *y = new_y;
+            }
+        },
+        (Down, Tile(_, ref mut y)) => {
+            if let Some(new_y) = y.checked_add_one() {
+                *y = new_y;
+            }
+        },
+        (Left, Tile(ref mut x, _)) => {
+            if let Some(new_x) = x.checked_sub_one() {
+                *x = new_x;
+            }
+        },
+        (Right, Tile(ref mut x, _)) => {
+            if let Some(new_x) = x.checked_add_one() {
+                *x = new_x;
+            }
+        },
+        (Interact, _) => {
+
+        },
+    }
+
+    let (x, y) = state.ui_pos.xy();
+
+    commands.push(Sprite(SpriteSpec{
+        sprite: SpriteKind::Selectrum,
+        x,
+        y,
+    }));
 }
