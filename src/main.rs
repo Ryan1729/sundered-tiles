@@ -131,8 +131,8 @@ async fn main() {
             match cmd {
                 Sprite(s) => {
                     let (x, y) = (
-                        s_width * (f32::from(s.x) + 1.0) / 2.0,
-                        s_height * (f32::from(s.y) + 1.0) / 2.0,
+                        s_width * (f32::from(s.xy.x) + 1.0) / 2.0,
+                        s_height * (f32::from(s.xy.y) + 1.0) / 2.0,
                     );
 
                     let (source_x, source_y) = source_coords(s.sprite);

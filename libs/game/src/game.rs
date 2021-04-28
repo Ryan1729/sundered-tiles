@@ -16,42 +16,42 @@ pub use floats::bi_unit::{self, X, Y, x, y, x_lt, x_gt};
 pub use floats::unit::{self, W, H, w, h, proportion, Proportion};
 
 #[derive(Clone, Copy, Debug, Default)]
-pub struct Point {
+pub struct XY {
     pub x: X,
     pub y: Y,
 }
 
-macro_rules! point_minimum {
-    ($point_a: expr, $point_b: expr) => {{
-        let p_a: Point = $point_a;
-        let p_b: Point = $point_b;
-        if x_lt!(p_a.x, p_b.x) && x_lt!(p_a.x, p_b.x) {
-            p_a
+macro_rules! xy_minimum {
+    ($xy_a: expr, $xy_b: expr) => {{
+        let a: XY = $xy_a;
+        let b: XY = $xy_b;
+        if x_lt!(a.x, b.x) && x_lt!(a.x, b.x) {
+            a
         } else {
-            p_b
+            b
         }
     }}
 }
 
-macro_rules! point_maximum {
-    ($point_a: expr, $point_b: expr) => {{
-        let p_a: Point = $point_a;
-        let p_b: Point = $point_b;
-        if x_gt!(p_a.x, p_b.x) && x_gt!(p_a.x, p_b.x) {
-            p_a
+macro_rules! xy_maximum {
+    ($xy_a: expr, $xy_b: expr) => {{
+        let a: XY = $xy_a;
+        let b: XY = $xy_b;
+        if x_gt!(a.x, b.x) && x_gt!(a.x, b.x) {
+            a
         } else {
-            p_b
+            b
         }
     }}
 }
 
-impl Point {
+impl XY {
     fn minimum(a: Self, b: Self) -> Self {
-        point_minimum!(a, b)
+        xy_minimum!(a, b)
     }
 
     fn maximum(a: Self, b: Self) -> Self {
-        point_maximum!(a, b)
+        xy_maximum!(a, b)
     }
 }
 
@@ -59,27 +59,27 @@ impl Point {
 /// clamping the rectangle within a rectangular area, than say an x,y,w,h version.
 /// The fields aren't public so we can maintain the min/max relationship internally.
 pub struct Rect {
-    min: Point,
-    max: Point,
+    min: XY,
+    max: XY,
 }
 
 impl Rect {
     pub fn new_xyxy(x1: X, y1: Y, x2: X, y2: Y) -> Self {
-        Self::new(Point{x: x1, y: y1}, Point{x: x2, y: y2})
+        Self::new(XY{x: x1, y: y1}, XY{x: x2, y: y2})
     }
 
-    pub fn new(a: Point, b: Point) -> Self {
+    pub fn new(a: XY, b: XY) -> Self {
         Self {
-            min: Point::minimum(a, b),
-            max: Point::maximum(a, b),
+            min: XY::minimum(a, b),
+            max: XY::maximum(a, b),
         }
     }
 
-    pub const fn min(&self) -> Point {
+    pub const fn min(&self) -> XY {
         self.min
     }
 
-    pub const fn max(&self) -> Point {
+    pub const fn max(&self) -> XY {
         self.max
     }
 
@@ -98,11 +98,11 @@ macro_rules! rect_xyxy {
         $max_x: literal,
         $max_y: literal $(,)?
     ) => {{
-        let a = Point{x: x!($min_x), y: y!($min_y)};
-        let b = Point{x: x!($max_x), y: y!($max_y)};
+        let a = XY{x: x!($min_x), y: y!($min_y)};
+        let b = XY{x: x!($max_x), y: y!($max_y)};
         Rect {
-            min: point_minimum!(a, b),
-            max: point_maximum!(a, b),
+            min: xy_minimum!(a, b),
+            max: xy_maximum!(a, b),
         }
     }}
 }
@@ -142,7 +142,7 @@ fn wh_gives_expected_results_on_these_rects() {
 }
 
 #[test]
-fn this_same_distance_from_0_point_case_produces_a_positive_wh_rect() {
+fn this_same_distance_from_0_xy_case_produces_a_positive_wh_rect() {
     let (w, h) = rect_xyxy!(
         0.25,
         0.5,
@@ -155,7 +155,7 @@ fn this_same_distance_from_0_point_case_produces_a_positive_wh_rect() {
 }
 
 #[test]
-fn this_same_distance_from_0_point_case_produces_the_expected_normalized_rect() {
+fn this_same_distance_from_0_xy_case_produces_the_expected_normalized_rect() {
     let r = rect_xyxy!(
         0.25,
         0.5,
@@ -163,8 +163,8 @@ fn this_same_distance_from_0_point_case_produces_the_expected_normalized_rect() 
         0.25,
     );
 
-    assert_eq!(r.min, Point{ x: bi_unit::x!(0.25), y: bi_unit::y!(0.25) });
-    assert_eq!(r.max, Point{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
+    assert_eq!(r.min, XY{ x: bi_unit::x!(0.25), y: bi_unit::y!(0.25) });
+    assert_eq!(r.max, XY{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
 }
 
 const TILES_RECT: Rect = rect_xyxy!(
@@ -174,41 +174,37 @@ const TILES_RECT: Rect = rect_xyxy!(
     0.5,
 );
 
-#[derive(Clone, Copy)]
-pub enum SpriteKind {
-    Blank,
-    Red,
-    Green,
-    Blue,
-    Selectrum,
+fn tile_xy_to_bi_unit(txy: tile::XY) -> XY {
+    let (w, h) = TILES_RECT.wh();
+    let min = TILES_RECT.min();
+
+    XY {
+        x: min.x + w * txy.x.proportion(),
+        y: min.y + h * txy.y.proportion(),
+    }
 }
+
 
 #[derive(Clone, Copy, Debug)]
-enum UIPos {
-    Tile(tile::X, tile::Y),
+enum UiPos {
+    Tile(tile::XY),
 }
 
-impl UIPos {
-    fn xy(&self) -> (X, Y) {
-        use UIPos::*;
+impl UiPos {
+    fn xy(&self) -> XY {
+        use UiPos::*;
 
         match self {
-            Tile(ref tx, ref ty) => {
-                let (w, h) = TILES_RECT.wh();
-                let min = TILES_RECT.min();
-
-                (
-                    min.x + w * tx.proportion(),
-                    min.y + h * ty.proportion(),
-                )
+            Tile(txy) => {
+                tile_xy_to_bi_unit(*txy)
             }
         }
     }
 }
 
-impl Default for UIPos {
+impl Default for UiPos {
     fn default() -> Self {
-        Self::Tile(<_>::default(), <_>::default())
+        Self::Tile(<_>::default())
     }
 }
 
@@ -264,6 +260,42 @@ mod tile {
     tuple_new_type!{X}
     tuple_new_type!{Y}
 
+    #[derive(Copy, Clone, Default, Debug)]
+    pub struct XY {
+        pub x: X,
+        pub y: Y,
+    }
+
+    impl XY {
+        // It would probably be possible to make this a constant with more coord_def
+        // macro-trickery, but I'm not sure whether there would be a benefit to 
+        // doing so, given that then two `Coord::COUNT * Coord::COUNT` arrays would
+        // need to be in the cache at the same time.
+        pub fn all() -> impl Iterator<Item = XY> {
+            Coord::ALL.iter()
+                .flat_map(|&yc|
+                    Coord::ALL.iter()
+                        .map(move |&xc| (Y(yc), X(xc)))
+                )
+                .map(|(y, x)| Self {
+                    x,
+                    y,
+                })
+        }
+    }
+
+    #[test]
+    fn xy_all_looks_right() {
+        let xy_all = XY::all();
+
+        assert!(false, "{:?}", xy_all);
+    }
+
+    pub fn xy_to_i(xy: XY) -> usize {
+        u8::from(xy.y.0) as usize * Coord::COUNT as usize
+        + u8::from(xy.x.0) as usize
+    }
+
     macro_rules! coord_def {
         ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
             #[derive(Clone, Copy, Debug)]
@@ -272,12 +304,12 @@ mod tile {
             /// distance from one tile to another. Since we're using Manhattan 
             /// distance, if we keep the value of any coordinate in the range 
             /// [0, 50), then that preseves the desired property.
-            enum Coord {
+            pub enum Coord {
                 $($variants,)+
             }
 
             impl Coord {
-                const COUNT: u8 = {
+                pub const COUNT: u8 = {
                     let mut count = 0;
                     
                     $(
@@ -290,6 +322,10 @@ mod tile {
 
                     count
                 };
+
+                pub const ALL: [Coord; Self::COUNT as usize] = [
+                    $(Coord::$variants,)+
+                ];
             }
 
             impl From<Coord> for u8 {
@@ -393,7 +429,71 @@ mod tile {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
+pub enum SpriteKind {
+    Blank,
+    Red,
+    Green,
+    Blue,
+    Selectrum,
+}
+
+impl Default for SpriteKind {
+    fn default() -> Self {
+        Self::Blank
+    }
+}
+
+/// A Tile should always be at a particular position, but that position should be 
+/// derivable from the tiles location in the tiles array, so it doesn't need to be
+/// stored. But, we often want to get the tile's data and it's location as a single
+/// thing. This is why we have both `Tile` and `TileData`
+type TileData = SpriteKind;
+
+struct Tile {
+    #[allow(unused)]
+    xy: tile::XY,
+    data: TileData
+}
+
+const TILES_LENGTH: usize = tile::Coord::COUNT as usize * tile::Coord::COUNT as usize;
+
+#[derive(Clone, Debug)]
+pub struct Tiles {
+    tiles: [TileData; TILES_LENGTH],
+}
+
+fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
+    Tile {
+        xy,
+        data: tiles.tiles[tile::xy_to_i(xy)]
+    }
+}
+
+impl Default for Tiles {
+    fn default() -> Self {
+        Self {
+            tiles: [TileData::default(); TILES_LENGTH]
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct State {
+    ui_pos: UiPos,
+    tiles: Tiles
+}
+
+pub enum Command {
+    Sprite(SpriteSpec),
+}
+
+pub struct SpriteSpec {
+    pub sprite: SpriteKind,
+    pub xy: XY,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Input {
     NoChange,
     Up,
@@ -403,64 +503,59 @@ pub enum Input {
     Interact,
 }
 
-#[derive(Debug, Default)]
-pub struct State {
-    ui_pos: UIPos,
-}
-
-pub enum Command {
-    Sprite(SpriteSpec),
-}
-
-pub struct SpriteSpec {
-    pub sprite: SpriteKind,
-    pub x: X,
-    pub y: Y,
-}
-
 pub fn update(
     state: &mut State,
     commands: &mut dyn ClearableStorage<Command>,
     input: Input
 ) {
     use Input::*;
-    use UIPos::*;
+    use UiPos::*;
     use Command::*;
 
     commands.clear();
 
+    let mut interacted = false;
+
     match (input, &mut state.ui_pos) {
         (NoChange, _) => {},
-        (Up, Tile(_, ref mut y)) => {
-            if let Some(new_y) = y.checked_sub_one() {
-                *y = new_y;
+        (Up, Tile(ref mut xy)) => {
+            if let Some(new_y) = xy.y.checked_sub_one() {
+                xy.y = new_y;
             }
         },
-        (Down, Tile(_, ref mut y)) => {
-            if let Some(new_y) = y.checked_add_one() {
-                *y = new_y;
+        (Down, Tile(ref mut xy)) => {
+            if let Some(new_y) = xy.y.checked_add_one() {
+                xy.y = new_y;
             }
         },
-        (Left, Tile(ref mut x, _)) => {
-            if let Some(new_x) = x.checked_sub_one() {
-                *x = new_x;
+        (Left, Tile(ref mut xy)) => {
+            if let Some(new_x) = xy.x.checked_sub_one() {
+                xy.x = new_x;
             }
         },
-        (Right, Tile(ref mut x, _)) => {
-            if let Some(new_x) = x.checked_add_one() {
-                *x = new_x;
+        (Right, Tile(ref mut xy)) => {
+            if let Some(new_x) = xy.x.checked_add_one() {
+                xy.x = new_x;
             }
         },
         (Interact, _) => {
-
+            interacted = true;
         },
     }
 
-    let (x, y) = state.ui_pos.xy();
+    for xy in tile::XY::all() {
+        let tile = get_tile(&state.tiles, xy);
 
-    commands.push(Sprite(SpriteSpec{
-        sprite: SpriteKind::Selectrum,
-        x,
-        y,
-    }));
+        commands.push(Sprite(SpriteSpec{
+            sprite: tile.data,
+            xy: tile_xy_to_bi_unit(xy)
+        }));
+    }
+
+    if !interacted {
+        commands.push(Sprite(SpriteSpec{
+            sprite: SpriteKind::Selectrum,
+            xy: state.ui_pos.xy(),
+        }));
+    }
 }
