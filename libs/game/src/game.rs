@@ -15,6 +15,8 @@ pub use floats::bi_unit::{self, X, Y, x, y, x_lt, x_gt};
 
 pub use floats::unit::{self, W, H, w, h, proportion, Proportion};
 
+pub const COORD_COUNT: tile::Count = tile::Coord::COUNT;
+
 #[derive(Clone, Copy, Debug, Default)]
 pub struct XY {
     pub x: X,
@@ -167,14 +169,60 @@ fn this_same_distance_from_0_xy_case_produces_the_expected_normalized_rect() {
     assert_eq!(r.max, XY{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
 }
 
-const TILES_RECT: Rect = rect_xyxy!(
-    -0.5,
-    -0.5,
-    0.5,
-    0.5,
+pub const TILES_RECT: Rect = rect_xyxy!(
+    -1.0,
+    -1.0,
+    1.0,
+    1.0,
 );
 
-fn tile_xy_to_bi_unit(txy: tile::XY) -> XY {
+type PlayX = f32;
+type PlayY = f32;
+type PlayW = f32;
+type PlayH = f32;
+
+struct PlayXYWH {
+    x: PlayX,
+    y: PlayY,
+    w: PlayW,
+    h: PlayH,
+}
+
+pub type TileSideLength = f32;
+
+struct Sizes {
+    draw_wh: DrawWH,
+    play_xywh: PlayXYWH,
+    tile_side_length: TileSideLength,
+}
+
+const LEFT_UI_WIDTH_TILES: tile::Count = 9;
+const RIGHT_UI_WIDTH_TILES: tile::Count = 9;
+const DRAW_WIDTH_TILES: tile::Count = LEFT_UI_WIDTH + COORD_COUNT + RIGHT_UI_WIDTH;
+
+fn fresh_sizes(wh: DrawWH) -> Sizes {
+    screen_size tile = DrawW::min(
+        wh.w / DRAW_WIDTH_TILES as DrawW,
+        wh.h / COORD_COUNT as DrawH
+    );
+
+    screen_size play_area_w = tile * DRAW_WIDTH_TILES;
+    screen_size play_area_h = tile * COORD_COUNT;
+    screen_size play_area_x = (w - play_area_w) / 2;
+    screen_size play_area_y = (h - play_area_h) / 2;
+
+    struct sizes output = {
+        .play_area_x = play_area_x,
+        .play_area_y = play_area_y,
+        .play_area_w = play_area_w,
+        .play_area_h = play_area_h,
+        .tile = tile,
+    };
+
+    return output;
+}
+
+fn tile_xy_to_draw(txy: tile::XY, draw_wh: DrawWH) -> DrawXY {
     let (w, h) = TILES_RECT.wh();
     let min = TILES_RECT.min();
 
@@ -229,6 +277,9 @@ mod tile {
             SubOne,
         },
     };
+
+    // An amount of tiles, which are usually arranged in a line.
+    pub type Count = u8;
 
     use core::convert::TryInto;
 
@@ -309,7 +360,7 @@ mod tile {
             }
 
             impl Coord {
-                pub const COUNT: u8 = {
+                pub const COUNT: Count = {
                     let mut count = 0;
                     
                     $(
@@ -456,7 +507,7 @@ struct Tile {
     data: TileData
 }
 
-const TILES_LENGTH: usize = tile::Coord::COUNT as usize * tile::Coord::COUNT as usize;
+const TILES_LENGTH: usize = COORD_COUNT as usize * COORD_COUNT as usize;
 
 #[derive(Clone, Debug)]
 pub struct Tiles {
@@ -479,9 +530,34 @@ impl Default for Tiles {
 }
 
 #[derive(Debug, Default)]
-pub struct State {
+struct Board {
     ui_pos: UiPos,
     tiles: Tiles
+}
+
+pub type DrawX = DrawLength;
+pub type DrawY = DrawLength;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DrawXY {
+    pub x: DrawX,
+    pub y: DrawY,
+}
+
+pub type DrawLength = f32;
+pub type DrawW = DrawLength;
+pub type DrawH = DrawLength;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct DrawWH {
+    pub w: DrawW,
+    pub h: DrawH,
+}
+
+#[derive(Debug, Default)]
+pub struct State {
+    draw_wh: DrawWH,
+    board: Board,
 }
 
 pub enum Command {
@@ -490,7 +566,7 @@ pub enum Command {
 
 pub struct SpriteSpec {
     pub sprite: SpriteKind,
-    pub xy: XY,
+    pub xy: DrawXY,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -506,7 +582,8 @@ pub enum Input {
 pub fn update(
     state: &mut State,
     commands: &mut dyn ClearableStorage<Command>,
-    input: Input
+    input: Input,
+    draw_wh: DrawWH,
 ) {
     use Input::*;
     use UiPos::*;
@@ -548,7 +625,7 @@ pub fn update(
 
         commands.push(Sprite(SpriteSpec{
             sprite: tile.data,
-            xy: tile_xy_to_bi_unit(xy)
+            xy: tile_xy_to_draw(xy)
         }));
     }
 

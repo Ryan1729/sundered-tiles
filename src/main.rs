@@ -69,9 +69,6 @@ fn load_spritesheet() -> Result<Texture2D, E> {
     Ok(load_texture_from_image(&img))
 }
 
-// TODO: make these a function of the screen size later?
-const SCREEN_PIXELS_PER_TILE: f32 = 16.0;
-const TILES_PER_SCREEN_PIXEL: f32 = 1.0 / SCREEN_PIXELS_PER_TILE;
 const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
 
 
@@ -114,10 +111,32 @@ async fn main() {
 
         let s_width = screen_width();
         let s_height = screen_height();
-        let tile_dest_size: Vec2 = Vec2::new(
-            TILES_PER_SCREEN_PIXEL * s_width,
-            TILES_PER_SCREEN_PIXEL * s_height,
-        );
+
+        let tile_dest_size: Vec2 = {
+
+            let min_xy = game::TILES_RECT.min();
+            let max_xy = game::TILES_RECT.max();
+
+            let min_x_in_unit_space = (game::X::to_f32(min_xy.x) / 2.) + 0.5;
+            let max_x_in_unit_space = (game::X::to_f32(max_xy.x) / 2.) + 0.5;
+            let min_y_in_unit_space = (game::Y::to_f32(min_xy.y) / 2.) + 0.5;
+            let max_y_in_unit_space = (game::Y::to_f32(max_xy.y) / 2.) + 0.5;
+
+            let tiles_width_in_unit_space = max_x_in_unit_space - min_x_in_unit_space;
+            let tiles_height_in_unit_space = max_y_in_unit_space - min_y_in_unit_space;
+            let tiles_width_in_screen_space = s_width * tiles_width_in_unit_space;
+            let tiles_height_in_screen_space = s_height * tiles_height_in_unit_space;
+
+            let side_length = f32::min(
+                tiles_width_in_screen_space / game::COORD_COUNT as f32,
+                tiles_height_in_screen_space / game::COORD_COUNT as f32
+            );
+
+            Vec2::new(
+                side_length,
+                side_length
+            )
+        };
 
         let tile_base_source_rect = Rect {
             x: 0.,
