@@ -169,6 +169,7 @@ fn this_same_distance_from_0_xy_case_produces_the_expected_normalized_rect() {
     assert_eq!(r.max, XY{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
 }
 
+// TODO is this still going to be needed?
 pub const TILES_RECT: Rect = rect_xyxy!(
     -1.0,
     -1.0,
@@ -176,11 +177,12 @@ pub const TILES_RECT: Rect = rect_xyxy!(
     1.0,
 );
 
-type PlayX = f32;
-type PlayY = f32;
-type PlayW = f32;
-type PlayH = f32;
+type PlayX = DrawLength;
+type PlayY = DrawLength;
+type PlayW = DrawLength;
+type PlayH = DrawLength;
 
+#[derive(Debug, Default)]
 struct PlayXYWH {
     x: PlayX,
     y: PlayY,
@@ -188,47 +190,73 @@ struct PlayXYWH {
     h: PlayH,
 }
 
-pub type TileSideLength = f32;
+type BoardX = DrawLength;
+type BoardY = DrawLength;
+type BoardW = DrawLength;
+type BoardH = DrawLength;
 
+#[derive(Debug, Default)]
+struct BoardXYWH {
+    x: BoardX,
+    y: BoardY,
+    w: BoardW,
+    h: BoardH,
+}
+
+pub type TileSideLength = DrawLength;
+
+#[derive(Debug, Default)]
 struct Sizes {
     draw_wh: DrawWH,
     play_xywh: PlayXYWH,
+    board_xywh: BoardXYWH,
     tile_side_length: TileSideLength,
 }
 
 const LEFT_UI_WIDTH_TILES: tile::Count = 9;
 const RIGHT_UI_WIDTH_TILES: tile::Count = 9;
-const DRAW_WIDTH_TILES: tile::Count = LEFT_UI_WIDTH + COORD_COUNT + RIGHT_UI_WIDTH;
+const DRAW_WIDTH_TILES: tile::Count = LEFT_UI_WIDTH_TILES 
+    + COORD_COUNT 
+    + RIGHT_UI_WIDTH_TILES;
 
 fn fresh_sizes(wh: DrawWH) -> Sizes {
-    screen_size tile = DrawW::min(
+    let tile_side_length = DrawLength::min(
         wh.w / DRAW_WIDTH_TILES as DrawW,
         wh.h / COORD_COUNT as DrawH
     );
 
-    screen_size play_area_w = tile * DRAW_WIDTH_TILES;
-    screen_size play_area_h = tile * COORD_COUNT;
-    screen_size play_area_x = (w - play_area_w) / 2;
-    screen_size play_area_y = (h - play_area_h) / 2;
+    let play_area_w = tile_side_length * DRAW_WIDTH_TILES as PlayW;
+    let play_area_h = tile_side_length * COORD_COUNT as PlayH;
+    let play_area_x = (wh.w - play_area_w) / 2.;
+    let play_area_y = (wh.h - play_area_h) / 2.;
 
-    struct sizes output = {
-        .play_area_x = play_area_x,
-        .play_area_y = play_area_y,
-        .play_area_w = play_area_w,
-        .play_area_h = play_area_h,
-        .tile = tile,
-    };
+    let board_area_w = tile_side_length * COORD_COUNT as BoardW;
+    let board_area_h = tile_side_length * COORD_COUNT as BoardH;
+    let board_area_x = play_area_x + (play_area_w - board_area_w) / 2.;
+    let board_area_y = play_area_y + (play_area_h - board_area_h) / 2.;
 
-    return output;
+    Sizes {
+        draw_wh: wh,
+        play_xywh: PlayXYWH {
+            x: play_area_x,
+            y: play_area_y,
+            w: play_area_w,
+            h: play_area_h,
+        },
+        board_xywh: BoardXYWH {
+            x: board_area_x,
+            y: board_area_y,
+            w: board_area_w,
+            h: board_area_h,
+        },
+        tile_side_length,
+    }
 }
 
-fn tile_xy_to_draw(txy: tile::XY, draw_wh: DrawWH) -> DrawXY {
-    let (w, h) = TILES_RECT.wh();
-    let min = TILES_RECT.min();
-
-    XY {
-        x: min.x + w * txy.x.proportion(),
-        y: min.y + h * txy.y.proportion(),
+fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
+    DrawXY {
+        x: sizes.board_xywh.x + sizes.board_xywh.w * txy.x.proportion(),
+        y: sizes.board_xywh.y + sizes.board_xywh.h * txy.y.proportion(),
     }
 }
 
@@ -239,12 +267,12 @@ enum UiPos {
 }
 
 impl UiPos {
-    fn xy(&self) -> XY {
+    fn xy(&self, sizes: &Sizes) -> DrawXY {
         use UiPos::*;
 
         match self {
             Tile(txy) => {
-                tile_xy_to_bi_unit(*txy)
+                tile_xy_to_draw(sizes, *txy)
             }
         }
     }
@@ -538,7 +566,7 @@ struct Board {
 pub type DrawX = DrawLength;
 pub type DrawY = DrawLength;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct DrawXY {
     pub x: DrawX,
     pub y: DrawY,
@@ -548,7 +576,7 @@ pub type DrawLength = f32;
 pub type DrawW = DrawLength;
 pub type DrawH = DrawLength;
 
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct DrawWH {
     pub w: DrawW,
     pub h: DrawH,
@@ -556,8 +584,12 @@ pub struct DrawWH {
 
 #[derive(Debug, Default)]
 pub struct State {
-    draw_wh: DrawWH,
+    sizes: Sizes,
     board: Board,
+}
+
+pub fn tile_side_length(state: &State) -> TileSideLength {
+    state.sizes.tile_side_length
 }
 
 pub enum Command {
@@ -589,11 +621,15 @@ pub fn update(
     use UiPos::*;
     use Command::*;
 
+    if draw_wh != state.sizes.draw_wh {
+        state.sizes = fresh_sizes(draw_wh);
+    }
+
     commands.clear();
 
     let mut interacted = false;
 
-    match (input, &mut state.ui_pos) {
+    match (input, &mut state.board.ui_pos) {
         (NoChange, _) => {},
         (Up, Tile(ref mut xy)) => {
             if let Some(new_y) = xy.y.checked_sub_one() {
@@ -621,18 +657,18 @@ pub fn update(
     }
 
     for xy in tile::XY::all() {
-        let tile = get_tile(&state.tiles, xy);
+        let tile = get_tile(&state.board.tiles, xy);
 
         commands.push(Sprite(SpriteSpec{
             sprite: tile.data,
-            xy: tile_xy_to_draw(xy)
+            xy: tile_xy_to_draw(&state.sizes, xy)
         }));
     }
 
     if !interacted {
         commands.push(Sprite(SpriteSpec{
             sprite: SpriteKind::Selectrum,
-            xy: state.ui_pos.xy(),
+            xy: state.board.ui_pos.xy(&state.sizes),
         }));
     }
 }

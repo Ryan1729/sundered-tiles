@@ -102,6 +102,26 @@ impl Mul<Proportion> for H {
     }
 }
 
+impl Mul<f32> for Proportion {
+    type Output = f32;
+
+    fn mul(self, rhs: f32) -> Self::Output {
+        let p: f32 = self.into();
+
+        p * rhs
+    }
+}
+
+impl Mul<Proportion> for f32 {
+    type Output = Self;
+
+    fn mul(self, rhs: Proportion) -> Self::Output {
+        let p: f32 = rhs.into();
+
+        self * p
+    }
+}
+
 /// Only works with literals or other expressions that are allowed in `const`s.
 #[macro_export]
 macro_rules! const_assert_valid_unit {

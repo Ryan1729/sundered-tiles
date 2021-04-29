@@ -71,6 +71,12 @@ fn load_spritesheet() -> Result<Texture2D, E> {
 
 const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
 
+fn draw_wh() -> game::DrawWH {
+    game::DrawWH {
+        w: screen_width(),
+        h: screen_height(),
+    }
+}
 
 #[macroquad::main("Sundered Tiles")]
 async fn main() {
@@ -81,7 +87,7 @@ async fn main() {
     let mut commands = Storage(Vec::with_capacity(1024));
 
     // generate the commands for the first frame
-    game::update(&mut state, &mut commands, game::Input::NoChange);
+    game::update(&mut state, &mut commands, game::Input::NoChange, draw_wh());
 
     loop {
         let input;
@@ -89,48 +95,26 @@ async fn main() {
             use game::Input::*;
 
             input = if is_key_pressed(KeyCode::Space) || is_key_pressed(KeyCode::Enter) {
-                Some(Interact)
+                Interact
             } else if is_key_pressed(KeyCode::Up) || is_key_pressed(KeyCode::W) {
-                Some(Up)
+                Up
             } else if is_key_pressed(KeyCode::Down) || is_key_pressed(KeyCode::S) {
-                Some(Down)
+                Down
             } else if is_key_pressed(KeyCode::Left) || is_key_pressed(KeyCode::A) {
-                Some(Left)
+                Left
             } else if is_key_pressed(KeyCode::Right) || is_key_pressed(KeyCode::D) {
-                Some(Right)
+                Right
             } else {
-                None
+                NoChange
             };
         }
 
-        if let Some(input) = input {
-            game::update(&mut state, &mut commands, input);
-        }
+        game::update(&mut state, &mut commands, input, draw_wh());
 
         clear_background(BLACK);
 
-        let s_width = screen_width();
-        let s_height = screen_height();
-
         let tile_dest_size: Vec2 = {
-
-            let min_xy = game::TILES_RECT.min();
-            let max_xy = game::TILES_RECT.max();
-
-            let min_x_in_unit_space = (game::X::to_f32(min_xy.x) / 2.) + 0.5;
-            let max_x_in_unit_space = (game::X::to_f32(max_xy.x) / 2.) + 0.5;
-            let min_y_in_unit_space = (game::Y::to_f32(min_xy.y) / 2.) + 0.5;
-            let max_y_in_unit_space = (game::Y::to_f32(max_xy.y) / 2.) + 0.5;
-
-            let tiles_width_in_unit_space = max_x_in_unit_space - min_x_in_unit_space;
-            let tiles_height_in_unit_space = max_y_in_unit_space - min_y_in_unit_space;
-            let tiles_width_in_screen_space = s_width * tiles_width_in_unit_space;
-            let tiles_height_in_screen_space = s_height * tiles_height_in_unit_space;
-
-            let side_length = f32::min(
-                tiles_width_in_screen_space / game::COORD_COUNT as f32,
-                tiles_height_in_screen_space / game::COORD_COUNT as f32
-            );
+            let side_length = game::tile_side_length(&state);
 
             Vec2::new(
                 side_length,
@@ -149,17 +133,12 @@ async fn main() {
             use game::Command::*;
             match cmd {
                 Sprite(s) => {
-                    let (x, y) = (
-                        s_width * (f32::from(s.xy.x) + 1.0) / 2.0,
-                        s_height * (f32::from(s.xy.y) + 1.0) / 2.0,
-                    );
-
                     let (source_x, source_y) = source_coords(s.sprite);
 
                     draw_texture_ex(
                         spritesheet_texture,
-                        x,
-                        y,
+                        s.xy.x,
+                        s.xy.y,
                         WHITE,
                         DrawTextureParams {
                             dest_size: Some(tile_dest_size),
