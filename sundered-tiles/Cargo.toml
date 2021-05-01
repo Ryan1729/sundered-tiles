@@ -6,6 +6,15 @@ edition = "2018"
 license = "MIT OR Apache-2.0"
 
 [dependencies]
-macroquad = "0.2.9"
-image = "0.23"
 game = { path = "../game" }
+
+macroquad = { version = "0.2.9", optional = true }
+image = { version = "0.23", optional = true }
+
+raylib = { version = "3.5", optional = true }
+
+
+[features]
+default = []
+platform-macroquad = ["macroquad", "image"]
+platform-raylib-rs = ["raylib"]

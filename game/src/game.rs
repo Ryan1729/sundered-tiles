@@ -182,12 +182,12 @@ type PlayY = DrawLength;
 type PlayW = DrawLength;
 type PlayH = DrawLength;
 
-#[derive(Debug, Default)]
-struct PlayXYWH {
-    x: PlayX,
-    y: PlayY,
-    w: PlayW,
-    h: PlayH,
+#[derive(Clone, Debug, Default)]
+pub struct PlayXYWH {
+    pub x: PlayX,
+    pub y: PlayY,
+    pub w: PlayW,
+    pub h: PlayH,
 }
 
 type BoardX = DrawLength;
@@ -195,22 +195,22 @@ type BoardY = DrawLength;
 type BoardW = DrawLength;
 type BoardH = DrawLength;
 
-#[derive(Debug, Default)]
-struct BoardXYWH {
-    x: BoardX,
-    y: BoardY,
-    w: BoardW,
-    h: BoardH,
+#[derive(Clone, Debug, Default)]
+pub struct BoardXYWH {
+    pub x: BoardX,
+    pub y: BoardY,
+    pub w: BoardW,
+    pub h: BoardH,
 }
 
 pub type TileSideLength = DrawLength;
 
-#[derive(Debug, Default)]
-struct Sizes {
-    draw_wh: DrawWH,
-    play_xywh: PlayXYWH,
-    board_xywh: BoardXYWH,
-    tile_side_length: TileSideLength,
+#[derive(Clone, Debug, Default)]
+pub struct Sizes {
+    pub draw_wh: DrawWH,
+    pub play_xywh: PlayXYWH,
+    pub board_xywh: BoardXYWH,
+    pub tile_side_length: TileSideLength,
 }
 
 const LEFT_UI_WIDTH_TILES: tile::Count = 9;
@@ -576,7 +576,7 @@ pub type DrawLength = f32;
 pub type DrawW = DrawLength;
 pub type DrawH = DrawLength;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct DrawWH {
     pub w: DrawW,
     pub h: DrawH,
@@ -588,8 +588,8 @@ pub struct State {
     board: Board,
 }
 
-pub fn tile_side_length(state: &State) -> TileSideLength {
-    state.sizes.tile_side_length
+pub fn sizes(state: &State) -> Sizes {
+    state.sizes.clone()
 }
 
 pub enum Command {
