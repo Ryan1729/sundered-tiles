@@ -238,20 +238,32 @@ const DRAW_WIDTH_TILES: tile::Count = LEFT_UI_WIDTH_TILES
     + RIGHT_UI_WIDTH_TILES;
 
 fn fresh_sizes(wh: DrawWH) -> Sizes {
-    let tile_side_length = DrawLength::min(
-        wh.w / DRAW_WIDTH_TILES as DrawW,
-        wh.h / COORD_COUNT as DrawH
-    );
+    let w_length_bound = wh.w / DRAW_WIDTH_TILES as DrawW;
+    let h_length_bound = wh.h / COORD_COUNT as DrawH;
 
-    let play_area_w = tile_side_length * DRAW_WIDTH_TILES as PlayW;
-    let play_area_h = tile_side_length * COORD_COUNT as PlayH;
+    let (raw_bound, tile_side_length, board_x_offset, board_y_offset) = {
+        if w_length_bound == h_length_bound {
+            (h_length_bound, h_length_bound.trunc(), h_length_bound.fract() / 2., h_length_bound.fract() / 2.)
+        } else if w_length_bound > h_length_bound {
+            (h_length_bound, h_length_bound.trunc(), 0., h_length_bound.fract() / 2.)
+        } else if w_length_bound < h_length_bound {
+            (w_length_bound, w_length_bound.trunc(), w_length_bound.fract() / 2., 0.)
+        } else {
+            // NaN ends up here
+            // TODO return a Result? Panic? Take only known non-NaN values?
+            (100., 100., 0., 0.)
+        }
+    };
+
+    let play_area_w = raw_bound * DRAW_WIDTH_TILES as PlayW;
+    let play_area_h = raw_bound * COORD_COUNT as PlayH;
     let play_area_x = (wh.w - play_area_w) / 2.;
     let play_area_y = (wh.h - play_area_h) / 2.;
 
     let board_area_w = tile_side_length * COORD_COUNT as BoardW;
     let board_area_h = tile_side_length * COORD_COUNT as BoardH;
-    let board_area_x = play_area_x + (play_area_w - board_area_w) / 2.;
-    let board_area_y = play_area_y + (play_area_h - board_area_h) / 2.;
+    let board_area_x = play_area_x + board_x_offset + (play_area_w - board_area_w) / 2.;
+    let board_area_y = play_area_y + board_y_offset + (play_area_h - board_area_h) / 2.;
 
     Sizes {
         draw_wh: wh,
@@ -271,6 +283,20 @@ fn fresh_sizes(wh: DrawWH) -> Sizes {
     }
 }
 
+#[test]
+fn fresh_sizes_produces_the_expected_tile_size_in_these_symmetric_cases() {
+    assert_eq!(
+        fresh_sizes(DrawWH{w: 1366., h: 768.}).tile_side_length,
+        // AKA the largest integer tile length that will fit
+        750. / COORD_COUNT as DrawLength
+    );
+
+    assert_eq!(
+        fresh_sizes(DrawWH{w: 768., h: 1366.}).tile_side_length,
+        // AKA the largest integer tile length that will fit
+        (11. * DRAW_WIDTH_TILES as DrawLength) / DRAW_WIDTH_TILES as DrawLength 
+    );
+}
 
 fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
     DrawXY {
