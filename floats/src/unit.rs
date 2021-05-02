@@ -49,6 +49,30 @@ macro_rules! tuple_new_type {
                 Self(F32::new_unchecked(f))
             }
         }
+
+        impl core::cmp::PartialEq for $struct_name {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.eq(&other.0)
+            }
+        }
+        
+        impl core::cmp::Eq for $struct_name {}
+        
+        impl core::cmp::Ord for $struct_name {
+            fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+                self.0.partial_cmp(&other.0).expect(concat!(
+                    "comparing ",
+                    stringify!($struct_name),
+                    " failed!"
+                ))
+            }
+        }
+        
+        impl core::cmp::PartialOrd for $struct_name {
+            fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
+        }
     }
 }
 

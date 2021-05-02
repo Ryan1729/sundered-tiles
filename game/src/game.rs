@@ -11,13 +11,13 @@ use floats;
 
 pub use floats::{f32_is, const_assert_valid_bi_unit, const_assert_valid_unit};
 
-pub use floats::bi_unit::{self, X, Y, x, y, x_lt, x_gt};
+pub use floats::bi_unit::{self, X, Y, x, y, x_lt, x_gt, y_lt, y_gt};
 
 pub use floats::unit::{self, W, H, w, h, proportion, Proportion};
 
 pub const COORD_COUNT: tile::Count = tile::Coord::COUNT;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct XY {
     pub x: X,
     pub y: Y,
@@ -27,10 +27,17 @@ macro_rules! xy_minimum {
     ($xy_a: expr, $xy_b: expr) => {{
         let a: XY = $xy_a;
         let b: XY = $xy_b;
-        if x_lt!(a.x, b.x) && x_lt!(a.x, b.x) {
-            a
-        } else {
-            b
+        XY {
+            x: if x_lt!(a.x, b.x) {
+                a.x
+            } else {
+                b.x
+            },
+            y: if y_lt!(a.y, b.y) {
+                a.y
+            } else {
+                b.y
+            },
         }
     }}
 }
@@ -39,10 +46,17 @@ macro_rules! xy_maximum {
     ($xy_a: expr, $xy_b: expr) => {{
         let a: XY = $xy_a;
         let b: XY = $xy_b;
-        if x_gt!(a.x, b.x) && x_gt!(a.x, b.x) {
-            a
-        } else {
-            b
+        XY {
+            x: if x_gt!(a.x, b.x) {
+                a.x
+            } else {
+                b.x
+            },
+            y: if y_gt!(a.y, b.y) {
+                a.y
+            } else {
+                b.y
+            },
         }
     }}
 }
@@ -60,6 +74,7 @@ impl XY {
 /// A min/max Rect. This way of defining a rectangle has nicer behaviour when 
 /// clamping the rectangle within a rectangular area, than say an x,y,w,h version.
 /// The fields aren't public so we can maintain the min/max relationship internally.
+#[derive(Default)]
 pub struct Rect {
     min: XY,
     max: XY,
@@ -94,6 +109,9 @@ impl Rect {
 }
 
 macro_rules! rect_xyxy {
+    () => {{
+        Rect::default()
+    }};
     (
         $min_x: literal,
         $min_y: literal,
@@ -113,7 +131,7 @@ macro_rules! rect_xyxy {
 fn wh_gives_expected_results_on_these_rects() {
     let w0_h0 = rect_xyxy!();
 
-    assert_eq!(w0_h0 .wh(), (unit::w!(1.0), unit::h!(2.0)));
+    assert_eq!(w0_h0 .wh(), (unit::w!(0.0), unit::h!(0.0)));
 
     let w1_h2 = rect_xyxy!(
         -0.5,
@@ -150,10 +168,10 @@ fn this_same_distance_from_0_xy_case_produces_a_positive_wh_rect() {
         0.5,
         0.5,
         0.25,
-    );
+    ).wh();
 
-    assert!(w > unit::w!(0.0));
-    assert!(h > unit::h!(0.0));
+    assert!(w > unit::w!(0.0), "{:?} <= unit::w!(0.0)", w);
+    assert!(h > unit::h!(0.0), "{:?} <= unit::h!(0.0)", h);
 }
 
 #[test]
@@ -252,6 +270,7 @@ fn fresh_sizes(wh: DrawWH) -> Sizes {
         tile_side_length,
     }
 }
+
 
 fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
     DrawXY {
@@ -361,13 +380,6 @@ mod tile {
                     y,
                 })
         }
-    }
-
-    #[test]
-    fn xy_all_looks_right() {
-        let xy_all = XY::all();
-
-        assert!(false, "{:?}", xy_all);
     }
 
     pub fn xy_to_i(xy: XY) -> usize {
