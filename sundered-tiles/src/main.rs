@@ -264,7 +264,23 @@ mod raylib_rs_platform {
             "Embedded spritesheet could not be loaded!"
         );
 
-        let mut state = game::State::default();
+        let seed: u128 = {
+            use std::time::SystemTime;
+    
+            let duration = match 
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+            {
+                Ok(d) => d,
+                Err(err) => err.duration(),
+            };
+    
+            duration.as_nanos()
+        };
+    
+        println!("{}", seed);
+
+        let mut state = game::State::from_seed(seed.to_le_bytes());
         let mut commands = Storage(Vec::with_capacity(1024));
 
         // generate the commands for the first frame

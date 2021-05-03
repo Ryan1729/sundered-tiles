@@ -7,6 +7,70 @@ pub trait ClearableStorage<A> {
     fn push(&mut self, a: A);
 }
 
+pub type Seed = [u8; 16];
+
+type Xs = [core::num::Wrapping<u32>; 4];
+
+fn xorshift(xs: &mut Xs) -> u32 {
+    let mut t = xs[3];
+
+    xs[3] = xs[2];
+    xs[2] = xs[1];
+    xs[1] = xs[0];
+
+    t ^= t << 11;
+    t ^= t >> 8;
+    xs[0] = t ^ xs[0] ^ (xs[0] >> 19);
+
+    xs[0].0
+}
+
+fn xs_u32(xs: &mut Xs, min: u32, one_past_max: u32) -> u32 {
+    (xorshift(xs) % (one_past_max - min)) + min
+}
+
+#[allow(unused)]
+fn new_seed(rng: &mut Xs) -> Seed {
+    let s0 = xorshift(rng).to_le_bytes();
+    let s1 = xorshift(rng).to_le_bytes();
+    let s2 = xorshift(rng).to_le_bytes();
+    let s3 = xorshift(rng).to_le_bytes();
+
+    [
+        s0[0], s0[1], s0[2], s0[3],
+        s1[0], s1[1], s1[2], s1[3],
+        s2[0], s2[1], s2[2], s2[3],
+        s3[0], s3[1], s3[2], s3[3],
+    ]
+}
+
+fn xs_from_seed(mut seed: Seed) -> Xs {
+    // 0 doesn't work as a seed, so use this one instead.
+    if seed == [0; 16] {
+        seed = 0xBAD_5EED_u128.to_le_bytes();
+    }
+
+    macro_rules! wrap {
+        ($i0: literal, $i1: literal, $i2: literal, $i3: literal) => {
+            core::num::Wrapping(
+                u32::from_le_bytes([
+                    seed[$i0],
+                    seed[$i1],
+                    seed[$i2],
+                    seed[$i3],
+                ])
+            )
+        }
+    }
+
+    [
+        wrap!( 0,  1,  2,  3),
+        wrap!( 4,  5,  6,  7),
+        wrap!( 8,  9, 10, 11),
+        wrap!(12, 13, 14, 15),
+    ]
+}
+
 use floats;
 
 pub use floats::{f32_is, const_assert_valid_bi_unit, const_assert_valid_unit};
@@ -565,8 +629,13 @@ impl Default for SpriteKind {
 /// derivable from the tiles location in the tiles array, so it doesn't need to be
 /// stored. But, we often want to get the tile's data and it's location as a single
 /// thing. This is why we have both `Tile` and `TileData`
-type TileData = SpriteKind;
+#[derive(Copy, Clone, Debug, Default)]
+struct TileData {
+    sprite: SpriteKind,
+    jitter: DrawXY,
+}
 
+#[derive(Copy, Clone, Debug, Default)]
 struct Tile {
     #[allow(unused)]
     xy: tile::XY,
@@ -578,6 +647,70 @@ const TILES_LENGTH: usize = COORD_COUNT as usize * COORD_COUNT as usize;
 #[derive(Clone, Debug)]
 pub struct Tiles {
     tiles: [TileData; TILES_LENGTH],
+}
+
+fn jitter_from_rng(rng: &mut Xs, max_offset: DrawLength) -> DrawXY {
+    let mut output = DrawXY::default();
+
+    let spec = xs_u32(rng, 0, 9);
+    match spec {
+        1 => {output.x += max_offset;}
+        2 => {output.x -= max_offset;}
+        3 => {output.y += max_offset;}
+        4 => {output.y += max_offset; output.x += max_offset;}
+        5 => {output.y += max_offset; output.x -= max_offset;}
+        6 => {output.y -= max_offset;}
+        7 => {output.y -= max_offset; output.x += max_offset;}
+        8 => {output.y -= max_offset; output.x -= max_offset;}
+        _ => {}
+    }
+    /*
+    // An extremely approximate version of picking a random angle, taking
+    // cos/sin of the angle, multiplying that by `max_offset`.
+    
+    // We ask for 2 more random bits to determine the quadrant.
+    let shake_spec = xs_u32(rng, 0, (max_offset as u32 + 1) << 2);
+    
+    // Here we pull those bits out.
+    let quadrant = shake_spec & ((1 << 2) - 1);
+    // Here we slide those bits off to get random number from 0 to max_offset.
+    output.x = (shake_spec >> 2) as DrawLength;
+    // On a unit square diamond, (our extreme appoximation to a unit circle)
+    // |x| + |y| == 1
+    // We skip the absolute value part by staying in the positive quadrant for now.
+    output.y = (max_offset as DrawLength / (1 << 15) as DrawLength) - output.x;
+
+    // check each quadrant bit in turn to decide whether to flip across each axis.
+    if quadrant & 1 == 0 {
+        output.x *= -1.;
+    }
+    if quadrant & 2 == 0 {
+        output.y *= -1.;
+    }
+*/
+    output
+}
+
+impl Tiles {
+    fn from_rng(rng: &mut Xs) -> Self {
+        let mut tiles = [TileData::default(); TILES_LENGTH];
+
+        for i in 0..TILES_LENGTH {
+            tiles[i] = TileData {
+                jitter: jitter_from_rng(
+                    rng,
+                    // TODO make this a fn of screen size if this fixes the moire 
+                    // patterns.
+                    1.0/20.
+                ),
+                ..<_>::default()
+            };
+        }
+
+        Self {
+            tiles
+        }
+    }
 }
 
 fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
@@ -598,16 +731,51 @@ impl Default for Tiles {
 #[derive(Debug, Default)]
 struct Board {
     ui_pos: UiPos,
-    tiles: Tiles
+    tiles: Tiles,
+    rng: Xs
+}
+
+impl Board {
+    fn from_seed(seed: Seed) -> Self {
+        let mut rng = xs_from_seed(seed);
+
+        let tiles = Tiles::from_rng(&mut rng);
+
+        Self {
+            rng,
+            tiles,
+            ..<_>::default()
+        }
+    }
 }
 
 pub type DrawX = DrawLength;
 pub type DrawY = DrawLength;
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Copy, Clone, Debug, Default, PartialEq)]
 pub struct DrawXY {
     pub x: DrawX,
     pub y: DrawY,
+}
+
+impl core::ops::Add for DrawXY {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+
+impl core::ops::AddAssign for DrawXY {
+    fn add_assign(&mut self, other: Self) {
+        *self = Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        };
+    }
 }
 
 pub type DrawLength = f32;
@@ -624,6 +792,15 @@ pub struct DrawWH {
 pub struct State {
     sizes: Sizes,
     board: Board,
+}
+
+impl State {
+    pub fn from_seed(seed: Seed) -> Self {
+        Self {
+            board: Board::from_seed(seed),
+            ..<_>::default()
+        }
+    }
 }
 
 pub fn sizes(state: &State) -> Sizes {
@@ -694,12 +871,16 @@ pub fn update(
         },
     }
 
-    for xy in tile::XY::all() {
-        let tile = get_tile(&state.board.tiles, xy);
+    for txy in tile::XY::all() {
+        let tile = get_tile(&state.board.tiles, txy);
+
+        let mut xy = tile_xy_to_draw(&state.sizes, txy);
+
+        xy += tile.data.jitter;
 
         commands.push(Sprite(SpriteSpec{
-            sprite: tile.data,
-            xy: tile_xy_to_draw(&state.sizes, xy)
+            sprite: tile.data.sprite,
+            xy
         }));
     }
 
