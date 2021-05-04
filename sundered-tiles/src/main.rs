@@ -269,18 +269,20 @@ mod raylib_rs_platform {
             "Embedded spritesheet could not be loaded!"
         );
 
+        const RENDER_TARGET_SIZE: u32 = 1 << 11;
         // We'll let the OS reclaim the memory when the game closes.
         let mut render_target = rl.load_render_texture(
             &thread,
-            rl.get_screen_width().try_into().unwrap(),
-            rl.get_screen_height().try_into().unwrap()
+            RENDER_TARGET_SIZE,
+            RENDER_TARGET_SIZE
         ).unwrap();
 
         let render_target_source_rect = Rectangle {
             x: 0.,
             y: 0.,
-            width: rl.get_screen_width() as f32,
-            height: -(rl.get_screen_height() as f32)
+            width: RENDER_TARGET_SIZE as f32,
+            // y flip for openGL
+            height: -(RENDER_TARGET_SIZE as f32)
         };
 
         let seed: u128 = {
@@ -329,7 +331,23 @@ mod raylib_rs_platform {
                 };
             }
 
-            game::update(&mut state, &mut commands, input, draw_wh(&rl));
+            game::update(
+                &mut state,
+                &mut commands,
+                input,
+                //draw_wh(&rl)
+                game::DrawWH {
+                    w: RENDER_TARGET_SIZE as f32,
+                    h: RENDER_TARGET_SIZE as f32,
+                }
+            );
+
+            let screen_render_rect = Rectangle {
+                x: 0.,
+                y: 0.,
+                width: rl.get_screen_width() as _,
+                height: rl.get_screen_height() as _
+            };
 
             let sizes = game::sizes(&state);
 
@@ -397,10 +415,12 @@ mod raylib_rs_platform {
                 }
             }
 
-            d.draw_texture_rec(
+            d.draw_texture_pro(
                 &render_target,
                 render_target_source_rect,
+                screen_render_rect,
                 Vector2::default(),
+                0.0,
                 Color::WHITE
             )
         }
