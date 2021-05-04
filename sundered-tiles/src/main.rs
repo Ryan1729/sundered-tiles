@@ -216,7 +216,12 @@ fn main() {
 #[cfg(feature = "platform-raylib-rs")]
 mod raylib_rs_platform {
     use super::{Storage, source_coords, SPRITE_PIXELS_PER_TILE_SIDE, SPRITESHEET_BYTES};
-    use raylib::prelude::{*, KeyboardKey::*, ffi::LoadImageFromMemory};
+    use raylib::prelude::{
+        *,
+        KeyboardKey::*,
+        ffi::LoadImageFromMemory,
+        core::drawing::RaylibTextureModeExt
+    };
 
     use ::core::{
         convert::TryInto,
@@ -263,6 +268,20 @@ mod raylib_rs_platform {
         ).expect(
             "Embedded spritesheet could not be loaded!"
         );
+
+        // We'll let the OS reclaim the memory when the game closes.
+        let mut render_target = rl.load_render_texture(
+            &thread,
+            rl.get_screen_width().try_into().unwrap(),
+            rl.get_screen_height().try_into().unwrap()
+        ).unwrap();
+
+        let render_target_source_rect = Rectangle {
+            x: 0.,
+            y: 0.,
+            width: rl.get_screen_width() as f32,
+            height: -(rl.get_screen_height() as f32)
+        };
 
         let seed: u128 = {
             use std::time::SystemTime;
@@ -318,56 +337,72 @@ mod raylib_rs_platform {
 
             d.clear_background(Color::BLACK);
 
-            // the -1 and +2 business makes the border lie just outside the actual
-            // play area
-            d.draw_rectangle_lines(
-                sizes.play_xywh.x as i32 - 1,
-                sizes.play_xywh.y as i32 - 1,
-                sizes.play_xywh.w as i32 + 2,
-                sizes.play_xywh.h as i32 + 2,
-                Color::WHITE
-            );
-        
-            let tile_base_source_rect = Rectangle {
-                x: 0.,
-                y: 0.,
-                width: SPRITE_PIXELS_PER_TILE_SIDE,
-                height: SPRITE_PIXELS_PER_TILE_SIDE,
-            };
+            {
+                let mut texture_d = d.begin_texture_mode(
+                    &thread,
+                    &mut render_target
+                );
 
-            let tile_base_render_rect = Rectangle {
-                x: 0.,
-                y: 0.,
-                width: sizes.tile_side_length,
-                height: sizes.tile_side_length,
-            };
+                texture_d.clear_background(Color::BLACK);
 
-            for cmd in commands.0.iter() {
-                use game::Command::*;
-                match cmd {
-                    Sprite(s) => {
-                        let (source_x, source_y) = source_coords(s.sprite);
+                // the -1 and +2 business makes the border lie just outside the actual
+                // play area
+                texture_d.draw_rectangle_lines(
+                    sizes.play_xywh.x as i32 - 1,
+                    sizes.play_xywh.y as i32 - 1,
+                    sizes.play_xywh.w as i32 + 2,
+                    sizes.play_xywh.h as i32 + 2,
+                    Color::WHITE
+                );
+            
+                let tile_base_source_rect = Rectangle {
+                    x: 0.,
+                    y: 0.,
+                    width: SPRITE_PIXELS_PER_TILE_SIDE,
+                    height: SPRITE_PIXELS_PER_TILE_SIDE,
+                };
     
-                        d.draw_texture_pro(
-                            &spritesheet,
-                            Rectangle {
-                                x: source_x,
-                                y: source_y,
-                                ..tile_base_source_rect
-                            },
-                            Rectangle {
-                                x: s.xy.x,
-                                y: s.xy.y,
-                                ..tile_base_render_rect
-                            },
-                            Vector2::default(),
-                            0.0,
-                            Color::WHITE
-                        );
+                let tile_base_render_rect = Rectangle {
+                    x: 0.,
+                    y: 0.,
+                    width: sizes.tile_side_length,
+                    height: sizes.tile_side_length,
+                };
+    
+                for cmd in commands.0.iter() {
+                    use game::Command::*;
+                    match cmd {
+                        Sprite(s) => {
+                            let (source_x, source_y) = source_coords(s.sprite);
+        
+                            texture_d.draw_texture_pro(
+                                &spritesheet,
+                                Rectangle {
+                                    x: source_x,
+                                    y: source_y,
+                                    ..tile_base_source_rect
+                                },
+                                Rectangle {
+                                    x: s.xy.x,
+                                    y: s.xy.y,
+                                    ..tile_base_render_rect
+                                },
+                                Vector2::default(),
+                                0.0,
+                                Color::WHITE
+                            );
+                        }
+                        // Later we'll want Text at the very least.
                     }
-                    // Later we'll want Text at the very least.
                 }
             }
+
+            d.draw_texture_rec(
+                &render_target,
+                render_target_source_rect,
+                Vector2::default(),
+                Color::WHITE
+            )
         }
     }
 

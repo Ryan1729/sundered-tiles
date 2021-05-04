@@ -25,6 +25,7 @@ fn xorshift(xs: &mut Xs) -> u32 {
     xs[0].0
 }
 
+#[allow(unused)]
 fn xs_u32(xs: &mut Xs, min: u32, one_past_max: u32) -> u32 {
     (xorshift(xs) % (one_past_max - min)) + min
 }
@@ -632,7 +633,6 @@ impl Default for SpriteKind {
 #[derive(Copy, Clone, Debug, Default)]
 struct TileData {
     sprite: SpriteKind,
-    jitter: DrawXY,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -649,60 +649,13 @@ pub struct Tiles {
     tiles: [TileData; TILES_LENGTH],
 }
 
-fn jitter_from_rng(rng: &mut Xs, max_offset: DrawLength) -> DrawXY {
-    let mut output = DrawXY::default();
-
-    let spec = xs_u32(rng, 0, 9);
-    match spec {
-        1 => {output.x += max_offset;}
-        2 => {output.x -= max_offset;}
-        3 => {output.y += max_offset;}
-        4 => {output.y += max_offset; output.x += max_offset;}
-        5 => {output.y += max_offset; output.x -= max_offset;}
-        6 => {output.y -= max_offset;}
-        7 => {output.y -= max_offset; output.x += max_offset;}
-        8 => {output.y -= max_offset; output.x -= max_offset;}
-        _ => {}
-    }
-    /*
-    // An extremely approximate version of picking a random angle, taking
-    // cos/sin of the angle, multiplying that by `max_offset`.
-    
-    // We ask for 2 more random bits to determine the quadrant.
-    let shake_spec = xs_u32(rng, 0, (max_offset as u32 + 1) << 2);
-    
-    // Here we pull those bits out.
-    let quadrant = shake_spec & ((1 << 2) - 1);
-    // Here we slide those bits off to get random number from 0 to max_offset.
-    output.x = (shake_spec >> 2) as DrawLength;
-    // On a unit square diamond, (our extreme appoximation to a unit circle)
-    // |x| + |y| == 1
-    // We skip the absolute value part by staying in the positive quadrant for now.
-    output.y = (max_offset as DrawLength / (1 << 15) as DrawLength) - output.x;
-
-    // check each quadrant bit in turn to decide whether to flip across each axis.
-    if quadrant & 1 == 0 {
-        output.x *= -1.;
-    }
-    if quadrant & 2 == 0 {
-        output.y *= -1.;
-    }
-*/
-    output
-}
-
 impl Tiles {
-    fn from_rng(rng: &mut Xs) -> Self {
+    fn from_rng(_rng: &mut Xs) -> Self {
         let mut tiles = [TileData::default(); TILES_LENGTH];
 
         for i in 0..TILES_LENGTH {
             tiles[i] = TileData {
-                jitter: jitter_from_rng(
-                    rng,
-                    // TODO make this a fn of screen size if this fixes the moire 
-                    // patterns.
-                    1.0/20.
-                ),
+                // TODO actual randomization
                 ..<_>::default()
             };
         }
@@ -874,9 +827,7 @@ pub fn update(
     for txy in tile::XY::all() {
         let tile = get_tile(&state.board.tiles, txy);
 
-        let mut xy = tile_xy_to_draw(&state.sizes, txy);
-
-        xy += tile.data.jitter;
+        let xy = tile_xy_to_draw(&state.sizes, txy);
 
         commands.push(Sprite(SpriteSpec{
             sprite: tile.data.sprite,
