@@ -220,8 +220,10 @@ mod raylib_rs_platform {
         *,
         KeyboardKey::*,
         ffi::LoadImageFromMemory,
-        core::drawing::RaylibTextureModeExt,
-        core::drawing::RaylibShaderModeExt
+        core::{
+            drawing::{RaylibTextureModeExt, RaylibShaderModeExt},
+            logging
+        }
     };
 
     use ::core::{
@@ -241,6 +243,10 @@ mod raylib_rs_platform {
         .resizable()
         .title("Sundered Tiles")
         .build();
+
+        if cfg!(debug_assertions) {
+            logging::set_trace_log_exit(TraceLogType::LOG_WARNING);
+        }
 
         rl.set_target_fps(60);
         rl.toggle_fullscreen();
