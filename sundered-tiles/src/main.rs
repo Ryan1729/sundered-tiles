@@ -220,7 +220,8 @@ mod raylib_rs_platform {
         *,
         KeyboardKey::*,
         ffi::LoadImageFromMemory,
-        core::drawing::RaylibTextureModeExt
+        core::drawing::RaylibTextureModeExt,
+        core::drawing::RaylibShaderModeExt
     };
 
     use ::core::{
@@ -268,6 +269,12 @@ mod raylib_rs_platform {
         ).expect(
             "Embedded spritesheet could not be loaded!"
         );
+
+        let grid_shader = rl.load_shader(
+            &thread,
+            None,
+            Some("../assets/sampling.fs")
+        ).expect("Cound not load grid shader!");
 
         const RENDER_TARGET_SIZE: u32 = 1 << 11;
         // We'll let the OS reclaim the memory when the game closes.
@@ -363,11 +370,15 @@ mod raylib_rs_platform {
                     &mut render_target
                 );
 
-                texture_d.clear_background(BACKGROUND);
+                let mut shader_d = texture_d.begin_shader_mode(
+                    &grid_shader
+                );
+
+                shader_d.clear_background(BACKGROUND);
 
                 // the -1 and +2 business makes the border lie just outside the actual
                 // play area
-                texture_d.draw_rectangle_lines(
+                shader_d.draw_rectangle_lines(
                     sizes.play_xywh.x as i32 - 1,
                     sizes.play_xywh.y as i32 - 1,
                     sizes.play_xywh.w as i32 + 2,
@@ -395,7 +406,7 @@ mod raylib_rs_platform {
                         Sprite(s) => {
                             let (source_x, source_y) = source_coords(s.sprite);
         
-                            texture_d.draw_texture_pro(
+                            shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
                                     x: source_x,
@@ -424,7 +435,7 @@ mod raylib_rs_platform {
                 Vector2::default(),
                 0.0,
                 Color::WHITE
-            )
+            );
         }
     }
 
