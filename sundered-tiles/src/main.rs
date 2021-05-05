@@ -307,6 +307,8 @@ mod raylib_rs_platform {
         // generate the commands for the first frame
         game::update(&mut state, &mut commands, game::Input::NoChange, draw_wh(&rl));
 
+        const BACKGROUND: Color = Color{ r: 0x22, g: 0x22, b: 0x22, a: 255 };
+
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
                 rl.toggle_fullscreen();
@@ -353,7 +355,7 @@ mod raylib_rs_platform {
 
             let mut d = rl.begin_drawing(&thread);
 
-            d.clear_background(Color::BLACK);
+            d.clear_background(BACKGROUND);
 
             {
                 let mut texture_d = d.begin_texture_mode(
@@ -361,7 +363,7 @@ mod raylib_rs_platform {
                     &mut render_target
                 );
 
-                texture_d.clear_background(Color::BLACK);
+                texture_d.clear_background(BACKGROUND);
 
                 // the -1 and +2 business makes the border lie just outside the actual
                 // play area
