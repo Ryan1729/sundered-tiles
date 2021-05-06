@@ -15,6 +15,8 @@ impl <A> game::ClearableStorage<A> for Storage<A> {
     }
 }
 
+const SAMPLING_SHADER: &str = include_str!("../assets/sampling.fs");
+
 const SPRITESHEET_BYTES: &[u8] = include_bytes!("../assets/spritesheet.png");
 
 const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
@@ -215,7 +217,13 @@ fn main() {
 
 #[cfg(feature = "platform-raylib-rs")]
 mod raylib_rs_platform {
-    use super::{Storage, source_coords, SPRITE_PIXELS_PER_TILE_SIDE, SPRITESHEET_BYTES};
+    use super::{
+        Storage,
+        source_coords,
+        SPRITE_PIXELS_PER_TILE_SIDE,
+        SPRITESHEET_BYTES,
+        SAMPLING_SHADER
+    };
     use raylib::prelude::{
         *,
         KeyboardKey::*,
@@ -276,11 +284,11 @@ mod raylib_rs_platform {
             "Embedded spritesheet could not be loaded!"
         );
 
-        let grid_shader = rl.load_shader(
+        let grid_shader = rl.load_shader_code(
             &thread,
             None,
-            Some("../assets/sampling.fs")
-        ).expect("Cound not load grid shader!");
+            Some(SAMPLING_SHADER)
+        );
 
         const RENDER_TARGET_SIZE: u32 = 1 << 11;
         // We'll let the OS reclaim the memory when the game closes.
