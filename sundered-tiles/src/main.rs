@@ -329,6 +329,10 @@ mod raylib_rs_platform {
         game::update(&mut state, &mut commands, game::Input::NoChange, draw_wh(&rl));
 
         const BACKGROUND: Color = Color{ r: 0x22, g: 0x22, b: 0x22, a: 255 };
+        const WHITE: Color = Color{ r: 0xee, g: 0xee, b: 0xee, a: 255 };
+        const TEXT: Color = WHITE;
+        const NO_TINT: Color = WHITE;
+        const OUTLINE: Color = WHITE;
 
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
@@ -397,7 +401,7 @@ mod raylib_rs_platform {
                     sizes.play_xywh.y as i32 - 1,
                     sizes.play_xywh.w as i32 + 2,
                     sizes.play_xywh.h as i32 + 2,
-                    Color::WHITE
+                    OUTLINE
                 );
             
                 let tile_base_source_rect = Rectangle {
@@ -434,10 +438,18 @@ mod raylib_rs_platform {
                                 },
                                 Vector2::default(),
                                 0.0,
-                                Color::WHITE
+                                NO_TINT
                             );
                         }
-                        // Later we'll want Text at the very least.
+                        Text(t) => {
+                            shader_d.draw_text(
+                                &t.text,
+                                t.xy.x as i32,
+                                t.xy.y as i32,
+                                40,
+                                TEXT
+                            );
+                        }
                     }
                 }
             }
@@ -448,7 +460,7 @@ mod raylib_rs_platform {
                 screen_render_rect,
                 Vector2::default(),
                 0.0,
-                Color::WHITE
+                NO_TINT
             );
         }
     }

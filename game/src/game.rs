@@ -1,5 +1,9 @@
-#![no_std]
+// TODO stack string, assuming we realy care about no std
+//#![no_std]
 #![deny(unused)]
+
+// In case we decide that we care about no_std/not allocating
+type StrBuf = String;
 
 pub trait ClearableStorage<A> {
     fn clear(&mut self);
@@ -762,10 +766,16 @@ pub fn sizes(state: &State) -> Sizes {
 
 pub enum Command {
     Sprite(SpriteSpec),
+    Text(TextSpec),
 }
 
 pub struct SpriteSpec {
     pub sprite: SpriteKind,
+    pub xy: DrawXY,
+}
+
+pub struct TextSpec {
+    pub text: StrBuf,
     pub xy: DrawXY,
 }
 
@@ -841,4 +851,9 @@ pub fn update(
             xy: state.board.ui_pos.xy(&state.sizes),
         }));
     }
+
+    commands.push(Text(TextSpec{
+        text: format!("{:#?}", state.sizes),
+        xy: DrawXY { x: 16., y: 16. },
+    }));
 }
