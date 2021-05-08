@@ -331,6 +331,8 @@ mod raylib_rs_platform {
         const NO_TINT: Color = WHITE;
         const OUTLINE: Color = WHITE;
 
+        const sprite_border: f32 = 4.;
+
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
                 rl.toggle_fullscreen();
@@ -400,8 +402,8 @@ mod raylib_rs_platform {
                 let tile_base_source_rect = Rectangle {
                     x: 0.,
                     y: 0.,
-                    width: SPRITE_PIXELS_PER_TILE_SIDE,
-                    height: SPRITE_PIXELS_PER_TILE_SIDE,
+                    width: SPRITE_PIXELS_PER_TILE_SIDE - sprite_border * 2.,
+                    height: SPRITE_PIXELS_PER_TILE_SIDE - sprite_border * 2.,
                 };
     
                 let tile_base_render_rect = Rectangle {
@@ -420,8 +422,8 @@ mod raylib_rs_platform {
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
-                                    x: source_x,
-                                    y: source_y,
+                                    x: source_x + sprite_border,
+                                    y: source_y + sprite_border,
                                     ..tile_base_source_rect
                                 },
                                 Rectangle {
