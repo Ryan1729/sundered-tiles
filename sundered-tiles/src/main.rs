@@ -290,21 +290,18 @@ mod raylib_rs_platform {
             Some(SAMPLING_SHADER)
         );
 
-        const RENDER_TARGET_SIZE: u32 = 1 << 11;
+        // This seems like a safe texture size, with wide GPU support.
+        // TDO What we should do is query GL_MAX_TEXTURE_SIZE and figure
+        // out what to do if we get a smaller value than this.
+//        const RENDER_TARGET_SIZE: u32 = 8192;
+        // On the other hand, 8192 makes my old intergrated graphics laptop overheat
+        const RENDER_TARGET_SIZE: u32 = 2048; 
         // We'll let the OS reclaim the memory when the game closes.
         let mut render_target = rl.load_render_texture(
             &thread,
             RENDER_TARGET_SIZE,
             RENDER_TARGET_SIZE
         ).unwrap();
-
-        let render_target_source_rect = Rectangle {
-            x: 0.,
-            y: 0.,
-            width: RENDER_TARGET_SIZE as f32,
-            // y flip for openGL
-            height: -(RENDER_TARGET_SIZE as f32)
-        };
 
         let seed: u128 = {
             use std::time::SystemTime;
@@ -362,11 +359,7 @@ mod raylib_rs_platform {
                 &mut state,
                 &mut commands,
                 input,
-                //draw_wh(&rl)
-                game::DrawWH {
-                    w: RENDER_TARGET_SIZE as f32,
-                    h: RENDER_TARGET_SIZE as f32,
-                }
+                draw_wh(&rl)
             );
 
             let screen_render_rect = Rectangle {
@@ -453,6 +446,14 @@ mod raylib_rs_platform {
                     }
                 }
             }
+
+            let render_target_source_rect = Rectangle {
+                x: 0.,
+                y: (RENDER_TARGET_SIZE as f32) - screen_render_rect.height,
+                width: screen_render_rect.width,
+                // y flip for openGL
+                height: -screen_render_rect.height
+            };
 
             d.draw_texture_pro(
                 &render_target,
