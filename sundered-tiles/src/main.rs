@@ -291,11 +291,11 @@ mod raylib_rs_platform {
         );
 
         // This seems like a safe texture size, with wide GPU support.
-        // TDO What we should do is query GL_MAX_TEXTURE_SIZE and figure
+        // TODO What we should do is query GL_MAX_TEXTURE_SIZE and figure
         // out what to do if we get a smaller value than this.
 //        const RENDER_TARGET_SIZE: u32 = 8192;
         // On the other hand, 8192 makes my old intergrated graphics laptop overheat
-        const RENDER_TARGET_SIZE: u32 = 2048; 
+        const RENDER_TARGET_SIZE: u32 = 2048;
         // We'll let the OS reclaim the memory when the game closes.
         let mut render_target = rl.load_render_texture(
             &thread,
