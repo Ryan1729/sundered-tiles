@@ -27,7 +27,7 @@ fn source_coords(sprite: SpriteKind) -> (f32, f32) {
     use SpriteKind::*;
 
     let sx = match sprite {
-        Blank => 0.0,
+        Hidden => 0.0,
         Red => 1.0,
         Green => 2.0,
         Blue => 3.0,
@@ -296,6 +296,7 @@ mod raylib_rs_platform {
 //        const RENDER_TARGET_SIZE: u32 = 8192;
         // On the other hand, 8192 makes my old intergrated graphics laptop overheat
         const RENDER_TARGET_SIZE: u32 = 2048;
+
         // We'll let the OS reclaim the memory when the game closes.
         let mut render_target = rl.load_render_texture(
             &thread,

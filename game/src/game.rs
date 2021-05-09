@@ -613,11 +613,40 @@ mod tile {
             proportion!((u8::from(*self) as f32) / (Self::COUNT as f32))
         }
     }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Kind {
+        Empty,
+        Red(Visibility),
+        RedStar(Visibility),
+        Green(Visibility),
+        GreenStar(Visibility),
+        Blue(Visibility),
+        BlueStar(Visibility),
+    }
+
+    impl Default for Kind {
+        fn default() -> Self {
+            Self::Empty
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Visibility {
+        Hidden,
+        Shown
+    }
+
+    impl Default for Visibility {
+        fn default() -> Self {
+            Self::Hidden
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
 pub enum SpriteKind {
-    Blank,
+    Hidden,
     Red,
     Green,
     Blue,
@@ -626,7 +655,7 @@ pub enum SpriteKind {
 
 impl Default for SpriteKind {
     fn default() -> Self {
-        Self::Blank
+        Self::Hidden
     }
 }
 
@@ -636,7 +665,7 @@ impl Default for SpriteKind {
 /// thing. This is why we have both `Tile` and `TileData`
 #[derive(Copy, Clone, Debug, Default)]
 struct TileData {
-    sprite: SpriteKind,
+    kind: tile::Kind,
 }
 
 #[derive(Copy, Clone, Debug, Default)]
@@ -646,23 +675,55 @@ struct Tile {
     data: TileData
 }
 
-const TILES_LENGTH: usize = COORD_COUNT as usize * COORD_COUNT as usize;
+const TILES_LENGTH: u32 = COORD_COUNT as u32 * COORD_COUNT as u32;
 
 #[derive(Clone, Debug)]
 pub struct Tiles {
-    tiles: [TileData; TILES_LENGTH],
+    tiles: [TileData; TILES_LENGTH as _],
 }
 
 impl Tiles {
-    fn from_rng(_rng: &mut Xs) -> Self {
-        let mut tiles = [TileData::default(); TILES_LENGTH];
+    fn from_rng(rng: &mut Xs) -> Self {
+        let mut tiles = [TileData::default(); TILES_LENGTH as _];
 
-        for i in 0..TILES_LENGTH {
+        use tile::{Kind::*, Visibility::*};
+        for i in 0..TILES_LENGTH as usize {
+            let vis = match xs_u32(rng, 0, 4) {
+                1 => Shown,
+                _ => Hidden,
+            };
+
+            let kind = match xs_u32(rng, 0, 4) {
+                1 => Red(vis),
+                2 => Green(vis),
+                3 => Blue(vis),
+                _ => Empty,
+            };
+
             tiles[i] = TileData {
-                // TODO actual randomization
+                kind,
                 ..<_>::default()
             };
         }
+
+        macro_rules! set_random_tile {
+            ($from: ident => $to: ident) => {
+                let mut index = xs_u32(rng, 0, TILES_LENGTH) as usize;
+                for _ in 0..TILES_LENGTH as usize {
+                    if let $from(vis) = tiles[index].kind {
+                        tiles[index].kind = $to(vis);
+                        break
+                    }
+
+                    index += 1;
+                    index %= TILES_LENGTH as usize;
+                }
+            }
+        }
+
+        set_random_tile!(Red => RedStar);
+        set_random_tile!(Green => GreenStar);
+        set_random_tile!(Blue => BlueStar);
 
         Self {
             tiles
@@ -680,7 +741,7 @@ fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
 impl Default for Tiles {
     fn default() -> Self {
         Self {
-            tiles: [TileData::default(); TILES_LENGTH]
+            tiles: [TileData::default(); TILES_LENGTH as _]
         }
     }
 }
@@ -839,13 +900,32 @@ pub fn update(
 
         let xy = tile_xy_to_draw(&state.sizes, txy);
 
+        use tile::{Kind::*, Visibility::*};
+
+        let sprite = match tile.data.kind {
+            Empty => continue,
+            Red(Hidden)
+            | RedStar(Hidden)
+            | Green(Hidden)
+            | GreenStar(Hidden)
+            | Blue(Hidden)
+            | BlueStar(Hidden) => SpriteKind::Hidden,
+            Red(Shown)
+            | RedStar(Shown) => SpriteKind::Red,
+            Green(Shown)
+            | GreenStar(Shown) => SpriteKind::Green,
+            Blue(Shown)
+            | BlueStar(Shown) => SpriteKind::Blue,
+        };
+
         commands.push(Sprite(SpriteSpec{
-            sprite: tile.data.sprite,
+            sprite,
             xy
         }));
     }
 
     if !interacted {
+
         commands.push(Sprite(SpriteSpec{
             sprite: SpriteKind::Selectrum,
             xy: state.board.ui_pos.xy(&state.sizes),
