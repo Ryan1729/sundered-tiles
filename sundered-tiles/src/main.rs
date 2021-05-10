@@ -77,12 +77,15 @@ mod macroquad_platform {
     };
     
     use macroquad::{
+        Color,
         Rect,
         Image,
         DrawTextureParams,
         KeyCode,
         Texture2D,
         clear_background,
+        draw_rectangle_lines,
+        draw_text,
         draw_texture_ex,
         load_texture_from_image,
         next_frame,
@@ -139,6 +142,10 @@ mod macroquad_platform {
         // generate the commands for the first frame
         game::update(&mut state, &mut commands, game::Input::NoChange, draw_wh());
     
+        const TEXT: Color = WHITE;
+        const NO_TINT: Color = WHITE;
+        const OUTLINE: Color = WHITE;
+
         loop {
             let input;
             {
@@ -162,6 +169,19 @@ mod macroquad_platform {
             game::update(&mut state, &mut commands, input, draw_wh());
     
             clear_background(BLACK);
+
+            let sizes = game::sizes(&state);
+
+            // the -1 and +2 business makes the border lie just outside the actual
+            // play area
+            draw_rectangle_lines(
+                sizes.play_xywh.x - 1.,
+                sizes.play_xywh.y - 1.,
+                sizes.play_xywh.w + 2.,
+                sizes.play_xywh.h + 2.,
+                5.,
+                OUTLINE
+            );
     
             let tile_dest_size: Vec2 = {
                 let side_length = game::sizes(&state).tile_side_length;
@@ -189,7 +209,7 @@ mod macroquad_platform {
                             spritesheet_texture,
                             s.xy.x,
                             s.xy.y,
-                            WHITE,
+                            NO_TINT,
                             DrawTextureParams {
                                 dest_size: Some(tile_dest_size),
                                 source: Some(Rect {
@@ -201,7 +221,15 @@ mod macroquad_platform {
                             }
                         );
                     }
-                    // Later we'll want Text at the very least.
+                    Text(t) => {
+                        draw_text(
+                            &t.text,
+                            t.xy.x,
+                            t.xy.y,
+                            40.,
+                            TEXT
+                        );
+                    }
                 }
             }
     
