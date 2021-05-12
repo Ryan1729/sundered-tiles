@@ -31,6 +31,11 @@ fn source_coords(sprite: SpriteKind) -> (f32, f32) {
         Red => 1.0,
         Green => 2.0,
         Blue => 3.0,
+        RedStar => 4.0,
+        GreenStar => 5.0,
+        BlueStar => 6.0,
+        InstrumentalGoal => 7.0,
+        TerminalGoal => 8.0,
         Selectrum => 15.0,
     };
 

@@ -623,11 +623,26 @@ mod tile {
         GreenStar(Visibility),
         Blue(Visibility),
         BlueStar(Visibility),
+        Goal(Visibility),
     }
 
     impl Default for Kind {
         fn default() -> Self {
             Self::Empty
+        }
+    }
+
+    pub(crate) fn set_visibility(kind: Kind, vis: Visibility) -> Kind {
+        use Kind::*;
+        match kind {
+            Empty => Empty,
+            Red(_) => Red(vis),
+            RedStar(_) => RedStar(vis),
+            Green(_) => Green(vis),
+            GreenStar(_) => GreenStar(vis),
+            Blue(_) => Blue(vis),
+            BlueStar(_) => Blue(vis),
+            Goal(_) => Goal(vis),
         }
     }
 
@@ -650,6 +665,11 @@ pub enum SpriteKind {
     Red,
     Green,
     Blue,
+    RedStar,
+    GreenStar,
+    BlueStar,
+    InstrumentalGoal,
+    TerminalGoal,
     Selectrum,
 }
 
@@ -725,6 +745,16 @@ impl Tiles {
         set_random_tile!(Green => GreenStar);
         set_random_tile!(Blue => BlueStar);
 
+        // TODO remove this slight non-uniformity?
+        set_random_tile!(Red => Goal);
+
+        // temp
+        for index in 0..TILES_LENGTH as usize / 2 {
+            if let Red(vis) = tiles[index].kind {
+                tiles[index].kind = Goal(vis);
+            }
+        }
+
         Self {
             tiles
         }
@@ -736,6 +766,10 @@ fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
         xy,
         data: tiles.tiles[tile::xy_to_i(xy)]
     }
+}
+
+fn set_tile(tiles: &mut Tiles, tile: Tile) {
+    tiles.tiles[tile::xy_to_i(tile.xy)] = tile.data;
 }
 
 impl Default for Tiles {
@@ -825,6 +859,14 @@ pub fn sizes(state: &State) -> Sizes {
     state.sizes.clone()
 }
 
+fn is_last_level(_state: &State) -> bool {
+    // TODO actually track level
+    match _state.board.ui_pos {
+        UiPos::Tile(ref xy) => { tile::xy_to_i(*xy) % 2 == 0 }
+    }
+    //true
+}
+
 pub enum Command {
     Sprite(SpriteSpec),
     Text(TextSpec),
@@ -890,7 +932,16 @@ pub fn update(
                 xy.x = new_x;
             }
         },
-        (Interact, _) => {
+        (Interact, Tile(ref xy)) => {
+            let mut tile = get_tile(&state.board.tiles, *xy);
+
+            tile.data.kind = tile::set_visibility(
+                tile.data.kind,
+                tile::Visibility::Shown
+            );
+
+            set_tile(&mut state.board.tiles, tile);
+            
             interacted = true;
         },
     }
@@ -909,13 +960,19 @@ pub fn update(
             | Green(Hidden)
             | GreenStar(Hidden)
             | Blue(Hidden)
-            | BlueStar(Hidden) => SpriteKind::Hidden,
-            Red(Shown)
-            | RedStar(Shown) => SpriteKind::Red,
-            Green(Shown)
-            | GreenStar(Shown) => SpriteKind::Green,
-            Blue(Shown)
-            | BlueStar(Shown) => SpriteKind::Blue,
+            | BlueStar(Hidden)
+            | Goal(Hidden) => SpriteKind::Hidden,
+            Red(Shown) => SpriteKind::Red,
+            RedStar(Shown) => SpriteKind::RedStar,
+            Green(Shown) => SpriteKind::Green,
+            GreenStar(Shown) => SpriteKind::GreenStar,
+            Blue(Shown) => SpriteKind::Blue,
+            BlueStar(Shown) => SpriteKind::BlueStar,
+            Goal(Shown) => if is_last_level(state) {
+                SpriteKind::TerminalGoal
+            } else {
+                SpriteKind::InstrumentalGoal
+            },
         };
 
         commands.push(Sprite(SpriteSpec{
@@ -925,7 +982,6 @@ pub fn update(
     }
 
     if !interacted {
-
         commands.push(Sprite(SpriteSpec{
             sprite: SpriteKind::Selectrum,
             xy: state.board.ui_pos.xy(&state.sizes),
