@@ -156,6 +156,8 @@ mod raylib_rs_platform {
         // out what to do if we get a smaller value than this.
 //        const RENDER_TARGET_SIZE: u32 = 8192;
         // On the other hand, 8192 makes my old intergrated graphics laptop overheat
+        // Maybe it would be faster/less hot to avoiding clearing the whole thing 
+        // each frame?
         const RENDER_TARGET_SIZE: u32 = 2048;
 
         // We'll let the OS reclaim the memory when the game closes.
