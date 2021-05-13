@@ -12,10 +12,12 @@ I also wanted a tile that indicates that the level is over, but there is another
 
 I then looked for a treasure map or scroll icon and found [this collection](https://opengameart.org/content/cc0-document-icons) which contains a treasure map icon from [this page](https://www.deviantart.com/7soul1/art/129892453) where it is described as "Public Domain This work is free of known copyright restrictions".
 
-The map was originally 32 * 31. I doubled the size with no interpolation to get a 64 by 62 image. I then selected just the pixels of the X, by using the select by colour tool to subtract the base map colour from a rectangle selection. Then I used the Hue-Chroma tool and set the Hue, Chroma, and Lightness to -40, 50, and -40 respectively, in order to make it red. I then just stuck that map in the center of the blank tile. 
+I selected just the pixels of the X, by using the select by colour tool to subtract the base map colour from a rectangle selection. Then I used the Hue-Chroma tool and set the Hue, Chroma, and Lightness to -40, 50, and -40 respectively, in order to make it red.
 
-Thne to make the standalone X I selected the now red X again. It was 14 by 16, so I again scaled it up withut interpolation, this time to 56 by 64 so it is the same relative size as the map, hoping that the lack of interpolation would make it more recognizable as te exact X from the map. Again, this was placed in the center of the blank tile.
+Then to make the standalone X I selected the now red X again cut and pasted it.
 
-I then decided that the X was too small to see on the map, so I clumsily doubled its size and moved some of the detailing to make it fit.
+I then needed to decide on the scaling. I found that anything smaller than the while tile made the map hard to read. So I scaled the map up with no interpolation to the largest multiple that would fit.
+
+As for the lone X, the scaled up version of the X from the map didn't look good from a distance. So I tried scaling it various ways and eventually ended up redrawing it and scaling it up. This process involved scaling up the X a little and then cutting away the pointy edges that resulted from the corners of pixels, then scaling up some more.
 
 
