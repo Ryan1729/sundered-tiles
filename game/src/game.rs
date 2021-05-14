@@ -177,25 +177,6 @@ impl Rect {
     }
 }
 
-macro_rules! rect_xyxy {
-    () => {{
-        Rect::default()
-    }};
-    (
-        $min_x: literal,
-        $min_y: literal,
-        $max_x: literal,
-        $max_y: literal $(,)?
-    ) => {{
-        let a = XY{x: x!($min_x), y: y!($min_y)};
-        let b = XY{x: x!($max_x), y: y!($max_y)};
-        Rect {
-            min: xy_minimum!(a, b),
-            max: xy_maximum!(a, b),
-        }
-    }}
-}
-
 #[test]
 fn wh_gives_expected_results_on_these_rects() {
     let w0_h0 = rect_xyxy!();
@@ -255,14 +236,6 @@ fn this_same_distance_from_0_xy_case_produces_the_expected_normalized_rect() {
     assert_eq!(r.min, XY{ x: bi_unit::x!(0.25), y: bi_unit::y!(0.25) });
     assert_eq!(r.max, XY{ x: bi_unit::x!(0.5), y: bi_unit::y!(0.5) });
 }
-
-// TODO is this still going to be needed?
-pub const TILES_RECT: Rect = rect_xyxy!(
-    -1.0,
-    -1.0,
-    1.0,
-    1.0,
-);
 
 type PlayX = DrawLength;
 type PlayY = DrawLength;
