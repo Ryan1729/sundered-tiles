@@ -605,6 +605,20 @@ mod tile {
         }
     }
 
+    pub(crate) fn get_visibility(kind: Kind) -> Option<Visibility> {
+        use Kind::*;
+        match kind {
+            Empty => None,
+            Red(vis)
+            | RedStar(vis)
+            | Green(vis)
+            | GreenStar(vis)
+            | Blue(vis)
+            | BlueStar(vis)
+            | Goal(vis) => Some(vis),
+        }
+    }
+
     pub(crate) fn set_visibility(kind: Kind, vis: Visibility) -> Kind {
         use Kind::*;
         match kind {
@@ -690,7 +704,7 @@ impl Tiles {
                 _ => Hidden,
             };
 
-            let kind = match xs_u32(rng, 0, 4) {
+            let kind = match xs_u32(rng, 0, 400) { //4) {
                 1 => Red(vis),
                 2 => Green(vis),
                 3 => Blue(vis),
@@ -724,13 +738,6 @@ impl Tiles {
 
         // TODO remove this slight non-uniformity?
         set_random_tile!(Red => Goal);
-
-        // temp
-        for index in 0..TILES_LENGTH as usize / 2 {
-            if let Red(vis) = tiles[index].kind {
-                tiles[index].kind = Goal(vis);
-            }
-        }
 
         Self {
             tiles
@@ -932,6 +939,11 @@ pub fn update(
         (Interact, Tile(ref xy)) => {
             let mut tile = get_tile(&state.board.tiles, *xy);
 
+            let started_visible = matches!(
+                tile::get_visibility(tile.data.kind),
+                Some(tile::Visibility::Shown)
+            );
+
             tile.data.kind = tile::set_visibility(
                 tile.data.kind,
                 tile::Visibility::Shown
@@ -939,8 +951,7 @@ pub fn update(
 
             set_tile(&mut state.board.tiles, tile);
 
-            if tile::is_goal(tile.data.kind) {
-                state.board.level = next_level(state.board.level);
+            if started_visible && tile::is_goal(tile.data.kind) {
                 if is_last_level(state) {
                     for xy in tile::XY::all() {
                         set_tile(&mut state.board.tiles, crate::Tile {
@@ -952,7 +963,9 @@ pub fn update(
                         });
                     }
                 } else {
+                    let level = state.board.level;
                     state.board = Board::from_seed(new_seed(&mut state.board.rng));
+                    state.board.level = next_level(level);
                 }
             }
             
@@ -1003,7 +1016,7 @@ pub fn update(
     }
 
     commands.push(Text(TextSpec{
-        text: format!("{:#?}", state.sizes),
+        text: format!("{:#?}", state.board.level),//format!("{:#?}", state.sizes),
         xy: DrawXY { x: 16., y: 16. },
     }));
 }
