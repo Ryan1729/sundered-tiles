@@ -646,6 +646,10 @@ mod tile {
         }
     }
 
+    pub(crate) fn is_goal(kind: Kind) -> bool {
+        matches!(kind, Kind::Goal(_))
+    }
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum Visibility {
         Hidden,
@@ -780,11 +784,35 @@ impl Default for Tiles {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Level {
+    One,
+    Two,
+    Three
+}
+
+impl Default for Level {
+    fn default() -> Self {
+        Self::One
+    }
+}
+
+#[must_use]
+fn next_level(level: Level) -> Level {
+    use Level::*;
+    match level {
+        One => Two,
+        Two => Three,
+        Three => Three
+    }
+}
+
 #[derive(Debug, Default)]
 struct Board {
     ui_pos: UiPos,
     tiles: Tiles,
-    rng: Xs
+    rng: Xs,
+    level: Level
 }
 
 impl Board {
@@ -859,12 +887,8 @@ pub fn sizes(state: &State) -> Sizes {
     state.sizes.clone()
 }
 
-fn is_last_level(_state: &State) -> bool {
-    // TODO actually track level
-    match _state.board.ui_pos {
-        UiPos::Tile(ref xy) => { tile::xy_to_i(*xy) % 2 == 0 }
-    }
-    //true
+fn is_last_level(state: &State) -> bool {
+    next_level(state.board.level) == state.board.level
 }
 
 pub enum Command {
@@ -941,6 +965,23 @@ pub fn update(
             );
 
             set_tile(&mut state.board.tiles, tile);
+
+            if tile::is_goal(tile.data.kind) {
+                state.board.level = next_level(state.board.level);
+                if is_last_level(state) {
+                    for xy in tile::XY::all() {
+                        set_tile(&mut state.board.tiles, crate::Tile {
+                            xy,
+                            data: TileData {
+                                kind: tile::Kind::Goal(tile::Visibility::Shown),
+                                ..<_>::default()
+                            }
+                        });
+                    }
+                } else {
+                    state.board = Board::from_seed(new_seed(&mut state.board.rng));
+                }
+            }
             
             interacted = true;
         },
