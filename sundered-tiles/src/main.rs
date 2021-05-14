@@ -200,7 +200,7 @@ mod raylib_rs_platform {
         const NO_TINT: Color = WHITE;
         const OUTLINE: Color = WHITE;
 
-        const sprite_border: f32 = 4.;
+        const SPRITE_BORDER: f32 = 4.;
 
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
@@ -271,8 +271,8 @@ mod raylib_rs_platform {
                 let tile_base_source_rect = Rectangle {
                     x: 0.,
                     y: 0.,
-                    width: SPRITE_PIXELS_PER_TILE_SIDE - sprite_border * 2.,
-                    height: SPRITE_PIXELS_PER_TILE_SIDE - sprite_border * 2.,
+                    width: SPRITE_PIXELS_PER_TILE_SIDE - SPRITE_BORDER * 2.,
+                    height: SPRITE_PIXELS_PER_TILE_SIDE - SPRITE_BORDER * 2.,
                 };
     
                 let tile_base_render_rect = Rectangle {
@@ -291,8 +291,8 @@ mod raylib_rs_platform {
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
-                                    x: source_x + sprite_border,
-                                    y: source_y + sprite_border,
+                                    x: source_x + SPRITE_BORDER,
+                                    y: source_y + SPRITE_BORDER,
                                     ..tile_base_source_rect
                                 },
                                 Rectangle {
