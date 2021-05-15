@@ -211,18 +211,32 @@ mod raylib_rs_platform {
             {
                 use game::Input::*;
     
-                input = if rl.is_key_pressed(KEY_SPACE) || rl.is_key_pressed(KEY_ENTER) {
-                    Interact
-                } else if rl.is_key_pressed(KEY_UP) || rl.is_key_pressed(KEY_W) {
-                    Up
-                } else if rl.is_key_pressed(KEY_DOWN) || rl.is_key_pressed(KEY_S) {
-                    Down
-                } else if rl.is_key_pressed(KEY_LEFT) || rl.is_key_pressed(KEY_A) {
-                    Left
-                } else if rl.is_key_pressed(KEY_RIGHT) || rl.is_key_pressed(KEY_D) {
-                    Right
+                input = if rl.is_key_down(KEY_LEFT_CONTROL) || rl.is_key_down(KEY_RIGHT_CONTROL) {
+                    if rl.is_key_down(KEY_UP) || rl.is_key_down(KEY_W) {
+                        Up
+                    } else if rl.is_key_down(KEY_DOWN) || rl.is_key_down(KEY_S) {
+                        Down
+                    } else if rl.is_key_down(KEY_LEFT) || rl.is_key_down(KEY_A) {
+                        Left
+                    } else if rl.is_key_down(KEY_RIGHT) || rl.is_key_down(KEY_D) {
+                        Right
+                    } else {
+                        NoChange
+                    }
                 } else {
-                    NoChange
+                    if rl.is_key_pressed(KEY_SPACE) || rl.is_key_pressed(KEY_ENTER) {
+                        Interact
+                    } else if rl.is_key_pressed(KEY_UP) || rl.is_key_pressed(KEY_W) {
+                        Up
+                    } else if rl.is_key_pressed(KEY_DOWN) || rl.is_key_pressed(KEY_S) {
+                        Down
+                    } else if rl.is_key_pressed(KEY_LEFT) || rl.is_key_pressed(KEY_A) {
+                        Left
+                    } else if rl.is_key_pressed(KEY_RIGHT) || rl.is_key_pressed(KEY_D) {
+                        Right
+                    } else {
+                        NoChange
+                    }
                 };
             }
 
