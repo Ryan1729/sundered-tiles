@@ -848,10 +848,23 @@ pub struct DrawWH {
     pub h: DrawH,
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum InputMode {
+    Standard,
+    FastMovement
+}
+
+impl Default for InputMode {
+    fn default() -> Self {
+        Self::Standard
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct State {
     sizes: Sizes,
     board: Board,
+    input_mode: InputMode,
 }
 
 impl State {
@@ -886,8 +899,23 @@ pub struct TextSpec {
     pub xy: DrawXY,
 }
 
+pub type InputFlags = u16;
+
+pub const INPUT_UP_PRESSED: InputFlags        = 0b00_0000_0001;
+pub const INPUT_DOWN_PRESSED: InputFlags      = 0b00_0000_0010;
+pub const INPUT_LEFT_PRESSED: InputFlags      = 0b00_0000_0100;
+pub const INPUT_RIGHT_PRESSED: InputFlags     = 0b00_0000_1000;
+
+pub const INPUT_UP_DOWN: InputFlags           = 0b00_0001_0000;
+pub const INPUT_DOWN_DOWN: InputFlags         = 0b00_0010_0000;
+pub const INPUT_LEFT_DOWN: InputFlags         = 0b00_0100_0000;
+pub const INPUT_RIGHT_DOWN: InputFlags        = 0b00_1000_0000;
+
+pub const INPUT_INTERACT_PRESSED: InputFlags  = 0b01_0000_0000;
+pub const INPUT_FAST_PRESSED: InputFlags      = 0b10_0000_0000;
+
 #[derive(Clone, Copy, Debug)]
-pub enum Input {
+enum Input {
     NoChange,
     Up,
     Down,
@@ -896,10 +924,45 @@ pub enum Input {
     Interact,
 }
 
+impl Input {
+    fn from_flags(flags: InputFlags, input_mode: InputMode) -> Self {
+        use Input::*;
+        use InputMode::*;
+        match input_mode {
+            // We disallow Interact during FastMovement to prevent non-undoable 
+            // mistakes
+            FastMovement => if INPUT_UP_DOWN & flags != 0 {
+                Up
+            } else if INPUT_DOWN_DOWN & flags != 0 {
+                Down
+            } else if INPUT_LEFT_DOWN & flags != 0 {
+                Left
+            } else if INPUT_RIGHT_DOWN & flags != 0 {
+                Right
+            } else {
+                NoChange
+            },
+            Standard => if INPUT_INTERACT_PRESSED & flags != 0 {
+                Interact
+            } else if INPUT_UP_PRESSED & flags != 0 {
+                Up
+            } else if INPUT_DOWN_PRESSED & flags != 0 {
+                Down
+            } else if INPUT_LEFT_PRESSED & flags != 0 {
+                Left
+            } else if INPUT_RIGHT_PRESSED & flags != 0 {
+                Right
+            } else {
+                NoChange
+            },
+        }
+    }
+}
+
 pub fn update(
     state: &mut State,
     commands: &mut dyn ClearableStorage<Command>,
-    input: Input,
+    input_flags: InputFlags,
     draw_wh: DrawWH,
 ) {
     use Input::*;
@@ -911,6 +974,16 @@ pub fn update(
     }
 
     commands.clear();
+
+    if INPUT_FAST_PRESSED & input_flags != 0 {
+        state.input_mode = if let InputMode::FastMovement = state.input_mode {
+            InputMode::Standard
+        } else {
+            InputMode::FastMovement
+        };
+    }
+
+    let input = Input::from_flags(input_flags, state.input_mode);
 
     let mut interacted = false;
 
@@ -1019,4 +1092,11 @@ pub fn update(
         text: format!("{:#?}", state.board.level),//format!("{:#?}", state.sizes),
         xy: DrawXY { x: 16., y: 16. },
     }));
+
+    if let InputMode::FastMovement = state.input_mode {
+        commands.push(Text(TextSpec{
+            text: "Fast".to_owned(),
+            xy: DrawXY { x: 16., y: state.sizes.draw_wh.h * 15. / 16. },
+        }));
+    }
 }
