@@ -202,8 +202,6 @@ mod raylib_rs_platform {
 
         const SPRITE_BORDER: f32 = 4.;
 
-        let mut fast_movement = false;
-
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
                 rl.toggle_fullscreen();
