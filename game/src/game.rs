@@ -735,13 +735,15 @@ pub fn update(
 
             set_tile(&mut state.board.tiles, tile);
 
+            use tile::{Kind::*, Visibility::*};
+
             if started_visible && tile::is_goal(tile.data.kind) {
                 if is_last_level(state) {
                     for xy in tile::XY::all() {
                         set_tile(&mut state.board.tiles, crate::Tile {
                             xy,
                             data: TileData {
-                                kind: tile::Kind::Goal(tile::Visibility::Shown),
+                                kind: Goal(Shown),
                                 ..<_>::default()
                             }
                         });
@@ -754,6 +756,23 @@ pub fn update(
                     );
                     state.board.level = next_level(level);
                 }
+            }
+
+            macro_rules! reveal_all_matching {
+                ($variant: ident) => {
+                    for index in 0..TILES_LENGTH as usize {
+                        if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
+                            state.board.tiles.tiles[index].kind = $variant(Shown);
+                        }
+                    }
+                }
+            }
+
+            match tile.data.kind {
+                RedStar(_) => reveal_all_matching!(Red),
+                GreenStar(_) => reveal_all_matching!(Green),
+                BlueStar(_) => reveal_all_matching!(Blue),
+                _ => {}
             }
             
             interacted = true;
