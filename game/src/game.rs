@@ -442,20 +442,22 @@ pub struct Tiles {
 }
 
 impl Tiles {
-    fn from_rng(rng: &mut Xs) -> Self {
+    fn from_rng(rng: &mut Xs, level: Level) -> Self {
         let mut tiles = [TileData::default(); TILES_LENGTH as _];
 
         use tile::{Kind::*, Visibility::*};
+        use Level::*;
         for i in 0..TILES_LENGTH as usize {
-            let vis = match xs_u32(rng, 0, 4) {
-                1 => Shown,
-                _ => Hidden,
+            let kind_max = match level {
+                One => 200,
+                Two => 100,
+                Three => 50,
             };
 
-            let kind = match xs_u32(rng, 0, 400) { //4) {
-                1 => Red(vis),
-                2 => Green(vis),
-                3 => Blue(vis),
+            let kind = match xs_u32(rng, 0, kind_max) {
+                1 => Red(Hidden),
+                2 => Green(Hidden),
+                3 => Blue(Hidden),
                 _ => Empty,
             };
 
@@ -544,10 +546,10 @@ struct Board {
 }
 
 impl Board {
-    fn from_seed(seed: Seed) -> Self {
+    fn from_seed(seed: Seed, level: Level) -> Self {
         let mut rng = xs_from_seed(seed);
 
-        let tiles = Tiles::from_rng(&mut rng);
+        let tiles = Tiles::from_rng(&mut rng, level);
 
         Self {
             rng,
@@ -579,7 +581,7 @@ pub struct State {
 impl State {
     pub fn from_seed(seed: Seed) -> Self {
         Self {
-            board: Board::from_seed(seed),
+            board: Board::from_seed(seed, <_>::default()),
             ..<_>::default()
         }
     }
@@ -746,7 +748,10 @@ pub fn update(
                     }
                 } else {
                     let level = state.board.level;
-                    state.board = Board::from_seed(new_seed(&mut state.board.rng));
+                    state.board = Board::from_seed(
+                        new_seed(&mut state.board.rng),
+                        state.board.level,
+                    );
                     state.board.level = next_level(level);
                 }
             }
