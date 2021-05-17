@@ -185,7 +185,7 @@ mod raylib_rs_platform {
     
             duration.as_nanos()
         };
-    
+
         println!("{}", seed);
 
         let mut state = game::State::from_seed(seed.to_le_bytes());

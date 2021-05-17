@@ -376,7 +376,7 @@ mod tile {
             Green(_) => Green(vis),
             GreenStar(_) => GreenStar(vis),
             Blue(_) => Blue(vis),
-            BlueStar(_) => Blue(vis),
+            BlueStar(_) => BlueStar(vis),
             Goal(_) => Goal(vis),
         }
     }
