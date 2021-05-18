@@ -188,4 +188,7 @@ pub struct SpriteSpec {
 pub struct TextSpec {
     pub text: StrBuf,
     pub xy: DrawXY,
+    /// We'd rather define a rectangle for the text to (hopefully) lie inside than
+    /// a font size directly.
+    pub wh: DrawWH,
 }

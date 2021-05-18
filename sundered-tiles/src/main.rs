@@ -329,11 +329,48 @@ mod raylib_rs_platform {
                             );
                         }
                         Text(t) => {
+                            let mut size = i32::MAX;
+                            let mut low = 0;
+                            let mut high = i32::MAX;
+                            while low <= high {
+                                let mut width = measure_text(&t.text, size);
+                                if width == i32::MIN {
+                                    width = i32::MAX;
+                                }
+                                let mut next_width = measure_text(&t.text, size.saturating_add(1));
+                                if next_width == i32::MIN {
+                                    next_width = i32::MAX;
+                                }
+
+                                // TODO really measure height.
+                                let height = measure_text("m", size).saturating_mul(3);
+                                let next_height = measure_text("m", size.saturating_add(1)).saturating_mul(3);
+
+                                let width_does_not_fit = width as f32 > t.wh.w;
+                                let height_does_not_fit = height as f32 > t.wh.h;
+                                let next_width_fits = t.wh.w > next_width as f32;
+                                let next_height_fits = t.wh.h > next_height as f32;
+
+                                if width_does_not_fit
+                                || height_does_not_fit
+                                || next_width_fits
+                                || next_height_fits {
+                                    size = low.saturating_add(high) / 2;
+                                }
+
+                                if width_does_not_fit || height_does_not_fit {
+                                    high = size - 1;
+                                }
+
+                                if next_width_fits || next_height_fits {
+                                    low = size + 1;
+                                }
+                            }
                             shader_d.draw_text(
                                 &t.text,
                                 t.xy.x as i32,
                                 t.xy.y as i32,
-                                40,
+                                size,
                                 TEXT
                             );
                         }

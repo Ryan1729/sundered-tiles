@@ -792,15 +792,27 @@ pub fn update(
         }));
     }
 
+    let text_x = state.sizes.play_xywh.x + MARGIN;
+
+    const MARGIN: f32 = 16.;
     commands.push(Text(TextSpec{
         text: format!("{:#?}", state.board.level),//format!("{:#?}", state.sizes),
-        xy: DrawXY { x: 16., y: 16. },
+        xy: DrawXY { x: text_x, y: MARGIN },
+        wh: DrawWH {
+            w: state.sizes.board_xywh.x - text_x,
+            h: state.sizes.draw_wh.h / MARGIN
+        },
     }));
 
     if let InputMode::FastMovement = state.input_mode {
+        let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
         commands.push(Text(TextSpec{
             text: "Fast".to_owned(),
-            xy: DrawXY { x: 16., y: state.sizes.draw_wh.h * 15. / 16. },
+            xy: DrawXY { x: text_x, y },
+            wh: DrawWH {
+                w: state.sizes.board_xywh.x - text_x,
+                h: state.sizes.draw_wh.h / MARGIN
+            },
         }));
     }
 }
