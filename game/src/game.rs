@@ -2,9 +2,6 @@
 //#![no_std]
 #![deny(unused)]
 
-// In case we decide that we care about no_std/not allocating
-type StrBuf = String;
-
 pub trait ClearableStorage<A> {
     fn clear(&mut self);
 
@@ -94,7 +91,16 @@ pub struct XY {
 
 pub mod draw;
 
-pub use draw::{DrawLength, DrawX, DrawY, DrawXY, DrawW, DrawH, DrawWH};
+pub use draw::{
+    DrawLength,
+    DrawX,
+    DrawY, 
+    DrawXY,
+    DrawW,
+    DrawH,
+    DrawWH,
+    SpriteKind
+};
 
 #[derive(Clone, Copy, Debug)]
 enum UiPos {
@@ -398,26 +404,6 @@ mod tile {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-pub enum SpriteKind {
-    Hidden,
-    Red,
-    Green,
-    Blue,
-    RedStar,
-    GreenStar,
-    BlueStar,
-    InstrumentalGoal,
-    TerminalGoal,
-    Selectrum,
-}
-
-impl Default for SpriteKind {
-    fn default() -> Self {
-        Self::Hidden
-    }
-}
-
 /// A Tile should always be at a particular position, but that position should be 
 /// derivable from the tiles location in the tiles array, so it doesn't need to be
 /// stored. But, we often want to get the tile's data and it's location as a single
@@ -595,21 +581,6 @@ fn is_last_level(state: &State) -> bool {
     next_level(state.board.level) == state.board.level
 }
 
-pub enum Command {
-    Sprite(SpriteSpec),
-    Text(TextSpec),
-}
-
-pub struct SpriteSpec {
-    pub sprite: SpriteKind,
-    pub xy: DrawXY,
-}
-
-pub struct TextSpec {
-    pub text: StrBuf,
-    pub xy: DrawXY,
-}
-
 pub type InputFlags = u16;
 
 pub const INPUT_UP_PRESSED: InputFlags        = 0b00_0000_0001;
@@ -672,13 +643,13 @@ impl Input {
 
 pub fn update(
     state: &mut State,
-    commands: &mut dyn ClearableStorage<Command>,
+    commands: &mut dyn ClearableStorage<draw::Command>,
     input_flags: InputFlags,
     draw_wh: DrawWH,
 ) {
     use Input::*;
     use UiPos::*;
-    use Command::*;
+    use draw::{SpriteSpec, TextSpec, Command::*};
 
     if draw_wh != state.sizes.draw_wh {
         state.sizes = draw::fresh_sizes(draw_wh);

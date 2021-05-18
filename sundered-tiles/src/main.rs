@@ -306,7 +306,7 @@ mod raylib_rs_platform {
                 };
     
                 for cmd in commands.0.iter() {
-                    use game::Command::*;
+                    use game::draw::Command::*;
                     match cmd {
                         Sprite(s) => {
                             let (source_x, source_y) = source_coords(s.sprite);

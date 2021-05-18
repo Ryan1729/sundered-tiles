@@ -1,4 +1,9 @@
+#![deny(unused)]
+
 use crate::tile;
+
+// In case we decide that we care about no_std/not allocating
+type StrBuf = String;
 
 type PlayX = DrawLength;
 type PlayY = DrawLength;
@@ -147,4 +152,40 @@ pub fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
         x: sizes.board_xywh.x + sizes.board_xywh.w * txy.x.proportion(),
         y: sizes.board_xywh.y + sizes.board_xywh.h * txy.y.proportion(),
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum SpriteKind {
+    Hidden,
+    Red,
+    Green,
+    Blue,
+    RedStar,
+    GreenStar,
+    BlueStar,
+    InstrumentalGoal,
+    TerminalGoal,
+    Selectrum,
+}
+
+impl Default for SpriteKind {
+    fn default() -> Self {
+        Self::Hidden
+    }
+}
+
+
+pub enum Command {
+    Sprite(SpriteSpec),
+    Text(TextSpec),
+}
+
+pub struct SpriteSpec {
+    pub sprite: SpriteKind,
+    pub xy: DrawXY,
+}
+
+pub struct TextSpec {
+    pub text: StrBuf,
+    pub xy: DrawXY,
 }
