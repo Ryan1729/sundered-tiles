@@ -332,19 +332,33 @@ mod raylib_rs_platform {
                             let mut size = i32::MAX;
                             let mut low = 0;
                             let mut high = i32::MAX;
-                            while low <= high {
-                                let mut width = measure_text(&t.text, size);
-                                if width == i32::MIN {
-                                    width = i32::MAX;
-                                }
-                                let mut next_width = measure_text(&t.text, size.saturating_add(1));
-                                if next_width == i32::MIN {
-                                    next_width = i32::MAX;
-                                }
 
-                                // TODO really measure height.
-                                let height = measure_text("m", size).saturating_mul(3);
-                                let next_height = measure_text("m", size.saturating_add(1)).saturating_mul(3);
+                            let mut width;
+                            let mut next_width;
+                            let mut height;
+                            let mut next_height;
+
+                            macro_rules! set_wh {
+                                () => {
+                                    width = measure_text(&t.text, size);
+                                    if width == i32::MIN {
+                                        width = i32::MAX;
+                                    }
+                                    next_width = measure_text(&t.text, size.saturating_add(1));
+                                    if next_width == i32::MIN {
+                                        next_width = i32::MAX;
+                                    }
+    
+                                    // TODO really measure height.
+                                    height = measure_text("m", size).saturating_mul(3);
+                                    next_height = measure_text("m", size.saturating_add(1)).saturating_mul(3);
+                                }
+                            }
+
+                            set_wh!();
+
+                            while low <= high {
+                                set_wh!();
 
                                 let width_does_not_fit = width as f32 > t.wh.w;
                                 let height_does_not_fit = height as f32 > t.wh.h;
@@ -366,10 +380,16 @@ mod raylib_rs_platform {
                                     low = size + 1;
                                 }
                             }
+                            let desired_center_x = t.xy.x + (t.wh.w / 2.);
+                            let desired_center_y = t.xy.y + (t.wh.h / 2.);
+
+                            let centered_x = desired_center_x - (width as f32 / 2.);
+                            let centered_y = desired_center_y - (height as f32 / 2.);
+
                             shader_d.draw_text(
                                 &t.text,
-                                t.xy.x as i32,
-                                t.xy.y as i32,
+                                centered_x.round() as i32,
+                                centered_y.round() as i32,
                                 size,
                                 TEXT
                             );

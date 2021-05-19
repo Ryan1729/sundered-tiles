@@ -799,7 +799,12 @@ pub fn update(
         };
 
         if let Some(_star_xy) = star_xy {
-            let distance = 99; // TODO real manhattan distance
+            let distance = match tile.data.kind {
+                Red(Shown) => 9,
+                Green(Shown) => 10,
+                _ => 99,
+            };
+            //let distance = 99; // TODO real manhattan distance
             commands.push(Text(TextSpec {
                 // We could avoid this allocation since there are only 99
                 // needed strings here. Maybe plus "??" for an error or something.
