@@ -783,6 +783,34 @@ pub fn update(
             sprite,
             xy
         }));
+
+        // TODO find real star_xy
+        let star_xy = match tile.data.kind {
+            Red(Shown) => Some(
+                ()
+            ),
+            Green(Shown) => Some(
+                ()
+            ),
+            Blue(Shown) => Some(
+                ()
+            ),
+            _ => None,
+        };
+
+        if let Some(_star_xy) = star_xy {
+            let distance = 99; // TODO real manhattan distance
+            commands.push(Text(TextSpec {
+                // We could avoid this allocation since there are only 99
+                // needed strings here. Maybe plus "??" for an error or something.
+                text: format!("{}", distance),
+                xy,
+                wh: DrawWH {
+                    w: state.sizes.tile_side_length,
+                    h: state.sizes.tile_side_length,
+                },
+            }));
+        }
     }
 
     if !interacted {
