@@ -808,7 +808,7 @@ pub fn update(
             commands.push(Text(TextSpec {
                 // We could avoid this allocation since there are only 99
                 // needed strings here. Maybe plus "??" for an error or something.
-                text: format!("{}", distance),
+                text: format!("{}{}", distance / 10, distance % 10),
                 xy,
                 wh: DrawWH {
                     w: state.sizes.tile_side_length,

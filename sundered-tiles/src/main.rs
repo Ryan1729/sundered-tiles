@@ -202,9 +202,6 @@ mod raylib_rs_platform {
 
         const SPRITE_BORDER: f32 = 4.;
 
-        let mut h_mul = 9;
-        let mut h_div = 5;
-
         while !rl.window_should_close() {
             if rl.is_key_pressed(KEY_F11) {
                 rl.toggle_fullscreen();
@@ -250,26 +247,6 @@ mod raylib_rs_platform {
 
             if rl.is_key_pressed(KEY_RIGHT) || rl.is_key_pressed(KEY_D) {
                 input_flags |= game::INPUT_RIGHT_PRESSED;
-            }
-
-            if rl.is_key_down(KEY_LEFT_SHIFT) || rl.is_key_down(KEY_RIGHT_SHIFT) {
-            if rl.is_key_pressed(KEY_EQUAL) {   
-                h_div += 1;
-            }
-
-            if rl.is_key_pressed(KEY_MINUS) {
-                h_div -= 1;
-                h_div = ::core::cmp::max(1, h_div);
-            }
-            } else {
-if rl.is_key_pressed(KEY_EQUAL) {   
-                h_mul += 1;
-            }
-
-            if rl.is_key_pressed(KEY_MINUS) {
-                h_mul -= 1;
-                h_mul = ::core::cmp::max(1, h_mul);
-            }
             }
 
             game::update(
@@ -372,13 +349,16 @@ if rl.is_key_pressed(KEY_EQUAL) {
                                         next_width = i32::MAX;
                                     }
     
-                                    // TODO really measure height. // 9 / 5
-                                    height = measure_text("m", size).saturating_mul(h_mul) / h_div;
-                                    next_height = measure_text("m", size.saturating_add(1)).saturating_mul(h_mul) / h_div;
+                                    // TODO really measure height. (9/5 arrived at through trial and error)
+                                    height = measure_text("m", size).saturating_mul(9) / 5;
+                                    next_height = measure_text("m", size.saturating_add(1)).saturating_mul(9) / 5;
                                 }
                             }
 
-                            set_wh!();
+                            {
+                                #![allow(unused_assignments)]
+                                set_wh!();
+                            }
 
                             while low <= high {
                                 set_wh!();
@@ -404,10 +384,6 @@ if rl.is_key_pressed(KEY_EQUAL) {
                                 }
                             }
 
-                            // temp
-                            //size += 40;
-                            //set_wh!();
-
                             let desired_center_x = t.xy.x + (t.wh.w / 2.);
                             let desired_center_y = t.xy.y + (t.wh.h / 2.);
 
@@ -424,14 +400,6 @@ if rl.is_key_pressed(KEY_EQUAL) {
                         }
                     }
                 }
-
-shader_d.draw_text(
-                &format!("{}/{}", h_mul, h_div),
-                800,
-                0,
-                40,
-                TEXT
-            );
             }
 
             let render_target_source_rect = Rectangle {
