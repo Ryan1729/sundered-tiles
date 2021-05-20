@@ -154,7 +154,7 @@ mod tile {
 
     macro_rules! tuple_new_type {
         ($struct_name: ident) => {
-            #[derive(Clone, Copy, Debug, Default)]
+            #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
             pub struct $struct_name(Coord);
         
             impl AddOne for $struct_name {
@@ -180,7 +180,7 @@ mod tile {
     tuple_new_type!{X}
     tuple_new_type!{Y}
 
-    #[derive(Copy, Clone, Default, Debug)]
+    #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
     pub struct XY {
         pub x: X,
         pub y: Y,
@@ -209,9 +209,80 @@ mod tile {
         + u8::from(xy.x.0) as usize
     }
 
+    pub fn i_to_xy(index: usize) -> XY {
+        XY {
+            x: X(core::convert::TryFrom::try_from(
+                (index % Coord::COUNT as usize) as Count
+            ).unwrap_or_default()),
+            y: Y(core::convert::TryFrom::try_from(
+                ((index % (TILES_LENGTH as usize) as usize) 
+                / Coord::COUNT as usize) as Count
+            ).unwrap_or_default()),
+        }
+    }
+
+    #[test]
+    fn i_to_xy_then_xy_to_i_is_identity_for_these_examples() {
+        macro_rules! is_ident {
+            ($index: expr) => {
+                assert_eq!($index, xy_to_i(i_to_xy($index)));
+            }
+        }
+
+        const COUNT: usize = Coord::COUNT as _;
+
+        is_ident!(0);
+        is_ident!(COUNT - 1);
+        is_ident!(COUNT);
+        is_ident!(COUNT + 1);
+        is_ident!(2 * COUNT - 1);
+        is_ident!(2 * COUNT);
+        is_ident!(2 * COUNT + 1);
+        is_ident!(COUNT * COUNT - 1);
+
+        // This seems like the best response in cases where we start with an invalid
+        // index.
+        macro_rules! is_ident_mod_count_squared {
+            ($index: expr) => {
+                assert_eq!(
+                    ($index) % (COUNT * COUNT),
+                    xy_to_i(i_to_xy($index)),
+                );
+            }
+        }
+        is_ident_mod_count_squared!(COUNT * COUNT);
+        is_ident_mod_count_squared!((COUNT * COUNT) + 1);
+    }
+
+    #[test]
+    fn xy_to_i_then_i_to_xy_is_identity_for_these_examples() {
+        macro_rules! is_ident {
+            ($index: expr) => {
+                assert_eq!($index, i_to_xy(xy_to_i($index)));
+            }
+        }
+
+        use Coord::*;
+
+        is_ident!(XY {x: X(C0), y: Y(C0)});
+        is_ident!(XY {x: X(C49), y: Y(C0)});
+        is_ident!(XY {x: X(C0), y: Y(C1)});
+        is_ident!(XY {x: X(C1), y: Y(C1)});
+        is_ident!(XY {x: X(C49), y: Y(C1)});
+        is_ident!(XY {x: X(C0), y: Y(C2)});
+        is_ident!(XY {x: X(C1), y: Y(C2)});
+        is_ident!(XY {x: X(C49), y: Y(C49)});
+    }
+
+    pub type Distance = u8;
+    pub(crate) fn manhattan_distance(a: XY, b: XY) -> Distance {
+        ((u8::from(a.x.0) as i8 - u8::from(b.x.0) as i8).abs() 
+        + (u8::from(a.y.0) as i8 - u8::from(b.y.0) as i8).abs()) as Distance
+    }
+
     macro_rules! coord_def {
         ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
-            #[derive(Clone, Copy, Debug)]
+            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
             #[repr(u8)]
             /// We only want to handle displaying at most 2 decimal digits for any 
             /// distance from one tile to another. Since we're using Manhattan 
@@ -402,7 +473,17 @@ mod tile {
             Self::Hidden
         }
     }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum Colour {
+        Red,
+        Green,
+        Blue
+    }
+
+    pub const TILES_LENGTH: u32 = Coord::COUNT as u32 * Coord::COUNT as u32;
 }
+pub use tile::TILES_LENGTH;
 
 /// A Tile should always be at a particular position, but that position should be 
 /// derivable from the tiles location in the tiles array, so it doesn't need to be
@@ -420,11 +501,23 @@ struct Tile {
     data: TileData
 }
 
-const TILES_LENGTH: u32 = COORD_COUNT as u32 * COORD_COUNT as u32;
-
 #[derive(Clone, Debug)]
 pub struct Tiles {
     tiles: [TileData; TILES_LENGTH as _],
+    red_star_xy: tile::XY,
+    green_star_xy: tile::XY,
+    blue_star_xy: tile::XY,
+}
+
+impl Default for Tiles {
+    fn default() -> Self {
+        Self {
+            tiles: [TileData::default(); TILES_LENGTH as _],
+            red_star_xy: tile::XY::default(),
+            green_star_xy: tile::XY::default(),
+            blue_star_xy: tile::XY::default(),
+        }
+    }
 }
 
 impl Tiles {
@@ -454,29 +547,41 @@ impl Tiles {
         }
 
         macro_rules! set_random_tile {
-            ($from: ident => $to: ident) => {
+            ($from: ident => $to: ident) => {{
+                let mut xy = None;
                 let mut index = xs_u32(rng, 0, TILES_LENGTH) as usize;
+
                 for _ in 0..TILES_LENGTH as usize {
                     if let $from(vis) = tiles[index].kind {
                         tiles[index].kind = $to(vis);
+                        xy = Some(tile::i_to_xy(index));
                         break
                     }
 
                     index += 1;
                     index %= TILES_LENGTH as usize;
                 }
-            }
+
+                if cfg!(debug_assertions) {
+                    xy.expect("set_random_tile found no tile!")
+                } else {
+                    xy.unwrap_or_default()
+                }
+            }}
         }
 
-        set_random_tile!(Red => RedStar);
-        set_random_tile!(Green => GreenStar);
-        set_random_tile!(Blue => BlueStar);
+        let red_star_xy = set_random_tile!(Red => RedStar);
+        let green_star_xy = set_random_tile!(Green => GreenStar);
+        let blue_star_xy = set_random_tile!(Blue => BlueStar);
 
         // TODO remove this slight non-uniformity?
-        set_random_tile!(Red => Goal);
+        let _ = set_random_tile!(Red => Goal);
 
         Self {
-            tiles
+            tiles,
+            red_star_xy,
+            green_star_xy,
+            blue_star_xy,
         }
     }
 }
@@ -492,11 +597,12 @@ fn set_tile(tiles: &mut Tiles, tile: Tile) {
     tiles.tiles[tile::xy_to_i(tile.xy)] = tile.data;
 }
 
-impl Default for Tiles {
-    fn default() -> Self {
-        Self {
-            tiles: [TileData::default(); TILES_LENGTH as _]
-        }
+fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
+    use tile::Colour::*;
+    match colour {
+        Red => tiles.red_star_xy,
+        Green => tiles.green_star_xy,
+        Blue => tiles.blue_star_xy,
     }
 }
 
@@ -787,24 +893,19 @@ pub fn update(
         // TODO find real star_xy
         let star_xy = match tile.data.kind {
             Red(Shown) => Some(
-                ()
+                get_star_xy(&state.board.tiles, tile::Colour::Red)
             ),
             Green(Shown) => Some(
-                ()
+                get_star_xy(&state.board.tiles, tile::Colour::Green)
             ),
             Blue(Shown) => Some(
-                ()
+                get_star_xy(&state.board.tiles, tile::Colour::Blue)
             ),
             _ => None,
         };
 
-        if let Some(_star_xy) = star_xy {
-            let distance = match tile.data.kind {
-                Red(Shown) => 9,
-                Green(Shown) => 10,
-                _ => 99,
-            };
-            //let distance = 99; // TODO real manhattan distance
+        if let Some(star_xy) = star_xy {
+            let distance = tile::manhattan_distance(txy, star_xy);
             commands.push(Text(TextSpec {
                 // We could avoid this allocation since there are only 99
                 // needed strings here. Maybe plus "??" for an error or something.
