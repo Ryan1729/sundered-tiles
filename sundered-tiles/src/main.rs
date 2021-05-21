@@ -199,6 +199,24 @@ mod raylib_rs_platform {
         const TEXT: Color = WHITE;
         const NO_TINT: Color = WHITE;
         const OUTLINE: Color = WHITE;
+        const RULER_TINT: Color = Color{ r: 0xff, g: 0xff, b: 0xff, a: 192 };
+
+        fn tint_from_kind(sprite: game::SpriteKind) -> Color {
+            use game::SpriteKind::*;
+            match sprite {
+                Hidden
+                | Red
+                | Green
+                | Blue
+                | RedStar
+                | GreenStar
+                | BlueStar
+                | InstrumentalGoal
+                | TerminalGoal
+                | Selectrum => NO_TINT,
+                RulerEnd => RULER_TINT
+            }
+        }
 
         const SPRITE_BORDER: f32 = 4.;
 
@@ -318,7 +336,7 @@ mod raylib_rs_platform {
                     match cmd {
                         Sprite(s) => {
                             let (source_x, source_y) = source_coords(s.sprite);
-        
+
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
@@ -333,7 +351,7 @@ mod raylib_rs_platform {
                                 },
                                 Vector2::default(),
                                 0.0,
-                                NO_TINT
+                                tint_from_kind(s.sprite)
                             );
                         }
                         Text(t) => {

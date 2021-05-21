@@ -2,6 +2,7 @@
 
 // Input vertex attributes (from vertex shader)
 in vec2 fragTexCoord;
+in vec4 fragColor;
 
 // Input uniform values
 uniform sampler2D texture0;
@@ -44,5 +45,5 @@ void main()
 
     vec4 color = texture2D(texture0, conditionedFragTexCoord);
 
-    finalColor = color;
+    finalColor = color*fragColor;
 }
