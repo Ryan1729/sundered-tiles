@@ -166,6 +166,7 @@ pub enum SpriteKind {
     InstrumentalGoal,
     TerminalGoal,
     Selectrum,
+    RulerEnd,
 }
 
 impl Default for SpriteKind {

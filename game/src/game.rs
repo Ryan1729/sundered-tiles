@@ -652,14 +652,26 @@ impl Board {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq)]
-enum InputMode {
+enum InputSpeed {
     Standard,
-    FastMovement
+    Fast,
 }
 
-impl Default for InputMode {
+impl Default for InputSpeed {
     fn default() -> Self {
         Self::Standard
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum Tool {
+    Selectrum,
+    Ruler(tile::XY)
+}
+
+impl Default for Tool {
+    fn default() -> Self {
+        Self::Selectrum
     }
 }
 
@@ -667,7 +679,8 @@ impl Default for InputMode {
 pub struct State {
     sizes: draw::Sizes,
     board: Board,
-    input_mode: InputMode,
+    input_speed: InputSpeed,
+    tool: Tool,
 }
 
 impl State {
@@ -689,18 +702,20 @@ fn is_last_level(state: &State) -> bool {
 
 pub type InputFlags = u16;
 
-pub const INPUT_UP_PRESSED: InputFlags        = 0b00_0000_0001;
-pub const INPUT_DOWN_PRESSED: InputFlags      = 0b00_0000_0010;
-pub const INPUT_LEFT_PRESSED: InputFlags      = 0b00_0000_0100;
-pub const INPUT_RIGHT_PRESSED: InputFlags     = 0b00_0000_1000;
+pub const INPUT_UP_PRESSED: InputFlags         = 0b0000_0000_0001;
+pub const INPUT_DOWN_PRESSED: InputFlags       = 0b0000_0000_0010;
+pub const INPUT_LEFT_PRESSED: InputFlags       = 0b0000_0000_0100;
+pub const INPUT_RIGHT_PRESSED: InputFlags      = 0b0000_0000_1000;
 
-pub const INPUT_UP_DOWN: InputFlags           = 0b00_0001_0000;
-pub const INPUT_DOWN_DOWN: InputFlags         = 0b00_0010_0000;
-pub const INPUT_LEFT_DOWN: InputFlags         = 0b00_0100_0000;
-pub const INPUT_RIGHT_DOWN: InputFlags        = 0b00_1000_0000;
+pub const INPUT_UP_DOWN: InputFlags            = 0b0000_0001_0000;
+pub const INPUT_DOWN_DOWN: InputFlags          = 0b0000_0010_0000;
+pub const INPUT_LEFT_DOWN: InputFlags          = 0b0000_0100_0000;
+pub const INPUT_RIGHT_DOWN: InputFlags         = 0b0000_1000_0000;
 
-pub const INPUT_INTERACT_PRESSED: InputFlags  = 0b01_0000_0000;
-pub const INPUT_FAST_PRESSED: InputFlags      = 0b10_0000_0000;
+pub const INPUT_INTERACT_PRESSED: InputFlags   = 0b0001_0000_0000;
+pub const INPUT_FAST_PRESSED: InputFlags       = 0b0010_0000_0000;
+pub const INPUT_TOOL_LEFT_PRESSED: InputFlags  = 0b0100_0000_0000;
+pub const INPUT_TOOL_RIGHT_PRESSED: InputFlags = 0b1000_0000_0000;
 
 #[derive(Clone, Copy, Debug)]
 enum Input {
@@ -713,13 +728,13 @@ enum Input {
 }
 
 impl Input {
-    fn from_flags(flags: InputFlags, input_mode: InputMode) -> Self {
+    fn from_flags(flags: InputFlags, input_speed: InputSpeed) -> Self {
         use Input::*;
-        use InputMode::*;
-        match input_mode {
+        use InputSpeed::*;
+        match input_speed {
             // We disallow Interact during FastMovement to prevent non-undoable 
             // mistakes
-            FastMovement => if INPUT_UP_DOWN & flags != 0 {
+            Fast => if INPUT_UP_DOWN & flags != 0 {
                 Up
             } else if INPUT_DOWN_DOWN & flags != 0 {
                 Down
@@ -756,6 +771,7 @@ pub fn update(
     use Input::*;
     use UiPos::*;
     use draw::{SpriteSpec, TextSpec, Command::*};
+    use Tool::*;
 
     if draw_wh != state.sizes.draw_wh {
         state.sizes = draw::fresh_sizes(draw_wh);
@@ -764,14 +780,32 @@ pub fn update(
     commands.clear();
 
     if INPUT_FAST_PRESSED & input_flags != 0 {
-        state.input_mode = if let InputMode::FastMovement = state.input_mode {
-            InputMode::Standard
+        state.input_speed = if let InputSpeed::Fast = state.input_speed {
+            InputSpeed::Standard
         } else {
-            InputMode::FastMovement
+            InputSpeed::Fast
+        };
+    } 
+
+    if INPUT_TOOL_LEFT_PRESSED & input_flags != 0 {
+        state.tool = match state.tool {
+            Selectrum => match state.board.ui_pos {
+                Tile(xy) => Ruler(xy)
+            },
+            Ruler(_) => Selectrum,
         };
     }
 
-    let input = Input::from_flags(input_flags, state.input_mode);
+    if INPUT_TOOL_RIGHT_PRESSED & input_flags != 0 {
+        state.tool = match state.tool {
+            Selectrum => match state.board.ui_pos {
+                Tile(xy) => Ruler(xy)
+            },
+            Ruler(_) => Selectrum,
+        };
+    }
+
+    let input = Input::from_flags(input_flags, state.input_speed);
 
     let mut interacted = false;
 
@@ -798,61 +832,69 @@ pub fn update(
             }
         },
         (Interact, Tile(ref xy)) => {
-            let mut tile = get_tile(&state.board.tiles, *xy);
+            use Tool::*;
+            match state.tool {
+                Selectrum => {
+                    let mut tile = get_tile(&state.board.tiles, *xy);
 
-            let started_visible = matches!(
-                tile::get_visibility(tile.data.kind),
-                Some(tile::Visibility::Shown)
-            );
-
-            tile.data.kind = tile::set_visibility(
-                tile.data.kind,
-                tile::Visibility::Shown
-            );
-
-            set_tile(&mut state.board.tiles, tile);
-
-            use tile::{Kind::*, Visibility::*};
-
-            if started_visible && tile::is_goal(tile.data.kind) {
-                if is_last_level(state) {
-                    for xy in tile::XY::all() {
-                        set_tile(&mut state.board.tiles, crate::Tile {
-                            xy,
-                            data: TileData {
-                                kind: Goal(Shown),
-                                ..<_>::default()
-                            }
-                        });
-                    }
-                } else {
-                    let level = state.board.level;
-                    state.board = Board::from_seed(
-                        new_seed(&mut state.board.rng),
-                        state.board.level,
+                    let started_visible = matches!(
+                        tile::get_visibility(tile.data.kind),
+                        Some(tile::Visibility::Shown)
                     );
-                    state.board.level = next_level(level);
-                }
-            }
-
-            macro_rules! reveal_all_matching {
-                ($variant: ident) => {
-                    for index in 0..TILES_LENGTH as usize {
-                        if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
-                            state.board.tiles.tiles[index].kind = $variant(Shown);
+        
+                    tile.data.kind = tile::set_visibility(
+                        tile.data.kind,
+                        tile::Visibility::Shown
+                    );
+        
+                    set_tile(&mut state.board.tiles, tile);
+        
+                    use tile::{Kind::*, Visibility::*};
+        
+                    if started_visible && tile::is_goal(tile.data.kind) {
+                        if is_last_level(state) {
+                            for xy in tile::XY::all() {
+                                set_tile(&mut state.board.tiles, crate::Tile {
+                                    xy,
+                                    data: TileData {
+                                        kind: Goal(Shown),
+                                        ..<_>::default()
+                                    }
+                                });
+                            }
+                        } else {
+                            let level = state.board.level;
+                            state.board = Board::from_seed(
+                                new_seed(&mut state.board.rng),
+                                state.board.level,
+                            );
+                            state.board.level = next_level(level);
                         }
                     }
+        
+                    macro_rules! reveal_all_matching {
+                        ($variant: ident) => {
+                            for index in 0..TILES_LENGTH as usize {
+                                if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
+                                    state.board.tiles.tiles[index].kind = $variant(Shown);
+                                }
+                            }
+                        }
+                    }
+        
+                    match tile.data.kind {
+                        RedStar(_) => reveal_all_matching!(Red),
+                        GreenStar(_) => reveal_all_matching!(Green),
+                        BlueStar(_) => reveal_all_matching!(Blue),
+                        _ => {}
+                    }
+                    
+                    interacted = true;
+                },
+                Ruler(ref mut pos) => {
+                    *pos = *xy;
                 }
             }
-
-            match tile.data.kind {
-                RedStar(_) => reveal_all_matching!(Red),
-                GreenStar(_) => reveal_all_matching!(Green),
-                BlueStar(_) => reveal_all_matching!(Blue),
-                _ => {}
-            }
-            
-            interacted = true;
         },
     }
 
@@ -919,6 +961,16 @@ pub fn update(
         }
     }
 
+    match state.tool {
+        Selectrum => {},
+        Ruler(pos) => {
+            commands.push(Sprite(SpriteSpec{
+                sprite: SpriteKind::RulerEnd,
+                xy: draw::tile_xy_to_draw(&state.sizes, pos),
+            }));
+        }
+    }
+
     if !interacted {
         commands.push(Sprite(SpriteSpec{
             sprite: SpriteKind::Selectrum,
@@ -938,7 +990,7 @@ pub fn update(
         },
     }));
 
-    if let InputMode::FastMovement = state.input_mode {
+    if let InputSpeed::Fast = state.input_speed {
         let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
         commands.push(Text(TextSpec{
             text: "Fast".to_owned(),
@@ -948,5 +1000,29 @@ pub fn update(
                 h: state.sizes.draw_wh.h / MARGIN
             },
         }));
+    }
+
+    {
+        let wh = DrawWH {
+            w: state.sizes.board_xywh.x - text_x,
+            h: state.sizes.draw_wh.h / MARGIN
+        };
+
+        match state.tool {
+            Selectrum => {},
+            Ruler(pos) => {
+                let y = (state.sizes.draw_wh.h - wh.h) / 2.;
+                let board_xywh = &state.sizes.board_xywh;
+                commands.push(Text(TextSpec{
+                    text: format!("Ruler: {}", match state.board.ui_pos {
+                        Tile(xy) => {
+                            tile::manhattan_distance(pos, xy)
+                        }
+                    }),
+                    xy: DrawXY { x: board_xywh.x + board_xywh.w, y },
+                    wh,
+                }));
+            }
+        }
     }
 }

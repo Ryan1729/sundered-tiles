@@ -36,7 +36,7 @@ fn source_coords(sprite: SpriteKind) -> (f32, f32) {
         BlueStar => 6.0,
         InstrumentalGoal => 7.0,
         TerminalGoal => 8.0,
-        Selectrum => 15.0,
+        Selectrum | RulerEnd => 15.0,
     };
 
     (
@@ -247,6 +247,14 @@ mod raylib_rs_platform {
 
             if rl.is_key_pressed(KEY_RIGHT) || rl.is_key_pressed(KEY_D) {
                 input_flags |= game::INPUT_RIGHT_PRESSED;
+            }
+
+            if rl.is_key_pressed(KEY_Q) || rl.is_key_pressed(KEY_X) {
+                input_flags |= game::INPUT_TOOL_LEFT_PRESSED;
+            }
+
+            if rl.is_key_pressed(KEY_E) || rl.is_key_pressed(KEY_C) {
+                input_flags |= game::INPUT_TOOL_RIGHT_PRESSED;
             }
 
             game::update(
