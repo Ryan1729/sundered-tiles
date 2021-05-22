@@ -702,20 +702,21 @@ fn is_last_level(state: &State) -> bool {
 
 pub type InputFlags = u16;
 
-pub const INPUT_UP_PRESSED: InputFlags         = 0b0000_0000_0001;
-pub const INPUT_DOWN_PRESSED: InputFlags       = 0b0000_0000_0010;
-pub const INPUT_LEFT_PRESSED: InputFlags       = 0b0000_0000_0100;
-pub const INPUT_RIGHT_PRESSED: InputFlags      = 0b0000_0000_1000;
+pub const INPUT_UP_PRESSED: InputFlags         = 0b0_0000_0000_0001;
+pub const INPUT_DOWN_PRESSED: InputFlags       = 0b0_0000_0000_0010;
+pub const INPUT_LEFT_PRESSED: InputFlags       = 0b0_0000_0000_0100;
+pub const INPUT_RIGHT_PRESSED: InputFlags      = 0b0_0000_0000_1000;
 
-pub const INPUT_UP_DOWN: InputFlags            = 0b0000_0001_0000;
-pub const INPUT_DOWN_DOWN: InputFlags          = 0b0000_0010_0000;
-pub const INPUT_LEFT_DOWN: InputFlags          = 0b0000_0100_0000;
-pub const INPUT_RIGHT_DOWN: InputFlags         = 0b0000_1000_0000;
+pub const INPUT_UP_DOWN: InputFlags            = 0b0_0000_0001_0000;
+pub const INPUT_DOWN_DOWN: InputFlags          = 0b0_0000_0010_0000;
+pub const INPUT_LEFT_DOWN: InputFlags          = 0b0_0000_0100_0000;
+pub const INPUT_RIGHT_DOWN: InputFlags         = 0b0_0000_1000_0000;
 
-pub const INPUT_INTERACT_PRESSED: InputFlags   = 0b0001_0000_0000;
-pub const INPUT_FAST_PRESSED: InputFlags       = 0b0010_0000_0000;
-pub const INPUT_TOOL_LEFT_PRESSED: InputFlags  = 0b0100_0000_0000;
-pub const INPUT_TOOL_RIGHT_PRESSED: InputFlags = 0b1000_0000_0000;
+pub const INPUT_INTERACT_PRESSED: InputFlags   = 0b0_0001_0000_0000;
+pub const INPUT_FAST_PRESSED: InputFlags       = 0b0_0010_0000_0000;
+pub const INPUT_TOOL_LEFT_PRESSED: InputFlags  = 0b0_0100_0000_0000;
+pub const INPUT_TOOL_RIGHT_PRESSED: InputFlags = 0b0_1000_0000_0000;
+pub const INPUT_UI_RESET_PRESSED: InputFlags   = 0b1_0000_0000_0000;
 
 #[derive(Clone, Copy, Debug)]
 enum Input {
@@ -803,6 +804,11 @@ pub fn update(
             },
             Ruler(_) => Selectrum,
         };
+    }
+
+    if INPUT_UI_RESET_PRESSED & input_flags != 0 {
+        state.input_speed = InputSpeed::Standard;
+        state.tool = Selectrum;
     }
 
     let input = Input::from_flags(input_flags, state.input_speed);

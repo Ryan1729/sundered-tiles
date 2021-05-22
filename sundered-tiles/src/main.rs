@@ -275,6 +275,10 @@ mod raylib_rs_platform {
                 input_flags |= game::INPUT_TOOL_RIGHT_PRESSED;
             }
 
+            if rl.is_key_pressed(KEY_R) || rl.is_key_pressed(KEY_Z) {
+                input_flags |= game::INPUT_UI_RESET_PRESSED;
+            }
+
             game::update(
                 &mut state,
                 &mut commands,
