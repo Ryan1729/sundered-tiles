@@ -729,13 +729,18 @@ enum Input {
 }
 
 impl Input {
-    fn from_flags(flags: InputFlags, input_speed: InputSpeed) -> Self {
+    fn from_flags(flags: InputFlags, input_speed: InputSpeed, tool: Tool) -> Self {
         use Input::*;
         use InputSpeed::*;
         match input_speed {
-            // We disallow Interact during FastMovement to prevent non-undoable 
-            // mistakes
-            Fast => if INPUT_UP_DOWN & flags != 0 {
+            Fast => if INPUT_INTERACT_PRESSED & flags != 0 {
+                // We disallow Interact during FastMovement if the tool is not
+                // undoable, to prevent non-undoable mistakes
+                match tool {
+                    Tool::Selectrum => NoChange,
+                    Tool::Ruler(_) => Interact
+                }
+            } else if INPUT_UP_DOWN & flags != 0 {
                 Up
             } else if INPUT_DOWN_DOWN & flags != 0 {
                 Down
@@ -806,12 +811,18 @@ pub fn update(
         };
     }
 
-    if INPUT_UI_RESET_PRESSED & input_flags != 0 {
-        state.input_speed = InputSpeed::Standard;
-        state.tool = Selectrum;
+    macro_rules! do_ui_reset {
+        () => {
+            state.input_speed = InputSpeed::Standard;
+            state.tool = Selectrum;
+        }
     }
 
-    let input = Input::from_flags(input_flags, state.input_speed);
+    if INPUT_UI_RESET_PRESSED & input_flags != 0 {
+        do_ui_reset!();
+    }
+
+    let input = Input::from_flags(input_flags, state.input_speed, state.tool);
 
     let mut interacted = false;
 
@@ -898,7 +909,15 @@ pub fn update(
                     interacted = true;
                 },
                 Ruler(ref mut pos) => {
-                    *pos = *xy;
+                    if *pos == *xy {
+                        // We find that we want to be able to press `Interact` after
+                        // measuring with the ruler, and have a dig happen. But we
+                        // don't want to make mistakes easy to make, so we make it
+                        // require multiple presses to do that.
+                        do_ui_reset!();
+                    } else {
+                        *pos = *xy;
+                    }
                 }
             }
         },
