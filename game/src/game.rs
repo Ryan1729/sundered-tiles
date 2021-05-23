@@ -629,23 +629,46 @@ fn next_level(level: Level) -> Level {
     }
 }
 
+// 64k digs ought to be enough for anybody!
+type Digs = u16;
+
 #[derive(Debug, Default)]
 struct Board {
     ui_pos: UiPos,
     tiles: Tiles,
     rng: Xs,
-    level: Level
+    level: Level,
+    digs: Digs
 }
 
 impl Board {
-    fn from_seed(seed: Seed, level: Level) -> Self {
+    fn from_seed(seed: Seed, level: Level, previous_digs: Digs) -> Self {
         let mut rng = xs_from_seed(seed);
 
         let tiles = Tiles::from_rng(&mut rng, level);
 
+        let mut non_empty_count: Digs = 0;
+        for i in 0..tile::TILES_LENGTH as usize {
+            if matches!(tiles.tiles[i].kind, tile::Kind::Empty) {
+                continue
+            }
+            non_empty_count += 1;
+        }
+
+        const STAR_TYPES_COUNT: Digs = 3;
+
+        let digs = core::cmp::max(
+            non_empty_count >> 3,
+            // You get at least one mistake per star type
+            STAR_TYPES_COUNT * 2
+            // for the goal
+            + 1
+        ) + previous_digs;
+
         Self {
             rng,
             tiles,
+            digs,
             ..<_>::default()
         }
     }
@@ -686,7 +709,7 @@ pub struct State {
 impl State {
     pub fn from_seed(seed: Seed) -> Self {
         Self {
-            board: Board::from_seed(seed, <_>::default()),
+            board: Board::from_seed(seed, <_>::default(), <_>::default()),
             ..<_>::default()
         }
     }
@@ -854,21 +877,46 @@ pub fn update(
                 Selectrum => {
                     let mut tile = get_tile(&state.board.tiles, *xy);
 
-                    let started_visible = matches!(
+                    let started_hidden = matches!(
                         tile::get_visibility(tile.data.kind),
-                        Some(tile::Visibility::Shown)
+                        Some(tile::Visibility::Hidden)
                     );
-        
-                    tile.data.kind = tile::set_visibility(
-                        tile.data.kind,
-                        tile::Visibility::Shown
-                    );
-        
-                    set_tile(&mut state.board.tiles, tile);
+
+                    if started_hidden &&
+                        (state.board.digs > 0 || cfg!(debug_assertions)) {
+                        state.board.digs = state.board.digs.saturating_sub(1);
+                        tile.data.kind = tile::set_visibility(
+                            tile.data.kind,
+                            tile::Visibility::Shown
+                        );
+
+                        set_tile(&mut state.board.tiles, tile);
+
+                        macro_rules! reveal_all_matching {
+                            ($variant: ident) => {{
+                                // TODO particles that say "+1", "Extra dig", "1UP"
+                                // or something.
+                                state.board.digs = state.board.digs.saturating_add(1);
+
+                                for index in 0..TILES_LENGTH as usize {
+                                    if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
+                                        state.board.tiles.tiles[index].kind = $variant(Shown);
+                                    }
+                                }
+                            }}
+                        }
+
+                        match tile.data.kind {
+                            RedStar(_) => reveal_all_matching!(Red),
+                            GreenStar(_) => reveal_all_matching!(Green),
+                            BlueStar(_) => reveal_all_matching!(Blue),
+                            _ => {}
+                        }
+                    }
         
                     use tile::{Kind::*, Visibility::*};
         
-                    if started_visible && tile::is_goal(tile.data.kind) {
+                    if !started_hidden && tile::is_goal(tile.data.kind) {
                         if is_last_level(state) {
                             for xy in tile::XY::all() {
                                 set_tile(&mut state.board.tiles, crate::Tile {
@@ -884,26 +932,10 @@ pub fn update(
                             state.board = Board::from_seed(
                                 new_seed(&mut state.board.rng),
                                 state.board.level,
+                                state.board.digs,
                             );
                             state.board.level = next_level(level);
                         }
-                    }
-        
-                    macro_rules! reveal_all_matching {
-                        ($variant: ident) => {
-                            for index in 0..TILES_LENGTH as usize {
-                                if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
-                                    state.board.tiles.tiles[index].kind = $variant(Shown);
-                                }
-                            }
-                        }
-                    }
-        
-                    match tile.data.kind {
-                        RedStar(_) => reveal_all_matching!(Red),
-                        GreenStar(_) => reveal_all_matching!(Green),
-                        BlueStar(_) => reveal_all_matching!(Blue),
-                        _ => {}
                     }
                     
                     interacted = true;
@@ -957,7 +989,6 @@ pub fn update(
             xy
         }));
 
-        // TODO find real star_xy
         let star_xy = match tile.data.kind {
             Red(Shown) => Some(
                 get_star_xy(&state.board.tiles, tile::Colour::Red)
@@ -1007,7 +1038,7 @@ pub fn update(
 
     const MARGIN: f32 = 16.;
     commands.push(Text(TextSpec{
-        text: format!("{:#?}", state.board.level),//format!("{:#?}", state.sizes),
+        text: format!("Level\n{:#?}\n\nDigs\n{}", state.board.level, state.board.digs),
         xy: DrawXY { x: text_x, y: MARGIN },
         wh: DrawWH {
             w: state.sizes.board_xywh.x - text_x,
