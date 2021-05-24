@@ -528,9 +528,9 @@ impl Tiles {
         use Level::*;
         for i in 0..TILES_LENGTH as usize {
             let kind_max = match level {
-                One => 200,
-                Two => 100,
-                Three => 50,
+                One => 100,
+                Two => 50,
+                Three => 25,
             };
 
             let kind = match xs_u32(rng, 0, kind_max) {
