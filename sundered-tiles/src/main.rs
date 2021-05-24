@@ -414,6 +414,11 @@ mod raylib_rs_platform {
                                 }
                             }
 
+                            {
+                                #![allow(unused_assignments)]
+                                set_wh!();
+                            }
+
                             let desired_center_x = t.xy.x + (t.wh.w / 2.);
                             let desired_center_y = t.xy.y + (t.wh.h / 2.);
 
