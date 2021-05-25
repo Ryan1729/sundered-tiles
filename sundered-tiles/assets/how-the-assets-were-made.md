@@ -20,4 +20,7 @@ I then needed to decide on the scaling. I found that anything smaller than the w
 
 As for the lone X, the scaled up version of the X from the map didn't look good from a distance. So I tried scaling it various ways and eventually ended up redrawing it and scaling it up. This process involved scaling up the X a little and then cutting away the pointy edges that resulted from the corners of pixels, then scaling up some more.
 
+Undertiled had a little information symbol for the hints, so I drew one of those myself. Specifically, I copied a blank grey tile and then selected a 96 by 96 circle in the center, then filled it in with blue (#3352e1). I decided that 1/3 of the way doen the tile would be a good place for the dot of the "i" so I changed the grid to be 64 by 43 so things would snap to the right spot. I then selected a 16 by 16 circle and placed it at that spot and filled it in with white. Then I changed the grid to 64 by 8 so I could snap a rectangle to a point that is close to the white circle. I thne fselected a 12 by 48 rectangle and placed it such that the top of the rectangle was at the point just below the bottomost grid square that overlapped the circle. I then filled that rectangle in white as well. But then I decided that I wanted rounded courners so I un-did the fill, checked that checkbox, left the radius value at 10, and re-filled that selection.
+
+
 

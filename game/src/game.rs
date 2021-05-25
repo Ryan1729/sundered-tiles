@@ -413,6 +413,14 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub(crate) enum HintSpec {
+        GoalIsOneUpFrom,
+        GoalIsOneDownFrom,
+        GoalIsOneLeftFrom,
+        GoalIsOneRightFrom,
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub(crate) enum Kind {
         Empty,
         Red(Visibility),
@@ -422,6 +430,7 @@ mod tile {
         Blue(Visibility),
         BlueStar(Visibility),
         Goal(Visibility),
+        Hint(Visibility, HintSpec)
     }
 
     impl Default for Kind {
@@ -440,7 +449,8 @@ mod tile {
             | GreenStar(vis)
             | Blue(vis)
             | BlueStar(vis)
-            | Goal(vis) => Some(vis),
+            | Goal(vis)
+            | Hint(vis, _) => Some(vis),
         }
     }
 
@@ -455,6 +465,7 @@ mod tile {
             Blue(_) => Blue(vis),
             BlueStar(_) => BlueStar(vis),
             Goal(_) => Goal(vis),
+            Hint(_, hint_spec) => Hint(vis, hint_spec),
         }
     }
 
@@ -524,7 +535,7 @@ impl Tiles {
     fn from_rng(rng: &mut Xs, level: Level) -> Self {
         let mut tiles = [TileData::default(); TILES_LENGTH as _];
 
-        use tile::{Kind::*, Visibility::*};
+        use tile::{Kind::*, Visibility::*, HintSpec::*};
         use Level::*;
         for i in 0..TILES_LENGTH as usize {
             let kind_max = match level {
@@ -547,13 +558,13 @@ impl Tiles {
         }
 
         macro_rules! set_random_tile {
-            ($from: ident => $to: ident) => {{
+            ($vis: ident, $($from: pat)|+ => $to: expr) => {{
                 let mut xy = None;
                 let mut index = xs_u32(rng, 0, TILES_LENGTH) as usize;
 
                 for _ in 0..TILES_LENGTH as usize {
-                    if let $from(vis) = tiles[index].kind {
-                        tiles[index].kind = $to(vis);
+                    if let $($from)|+ = tiles[index].kind {
+                        tiles[index].kind = $to;
                         xy = Some(tile::i_to_xy(index));
                         break
                     }
@@ -570,12 +581,31 @@ impl Tiles {
             }}
         }
 
-        let red_star_xy = set_random_tile!(Red => RedStar);
-        let green_star_xy = set_random_tile!(Green => GreenStar);
-        let blue_star_xy = set_random_tile!(Blue => BlueStar);
+        let red_star_xy = set_random_tile!(vis, Red(vis) => RedStar(vis));
+        let green_star_xy = set_random_tile!(vis, Green(vis) => GreenStar(vis));
+        let blue_star_xy = set_random_tile!(vis, Blue(vis) => BlueStar(vis));
 
-        // TODO remove this slight non-uniformity?
-        let _ = set_random_tile!(Red => Goal);
+        let _ = set_random_tile!(
+            vis,
+            Red(vis)|Green(vis)|Blue(vis) => Goal(vis)
+        );
+        // TODO Only add these sometimes? Maybe based on difficulty?
+        let _ = set_random_tile!(
+            vis,
+            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneUpFrom)
+        );
+        let _ = set_random_tile!(
+            vis,
+            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneDownFrom)
+        );
+        let _ = set_random_tile!(
+            vis,
+            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneLeftFrom)
+        );
+        let _ = set_random_tile!(
+            vis,
+            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneRightFrom)
+        );
 
         Self {
             tiles,
@@ -970,7 +1000,8 @@ pub fn update(
             | GreenStar(Hidden)
             | Blue(Hidden)
             | BlueStar(Hidden)
-            | Goal(Hidden) => SpriteKind::Hidden,
+            | Goal(Hidden)
+            | Hint(Hidden, _) => SpriteKind::Hidden,
             Red(Shown) => SpriteKind::Red,
             RedStar(Shown) => SpriteKind::RedStar,
             Green(Shown) => SpriteKind::Green,
@@ -982,6 +1013,7 @@ pub fn update(
             } else {
                 SpriteKind::InstrumentalGoal
             },
+            Hint(Shown, _) => SpriteKind::Hint,
         };
 
         commands.push(Sprite(SpriteSpec{

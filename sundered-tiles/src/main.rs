@@ -36,6 +36,7 @@ fn source_coords(sprite: SpriteKind) -> (f32, f32) {
         BlueStar => 6.0,
         InstrumentalGoal => 7.0,
         TerminalGoal => 8.0,
+        Hint => 9.0,
         Selectrum | RulerEnd => 15.0,
     };
 
@@ -213,7 +214,8 @@ mod raylib_rs_platform {
                 | BlueStar
                 | InstrumentalGoal
                 | TerminalGoal
-                | Selectrum => NO_TINT,
+                | Selectrum
+                | Hint => NO_TINT,
                 RulerEnd => RULER_TINT
             }
         }

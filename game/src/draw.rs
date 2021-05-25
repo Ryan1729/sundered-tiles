@@ -167,6 +167,7 @@ pub enum SpriteKind {
     TerminalGoal,
     Selectrum,
     RulerEnd,
+    Hint,
 }
 
 impl Default for SpriteKind {
