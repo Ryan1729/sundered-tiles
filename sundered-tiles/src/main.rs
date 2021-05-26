@@ -381,6 +381,7 @@ mod raylib_rs_platform {
                                         next_width = i32::MAX;
                                     }
     
+                                    // TODO Include line count in height approximation
                                     // TODO really measure height. (9/5 arrived at through trial and error)
                                     height = measure_text("m", size).saturating_mul(9) / 5;
                                     next_height = measure_text("m", size.saturating_add(1)).saturating_mul(9) / 5;

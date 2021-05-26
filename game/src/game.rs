@@ -473,6 +473,22 @@ mod tile {
         matches!(kind, Kind::Goal(_))
     }
 
+    pub(crate) fn kind_description(kind: Kind) -> &'static str {
+        use Kind::*;
+        // TODO use a tile picture as well, for extra clarity/accessibility.
+        match kind {
+            Empty => "an empty space",
+            Red(_) => "a red tile",
+            RedStar(_) => "the red star tile",
+            Green(_) => "a green tile",
+            GreenStar(_) => "the green star tile",
+            Blue(_) => "a blue tile",
+            BlueStar(_) => "the blue star tile",
+            Goal(_) => "the goal tile",
+            Hint(_, _) => "a hint tile",
+        }
+    }
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum Visibility {
         Hidden,
@@ -518,6 +534,7 @@ pub struct Tiles {
     red_star_xy: tile::XY,
     green_star_xy: tile::XY,
     blue_star_xy: tile::XY,
+    goal_xy: tile::XY,
 }
 
 impl Default for Tiles {
@@ -527,6 +544,7 @@ impl Default for Tiles {
             red_star_xy: tile::XY::default(),
             green_star_xy: tile::XY::default(),
             blue_star_xy: tile::XY::default(),
+            goal_xy: tile::XY::default(),
         }
     }
 }
@@ -585,7 +603,7 @@ impl Tiles {
         let green_star_xy = set_random_tile!(vis, Green(vis) => GreenStar(vis));
         let blue_star_xy = set_random_tile!(vis, Blue(vis) => BlueStar(vis));
 
-        let _ = set_random_tile!(
+        let goal_xy = set_random_tile!(
             vis,
             Red(vis)|Green(vis)|Blue(vis) => Goal(vis)
         );
@@ -612,6 +630,7 @@ impl Tiles {
             red_star_xy,
             green_star_xy,
             blue_star_xy,
+            goal_xy,
         }
     }
 }
@@ -634,6 +653,10 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
         Green => tiles.green_star_xy,
         Blue => tiles.blue_star_xy,
     }
+}
+
+fn get_goal_xy(tiles: &Tiles) -> tile::XY {
+    tiles.goal_xy
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1066,14 +1089,87 @@ pub fn update(
         }));
     }
 
-    let text_x = state.sizes.play_xywh.x + MARGIN;
+    let hint_string = {
+        let tiles = &state.board.tiles;
+        let hint_spec = match state.board.ui_pos {
+            Tile(txy) => {
+                let tile = get_tile(tiles, txy);
+
+                use tile::{Kind::*, Visibility::*};
+                match tile.data.kind {
+                    Hint(Shown, hint_spec) => Some(hint_spec),
+                    _ => None
+                }
+            }
+        };
+
+        if let Some(hint_spec) = hint_spec {
+            use tile::HintSpec::*;
+
+            let goal_xy = get_goal_xy(tiles);
+            let (direction, target_xy) = match hint_spec {
+                GoalIsOneUpFrom => (
+                    "up",
+                    goal_xy.y.checked_add_one().map(|y| tile::XY {
+                        y,
+                        ..goal_xy
+                    })
+                ),
+                GoalIsOneDownFrom => (
+                    "down",
+                    goal_xy.y.checked_sub_one().map(|y| tile::XY {
+                        y,
+                        ..goal_xy
+                    })
+                ),
+                GoalIsOneLeftFrom => (
+                    "left",
+                    goal_xy.x.checked_add_one().map(|x| tile::XY {
+                        x,
+                        ..goal_xy
+                    })
+                ),
+                GoalIsOneRightFrom => (
+                    "right",
+                    goal_xy.x.checked_sub_one().map(|x| tile::XY {
+                        x,
+                        ..goal_xy
+                    })
+                ),
+            };
+
+            let description = if let Some(target_xy) = target_xy {
+                tile::kind_description(get_tile(tiles, target_xy).data.kind)
+            } else {
+                "the edge of the grid"
+            };
+
+            format!(
+                "The goal is one tile {} from {}.",
+                direction,
+                description
+            )
+        } else {
+            "".to_owned()
+        }
+    };
+
+    let board_xywh = &state.sizes.board_xywh;
+    let left_text_x = state.sizes.play_xywh.x + MARGIN;
+    let right_text_x = board_xywh.x + board_xywh.w + MARGIN;
 
     const MARGIN: f32 = 16.;
+
     commands.push(Text(TextSpec{
-        text: format!("Level\n{:#?}\n\nDigs\n{}", state.board.level, state.board.digs),
-        xy: DrawXY { x: text_x, y: MARGIN },
+        text: format!(
+            "Level\n{:#?}\n\nDigs\n{}\n{}", 
+            state.board.level, 
+            state.board.digs,
+            hint_string
+        ),
+        xy: DrawXY { x: left_text_x, y: MARGIN },
         wh: DrawWH {
-            w: state.sizes.board_xywh.x - text_x,
+            w: board_xywh.x - left_text_x,
             h: state.sizes.draw_wh.h / MARGIN
         },
     }));
@@ -1082,9 +1178,9 @@ pub fn update(
         let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
         commands.push(Text(TextSpec{
             text: "Fast".to_owned(),
-            xy: DrawXY { x: text_x, y },
+            xy: DrawXY { x: right_text_x, y },
             wh: DrawWH {
-                w: state.sizes.board_xywh.x - text_x,
+                w: board_xywh.x - left_text_x,
                 h: state.sizes.draw_wh.h / MARGIN
             },
         }));
@@ -1092,7 +1188,7 @@ pub fn update(
 
     {
         let wh = DrawWH {
-            w: state.sizes.board_xywh.x - text_x,
+            w: board_xywh.x - left_text_x,
             h: state.sizes.draw_wh.h / MARGIN
         };
 
@@ -1100,14 +1196,13 @@ pub fn update(
             Selectrum => {},
             Ruler(pos) => {
                 let y = (state.sizes.draw_wh.h - wh.h) / 2.;
-                let board_xywh = &state.sizes.board_xywh;
                 commands.push(Text(TextSpec{
                     text: format!("Ruler: {}", match state.board.ui_pos {
                         Tile(xy) => {
                             tile::manhattan_distance(pos, xy)
                         }
                     }),
-                    xy: DrawXY { x: board_xywh.x + board_xywh.w, y },
+                    xy: DrawXY { x: right_text_x, y },
                     wh,
                 }));
             }
