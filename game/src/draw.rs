@@ -168,6 +168,10 @@ pub enum SpriteKind {
     Selectrum,
     RulerEnd,
     Hint,
+    EdgeUp,
+    EdgeDown,
+    EdgeLeft,
+    EdgeRight,
 }
 
 impl Default for SpriteKind {

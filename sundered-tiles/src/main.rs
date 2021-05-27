@@ -23,7 +23,13 @@ const SPRITE_PIXELS_PER_TILE_SIDE: f32 = 128.0;
 
 use game::SpriteKind;
 
-fn source_coords(sprite: SpriteKind) -> (f32, f32) {
+struct SourceSpec {
+    x: f32,
+    y: f32,
+    rotation: f32,
+}
+
+fn source_spec(sprite: SpriteKind) -> SourceSpec {
     use SpriteKind::*;
 
     let sx = match sprite {
@@ -37,13 +43,34 @@ fn source_coords(sprite: SpriteKind) -> (f32, f32) {
         InstrumentalGoal => 7.0,
         TerminalGoal => 8.0,
         Hint => 9.0,
+        EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 10.,
         Selectrum | RulerEnd => 15.0,
     };
 
-    (
-        sx * SPRITE_PIXELS_PER_TILE_SIDE,
-        0.0,
-    )
+    let rotation = match sprite {
+        Hidden
+        | Red
+        | Green
+        | Blue
+        | RedStar
+        | GreenStar
+        | BlueStar
+        | InstrumentalGoal
+        | TerminalGoal
+        | Hint
+        | Selectrum
+        | RulerEnd
+        | EdgeDown => 0.,
+        EdgeLeft => 90.,
+        EdgeUp => 180.,
+        EdgeRight => 270.,
+    };
+
+    SourceSpec {
+        x: sx * SPRITE_PIXELS_PER_TILE_SIDE,
+        y: 0.0,
+        rotation,
+    }
 }
 
 #[cfg(not(any(feature = "platform-macroquad", feature = "platform-raylib-rs")))]
@@ -86,7 +113,7 @@ fn main() {
 mod raylib_rs_platform {
     use super::{
         Storage,
-        source_coords,
+        source_spec,
         SPRITE_PIXELS_PER_TILE_SIDE,
         SPRITESHEET_BYTES,
         SAMPLING_SHADER
@@ -215,7 +242,11 @@ mod raylib_rs_platform {
                 | InstrumentalGoal
                 | TerminalGoal
                 | Selectrum
-                | Hint => NO_TINT,
+                | Hint
+                | EdgeUp
+                | EdgeDown
+                | EdgeLeft
+                | EdgeRight=> NO_TINT,
                 RulerEnd => RULER_TINT
             }
         }
@@ -341,13 +372,13 @@ mod raylib_rs_platform {
                     use game::draw::Command::*;
                     match cmd {
                         Sprite(s) => {
-                            let (source_x, source_y) = source_coords(s.sprite);
+                            let spec = source_spec(s.sprite);
 
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
-                                    x: source_x + SPRITE_BORDER,
-                                    y: source_y + SPRITE_BORDER,
+                                    x: spec.x + SPRITE_BORDER,
+                                    y: spec.y + SPRITE_BORDER,
                                     ..tile_base_source_rect
                                 },
                                 Rectangle {
@@ -356,7 +387,7 @@ mod raylib_rs_platform {
                                     ..tile_base_render_rect
                                 },
                                 Vector2::default(),
-                                0.0,
+                                spec.rotation,
                                 tint_from_kind(s.sprite)
                             );
                         }
