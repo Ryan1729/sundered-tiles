@@ -44,6 +44,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         TerminalGoal => 8.0,
         Hint => 9.0,
         EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 10.,
+        QuestionMark => 11.,
         Selectrum | RulerEnd => 15.0,
     };
 
@@ -60,6 +61,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | Hint
         | Selectrum
         | RulerEnd
+        | QuestionMark
         | EdgeDown => 0.,
         EdgeLeft => 90.,
         EdgeUp => 180.,
@@ -246,7 +248,8 @@ mod raylib_rs_platform {
                 | EdgeUp
                 | EdgeDown
                 | EdgeLeft
-                | EdgeRight=> NO_TINT,
+                | EdgeRight
+                | QuestionMark => NO_TINT,
                 RulerEnd => RULER_TINT
             }
         }

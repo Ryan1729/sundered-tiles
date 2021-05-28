@@ -172,6 +172,7 @@ pub enum SpriteKind {
     EdgeDown,
     EdgeLeft,
     EdgeRight,
+    QuestionMark,
 }
 
 impl Default for SpriteKind {
