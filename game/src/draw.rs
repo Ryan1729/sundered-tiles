@@ -181,17 +181,19 @@ impl Default for SpriteKind {
     }
 }
 
-
+#[derive(Debug)]
 pub enum Command {
     Sprite(SpriteSpec),
     Text(TextSpec),
 }
 
+#[derive(Debug)]
 pub struct SpriteSpec {
     pub sprite: SpriteKind,
     pub xy: DrawXY,
 }
 
+#[derive(Debug)]
 pub struct TextSpec {
     pub text: StrBuf,
     pub xy: DrawXY,

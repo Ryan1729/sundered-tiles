@@ -1170,7 +1170,7 @@ pub fn update(
         xy: DrawXY { x: left_text_x, y: MARGIN },
         wh: DrawWH {
             w: board_xywh.x - left_text_x,
-            h: state.sizes.draw_wh.h / MARGIN
+            h: state.sizes.draw_wh.h - MARGIN
         },
     }));
 
@@ -1181,21 +1181,16 @@ pub fn update(
             xy: DrawXY { x: right_text_x, y },
             wh: DrawWH {
                 w: board_xywh.x - left_text_x,
-                h: state.sizes.draw_wh.h / MARGIN
+                h: state.sizes.draw_wh.h - y
             },
         }));
     }
 
     {
-        let wh = DrawWH {
-            w: board_xywh.x - left_text_x,
-            h: state.sizes.draw_wh.h / MARGIN
-        };
-
         match state.tool {
             Selectrum => {},
             Ruler(pos) => {
-                let y = (state.sizes.draw_wh.h - wh.h) / 2.;
+                let y = (state.sizes.draw_wh.h) / 2.;
                 commands.push(Text(TextSpec{
                     text: format!("Ruler: {}", match state.board.ui_pos {
                         Tile(xy) => {
@@ -1203,7 +1198,10 @@ pub fn update(
                         }
                     }),
                     xy: DrawXY { x: right_text_x, y },
-                    wh,
+                    wh: DrawWH {
+                        w: board_xywh.x - left_text_x,
+                        h: state.sizes.draw_wh.h - y,
+                    },
                 }));
             }
         }
