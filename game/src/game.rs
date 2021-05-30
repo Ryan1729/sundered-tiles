@@ -475,7 +475,6 @@ mod tile {
 
     pub(crate) fn kind_description(kind: Kind) -> &'static str {
         use Kind::*;
-        // TODO use a tile picture as well, for extra clarity/accessibility.
         match kind {
             Empty => "an empty space",
             Red(_) => "a red tile",
@@ -1008,6 +1007,12 @@ pub fn update(
         },
     }
 
+    let goal_sprite = if is_last_level(state) {
+        SpriteKind::TerminalGoal
+    } else {
+        SpriteKind::InstrumentalGoal
+    };
+
     for txy in tile::XY::all() {
         let tile = get_tile(&state.board.tiles, txy);
 
@@ -1031,11 +1036,7 @@ pub fn update(
             GreenStar(Shown) => SpriteKind::GreenStar,
             Blue(Shown) => SpriteKind::Blue,
             BlueStar(Shown) => SpriteKind::BlueStar,
-            Goal(Shown) => if is_last_level(state) {
-                SpriteKind::TerminalGoal
-            } else {
-                SpriteKind::InstrumentalGoal
-            },
+            Goal(Shown) => goal_sprite,
             Hint(Shown, _) => SpriteKind::Hint,
         };
 
@@ -1089,7 +1090,11 @@ pub fn update(
         }));
     }
 
-    let hint_string = {
+    const HINT_TILES_PER_ROW: usize = 3;
+    const HINT_TILES_PER_COLUMN: usize = 3;
+    const HINT_TILES_COUNT: usize = HINT_TILES_PER_ROW * HINT_TILES_PER_COLUMN;
+
+    let hint_info = {
         let tiles = &state.board.tiles;
         let hint_spec = match state.board.ui_pos {
             Tile(txy) => {
@@ -1144,13 +1149,69 @@ pub fn update(
                 "the edge of the grid"
             };
 
-            format!(
+            let hint_string = format!(
                 "The goal is one tile {} from {}.",
                 direction,
                 description
-            )
+            );
+
+            
+            let mut hint_sprites = [
+                Some(SpriteKind::QuestionMark);
+                HINT_TILES_COUNT
+            ];
+
+            const CENTER_INDEX: usize = HINT_TILES_COUNT / 2;
+
+            hint_sprites[CENTER_INDEX] = Some(goal_sprite);
+
+            const UP_INDEX: usize = CENTER_INDEX - HINT_TILES_PER_ROW;
+            const DOWN_INDEX: usize = CENTER_INDEX + HINT_TILES_PER_ROW;
+            const LEFT_INDEX: usize = CENTER_INDEX - 1;
+            const RIGHT_INDEX: usize = CENTER_INDEX + 1;
+
+            macro_rules! target_sprite {
+                (edge => $edge: ident) => {
+                    if let Some(target_xy) = target_xy {
+                        use tile::Kind::*;
+                        match get_tile(tiles, target_xy).data.kind {
+                            Empty => None,
+                            Red(_) => Some(SpriteKind::Red),
+                            RedStar(_) => Some(SpriteKind::RedStar),
+                            Green(_) => Some(SpriteKind::Green),
+                            GreenStar(_) => Some(SpriteKind::GreenStar),
+                            Blue(_) => Some(SpriteKind::Blue),
+                            BlueStar(_) => Some(SpriteKind::BlueStar),
+                            Goal(_) => Some(goal_sprite),
+                            Hint(_, _) => Some(SpriteKind::Hint),
+                        }
+                    } else {
+                        Some(SpriteKind::$edge)
+                    };
+                }
+            }
+
+            match hint_spec {
+                GoalIsOneUpFrom => {
+                    hint_sprites[DOWN_INDEX] = target_sprite!(edge => EdgeUp);
+                },
+                GoalIsOneDownFrom => {
+                    hint_sprites[UP_INDEX] = target_sprite!(edge => EdgeDown);
+                },
+                GoalIsOneLeftFrom => {
+                    hint_sprites[RIGHT_INDEX] = target_sprite!(edge => EdgeLeft);
+                },
+                GoalIsOneRightFrom => {
+                    hint_sprites[LEFT_INDEX] = target_sprite!(edge => EdgeRight);
+                },
+            };
+
+            Some((
+                hint_string,
+                hint_sprites,
+            ))
         } else {
-            "".to_owned()
+            None
         }
     };
 
@@ -1161,6 +1222,7 @@ pub fn update(
     const MARGIN: f32 = 16.;
 
     let small_section_h = state.sizes.draw_wh.h / 8. - MARGIN;
+    let large_section_h = small_section_h * 3.;
     {
         let mut y = MARGIN;
 
@@ -1192,14 +1254,38 @@ pub fn update(
 
         y += small_section_h;
 
-        commands.push(Text(TextSpec{
-            text: hint_string,
-            xy: DrawXY { x: left_text_x, y },
-            wh: DrawWH {
-                w: board_xywh.x - left_text_x,
-                h: small_section_h * 3.
-            },
-        }));
+        // TODO handle the case where there is less than enough room for 
+        // tiles at the regular size, better.
+        if let Some((hint_string, hint_sprites)) = hint_info {
+            commands.push(Text(TextSpec{
+                text: hint_string,
+                xy: DrawXY { x: left_text_x, y },
+                wh: DrawWH {
+                    w: board_xywh.x - left_text_x,
+                    h: large_section_h
+                },
+            }));
+
+            y += large_section_h;
+
+            let left_hint_tile_x = left_text_x + state.sizes.tile_side_length;
+
+            for column in 0..HINT_TILES_PER_COLUMN {
+                y += state.sizes.tile_side_length;
+
+                for row in 0..HINT_TILES_PER_ROW {
+                    if let Some(sprite) = hint_sprites[row + HINT_TILES_PER_ROW * column] {
+                        commands.push(Sprite(SpriteSpec{
+                            sprite,
+                            xy: DrawXY {
+                                x: left_hint_tile_x + row as DrawX * state.sizes.tile_side_length,
+                                y
+                            },
+                        }));
+                    }
+                }
+            }
+        }
     }
 
     if let InputSpeed::Fast = state.input_speed {
@@ -1235,3 +1321,4 @@ pub fn update(
         }
     }
 }
+
