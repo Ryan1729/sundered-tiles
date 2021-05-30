@@ -1160,19 +1160,47 @@ pub fn update(
 
     const MARGIN: f32 = 16.;
 
-    commands.push(Text(TextSpec{
-        text: format!(
-            "Level\n{:#?}\n\nDigs\n{}\n{}", 
-            state.board.level, 
-            state.board.digs,
-            hint_string
-        ),
-        xy: DrawXY { x: left_text_x, y: MARGIN },
-        wh: DrawWH {
-            w: board_xywh.x - left_text_x,
-            h: state.sizes.draw_wh.h - MARGIN
-        },
-    }));
+    let small_section_h = state.sizes.draw_wh.h / 8. - MARGIN;
+    {
+        let mut y = MARGIN;
+
+        commands.push(Text(TextSpec{
+            text: format!(
+                "Level\n{:#?}",
+                state.board.level
+            ),
+            xy: DrawXY { x: left_text_x, y },
+            wh: DrawWH {
+                w: board_xywh.x - left_text_x,
+                h: small_section_h
+            },
+        }));
+
+        y += small_section_h;
+
+        commands.push(Text(TextSpec{
+            text: format!(
+                "Digs\n{}",
+                state.board.digs,
+            ),
+            xy: DrawXY { x: left_text_x, y },
+            wh: DrawWH {
+                w: board_xywh.x - left_text_x,
+                h: small_section_h
+            },
+        }));
+
+        y += small_section_h;
+
+        commands.push(Text(TextSpec{
+            text: hint_string,
+            xy: DrawXY { x: left_text_x, y },
+            wh: DrawWH {
+                w: board_xywh.x - left_text_x,
+                h: small_section_h * 3.
+            },
+        }));
+    }
 
     if let InputSpeed::Fast = state.input_speed {
         let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
@@ -1181,7 +1209,7 @@ pub fn update(
             xy: DrawXY { x: right_text_x, y },
             wh: DrawWH {
                 w: board_xywh.x - left_text_x,
-                h: state.sizes.draw_wh.h - y
+                h: small_section_h
             },
         }));
     }
@@ -1200,7 +1228,7 @@ pub fn update(
                     xy: DrawXY { x: right_text_x, y },
                     wh: DrawWH {
                         w: board_xywh.x - left_text_x,
-                        h: state.sizes.draw_wh.h - y,
+                        h: small_section_h,
                     },
                 }));
             }
