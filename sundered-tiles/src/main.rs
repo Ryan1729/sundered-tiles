@@ -217,7 +217,6 @@ mod raylib_rs_platform {
             };
     
             duration.as_nanos();
-            1622078637208295340
         };
         println!("{}", seed);
 
