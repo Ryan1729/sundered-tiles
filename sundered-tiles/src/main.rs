@@ -216,7 +216,7 @@ mod raylib_rs_platform {
                 Err(err) => err.duration(),
             };
     
-            duration.as_nanos();
+            duration.as_nanos()
         };
         println!("{}", seed);
 
