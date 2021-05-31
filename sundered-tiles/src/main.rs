@@ -397,23 +397,102 @@ mod raylib_rs_platform {
                             );
                         }
                         Text(t) => {
-                            // constant arrived at through trial and error.
-                            let size = sizes.draw_wh.w * (1./48.);
+                            use game::draw::TextKind;
+                            match t.kind {
+                                TextKind::DistanceMarker => {
+                                    let mut size = i32::MAX;
+                                    let mut low = 0;
+                                    let mut high = i32::MAX;
 
-                            shader_d.draw_text_rec(
-                                &font,
-                                &t.text,
-                                Rectangle {
-                                    x: t.xy.x,
-                                    y: t.xy.y,
-                                    width: t.wh.w,
-                                    height: t.wh.h,
+                                    let mut width;
+                                    let mut next_width;
+                                    let mut height;
+                                    let mut next_height;
+
+                                    macro_rules! set_wh {
+                                        () => {
+                                            width = measure_text(&t.text, size);
+                                            if width == i32::MIN {
+                                                width = i32::MAX;
+                                            }
+                                            next_width = measure_text(&t.text, size.saturating_add(1));
+                                            if next_width == i32::MIN {
+                                                next_width = i32::MAX;
+                                            }
+
+                                            // TODO Include line count in height approximation
+                                            // TODO really measure height. (9/5 arrived at through trial and error)
+                                            height = measure_text("m", size).saturating_mul(9) / 5;
+                                            next_height = measure_text("m", size.saturating_add(1)).saturating_mul(9) / 5;
+                                        }
+                                    }
+
+                                    {
+                                        #![allow(unused_assignments)]
+                                        set_wh!();
+                                    }
+
+                                    while low <= high {
+                                        set_wh!();
+
+                                        let width_does_not_fit = width as f32 > t.wh.w;
+                                        let height_does_not_fit = height as f32 > t.wh.h;
+                                        let next_width_fits = t.wh.w > next_width as f32;
+                                        let next_height_fits = t.wh.h > next_height as f32;
+
+                                        if width_does_not_fit
+                                        || height_does_not_fit
+                                        || next_width_fits
+                                        || next_height_fits {
+                                            size = low.saturating_add(high) / 2;
+                                        }
+
+                                        if width_does_not_fit || height_does_not_fit {
+                                            high = size - 1;
+                                        }
+
+                                        if next_width_fits || next_height_fits {
+                                            low = size + 1;
+                                        }
+                                    }
+
+                                    {
+                                        #![allow(unused_assignments)]
+                                        set_wh!();
+                                    }
+
+                                    let desired_center_x = t.xy.x + (t.wh.w / 2.);
+                                    let desired_center_y = t.xy.y + (t.wh.h / 2.);
+
+                                    let centered_x = desired_center_x - (width as f32 / 2.);
+                                    let centered_y = desired_center_y - (height as f32 / 2.);
+
+                                    shader_d.draw_text(
+                                        &t.text,
+                                        centered_x as i32,
+                                        centered_y as i32,
+                                        size,
+                                        TEXT
+                                    );
                                 },
-                                size,
-                                1., // spacing
-                                true, // word_wrap
-                                TEXT
-                            );
+                                _ => {
+                                    shader_d.draw_text_rec(
+                                        &font,
+                                        &t.text,
+                                        Rectangle {
+                                            x: t.xy.x,
+                                            y: t.xy.y,
+                                            width: t.wh.w,
+                                            height: t.wh.h,
+                                        },
+                                        // Constant arrived at through trial and error.
+                                        sizes.draw_wh.w * (1./48.),
+                                        1.,
+                                        true, // word_wrap
+                                        TEXT
+                                    );
+                                },
+                            };
                         }
                     }
                 }

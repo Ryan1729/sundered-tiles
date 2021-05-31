@@ -193,6 +193,17 @@ pub struct SpriteSpec {
     pub xy: DrawXY,
 }
 
+/// This is provided to make font selection etc easier for platform layers.
+#[derive(Debug)]
+pub enum TextKind {
+    DistanceMarker,
+    Level,
+    Digs,
+    HintString,
+    Fast,
+    Ruler,
+}
+
 #[derive(Debug)]
 pub struct TextSpec {
     pub text: StrBuf,
@@ -200,4 +211,5 @@ pub struct TextSpec {
     /// We'd rather define a rectangle for the text to (hopefully) lie inside than
     /// a font size directly.
     pub wh: DrawWH,
+    pub kind: TextKind,
 }

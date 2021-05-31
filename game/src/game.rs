@@ -851,7 +851,7 @@ pub fn update(
 ) {
     use Input::*;
     use UiPos::*;
-    use draw::{SpriteSpec, TextSpec, Command::*};
+    use draw::{SpriteSpec, TextSpec, TextKind, Command::*};
     use Tool::*;
 
     if draw_wh != state.sizes.draw_wh {
@@ -1069,6 +1069,7 @@ pub fn update(
                     w: state.sizes.tile_side_length,
                     h: state.sizes.tile_side_length,
                 },
+                kind: TextKind::DistanceMarker,
             }));
         }
     }
@@ -1236,6 +1237,7 @@ pub fn update(
                 w: board_xywh.x - left_text_x,
                 h: small_section_h
             },
+            kind: TextKind::Level,
         }));
 
         y += small_section_h;
@@ -1250,6 +1252,7 @@ pub fn update(
                 w: board_xywh.x - left_text_x,
                 h: small_section_h
             },
+            kind: TextKind::Digs,
         }));
 
         y += small_section_h;
@@ -1264,6 +1267,7 @@ pub fn update(
                     w: board_xywh.x - left_text_x,
                     h: large_section_h
                 },
+                kind: TextKind::HintString,
             }));
 
             y += large_section_h;
@@ -1297,6 +1301,7 @@ pub fn update(
                 w: board_xywh.x - left_text_x,
                 h: small_section_h
             },
+            kind: TextKind::Fast,
         }));
     }
 
@@ -1316,9 +1321,9 @@ pub fn update(
                         w: board_xywh.x - left_text_x,
                         h: small_section_h,
                     },
+                    kind: TextKind::Ruler,
                 }));
             }
         }
     }
 }
-
