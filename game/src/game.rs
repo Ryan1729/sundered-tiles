@@ -202,6 +202,61 @@ mod tile {
                     y,
                 })
         }
+
+        pub fn all_center_spiralish() -> impl Iterator<Item = XY> {
+            Coord::increasing_square_sine_wave()
+                .flat_map(|yc|
+                    Coord::increasing_square_cos_wave()
+                        .map(move |xc| (Y(yc), X(xc)))
+                )
+                .map(|(y, x)| Self {
+                    x,
+                    y,
+                })
+        }
+    }
+
+    #[test]
+    fn all_center_spiralish_produces_the_expected_initial_values() {
+        const C: usize = Coord::CENTER_INDEX;
+        macro_rules! exp {
+            ($x: expr, $y: expr) => {
+                Some(XY { 
+                    x: X(Coord::ALL[$x]),
+                    y: Y(Coord::ALL[$y])
+                })
+            }
+        }
+
+        let mut iter = XY::all_center_spiralish();
+
+        const COUNT: usize = 14;
+        let actual = {
+            let mut actual = [None;COUNT];
+            for i in 0..COUNT {
+                actual[i] = iter.next();
+            }
+            actual
+        };
+
+        let expected: [Option<_>; COUNT] = [
+            exp!(C    , C + 1),
+            exp!(C + 1, C + 1),
+            exp!(C + 1, C    ),
+            exp!(C + 1, C - 1),
+            exp!(C    , C - 1),
+            exp!(C - 1, C - 1),
+            exp!(C - 1, C    ),
+            exp!(C - 1, C + 1),
+            exp!(C    , C + 2),
+            exp!(C + 1, C + 2),
+            exp!(C + 2, C + 2),
+            exp!(C + 2, C + 1),
+            exp!(C + 2, C    ),
+            exp!(C + 1, C - 1),
+        ];
+
+        assert_eq!(actual, expected);
     }
 
     pub fn xy_to_i(xy: XY) -> usize {
@@ -410,6 +465,186 @@ mod tile {
         fn proportion(&self) -> unit::Proportion {
             proportion!((u8::from(*self) as f32) / (Self::COUNT as f32))
         }
+
+        // Currently there are an even amount of Coords, so there is no true center.
+        const CENTER_INDEX: usize = Coord::ALL.len() / 2;
+
+        fn increasing_square_sine_wave() -> impl Iterator<Item = Coord> {
+            core::iter::once(Coord::ALL[Coord::CENTER_INDEX])
+                .chain(IncreasingSquareSineIter::default())
+        }
+
+        fn increasing_square_cos_wave() -> impl Iterator<Item = Coord> {
+            let mut iter = IncreasingSquareSineIter::default();
+            iter.next();
+            iter.next();
+
+            core::iter::once(Coord::ALL[Coord::CENTER_INDEX])
+                .chain(iter)
+        }
+    }
+
+    struct IncreasingSquareSineIter {
+        i: usize,
+        amplitude: isize,
+        wave_steps_left: usize,
+    }
+
+    impl Default for IncreasingSquareSineIter {
+        fn default() -> Self {
+            Self {
+                i: Coord::CENTER_INDEX,
+                amplitude: 0,
+                wave_steps_left: 0,
+                
+            }
+        }
+    }
+
+    impl Iterator for IncreasingSquareSineIter {
+        type Item = Coord;
+    
+        fn next(&mut self) -> Option<Self::Item> {
+            let last = Coord::ALL.get(self.i).cloned();
+
+            if last.is_some() {
+                if self.wave_steps_left > 0 {
+                    self.wave_steps_left -= 1;
+                    self.i = (Coord::CENTER_INDEX as isize + self.amplitude) as usize;
+                } else {
+                    self.i = Coord::CENTER_INDEX;
+                    if self.amplitude > 0 {
+                        self.wave_steps_left = self.amplitude as usize * 2 + 1;
+                        self.amplitude *= -1;
+                    } else {
+                        self.amplitude *= -1;
+                        // amplitude is now non-negative.
+                        assert!(self.amplitude >= 0);
+                        self.amplitude += 1;
+                        self.wave_steps_left = self.amplitude as usize * 2 + 1;
+                    }
+                }
+            }
+
+            Coord::ALL.get(self.i).cloned()
+        }
+    }
+
+    #[test]
+    fn sine_iter_returns_some_center_initially() {
+        let mut iter = IncreasingSquareSineIter::default();
+        assert_eq!(
+            iter.next(),
+            Some(Coord::ALL[Coord::CENTER_INDEX])
+        );
+    }
+
+    #[test]
+    fn sine_iter_stops_before_twice_tiles_length() {
+        let mut iter = IncreasingSquareSineIter::default();
+        let mut count = 0;
+        while let Some(coord) = iter.next() {
+            count += 1;
+            assert!(
+                count < 2 * TILES_LENGTH,
+                "coord was {:?}",
+                coord
+            )
+        }
+    }
+
+    #[test]
+    fn sine_iter_has_the_expected_inital_values() {
+        const C: usize = Coord::CENTER_INDEX;
+        macro_rules! exp {
+            ($i : expr) => {
+                Some(Coord::ALL[$i])
+            }
+        }
+        let mut iter = IncreasingSquareSineIter::default();
+        assert_eq!(
+            [
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+            ],
+            [
+                exp!(C),
+                exp!(C + 1),
+                exp!(C + 1),
+                exp!(C + 1),
+                exp!(C),
+                exp!(C - 1),
+                exp!(C - 1),
+                exp!(C - 1),
+                exp!(C),
+                exp!(C + 1),
+                exp!(C + 2),
+                exp!(C + 2),
+                exp!(C + 2),
+                exp!(C + 1),
+                exp!(C),
+            ]
+        );
+    }
+
+    #[test]
+    fn cos_iter_has_the_expected_inital_values() {
+        const C: usize = Coord::CENTER_INDEX;
+        macro_rules! exp {
+            ($i : expr) => {
+                Some(Coord::ALL[$i])
+            }
+        }
+        let mut iter = IncreasingSquareSineIter::default();
+        assert_eq!(
+            [
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+                iter.next(),
+            ],
+            [
+                exp!(C + 1),
+                exp!(C + 1),
+                exp!(C),
+                exp!(C - 1),
+                exp!(C - 1),
+                exp!(C - 1),
+                exp!(C),
+                exp!(C + 1),
+                exp!(C + 2),
+                exp!(C + 2),
+                exp!(C + 2),
+                exp!(C + 1),
+                exp!(C),
+                exp!(C - 1),
+                exp!(C - 2),
+            ]
+        );
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -554,24 +789,34 @@ impl Tiles {
 
         use tile::{Kind::*, Visibility::*, HintSpec::*};
         use Level::*;
-        for i in 0..TILES_LENGTH as usize {
-            let kind_max = match level {
-                One => 100,
-                Two => 50,
-                Three => 25,
-            };
 
-            let kind = match xs_u32(rng, 0, kind_max) {
+        const SCALE_FACTOR: usize = 256;
+
+        let mut tiles_remaining = match level {
+            One => SCALE_FACTOR * 1,
+            Two => SCALE_FACTOR * 2,
+            Three => SCALE_FACTOR * 3,
+        };
+
+        for xy in tile::XY::all_center_spiralish() {
+            let kind = match xs_u32(rng, 0, 4) {
                 1 => Red(Hidden),
                 2 => Green(Hidden),
                 3 => Blue(Hidden),
                 _ => Empty,
             };
 
+            let i = tile::xy_to_i(xy);
+
             tiles[i] = TileData {
                 kind,
                 ..<_>::default()
             };
+
+            tiles_remaining -= 1;
+            if tiles_remaining == 0 {
+                break
+            }
         }
 
         macro_rules! set_random_tile {
