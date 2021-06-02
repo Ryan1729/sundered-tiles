@@ -204,15 +204,137 @@ mod tile {
         }
 
         pub fn all_center_spiralish() -> impl Iterator<Item = XY> {
-            Coord::increasing_square_sine_wave()
-                .flat_map(|yc|
-                    Coord::increasing_square_cos_wave()
-                        .map(move |xc| (Y(yc), X(xc)))
-                )
-                .map(|(y, x)| Self {
-                    x,
-                    y,
-                })
+            sprialish::Iter::starting_at(XY {
+                x: X(Coord::CENTER),
+                y: Y(Coord::CENTER),
+            })
+        }
+    }
+
+    mod sprialish {
+        use super::*;
+
+        #[derive(Debug)]
+        enum NextAction {
+            MoveDiagonally,
+            MoveUp,
+            MoveLeft,
+            MoveDown,
+            MoveRight,
+        }
+        impl Default for NextAction {
+            fn default() -> Self { Self::MoveDiagonally }
+        }
+
+        #[derive(Debug)]
+        pub(crate) struct Iter {
+            current: Option<XY>,
+            rect: Rect,
+            next_action: NextAction,
+        }
+
+        impl Iter {
+            pub(crate) fn starting_at(start: XY) -> Self {
+                Self {
+                    current: Some(start),
+                    rect: Rect::min_max(start, start),
+                    next_action: <_>::default(),
+                }
+            }
+        }
+
+        impl Iterator for Iter {
+            type Item = XY;
+    
+            fn next(&mut self) -> Option<Self::Item> {
+                let last = self.current;
+    
+                if let Some(current) = last {
+                    use NextAction::*;
+                    match self.next_action {
+                        MoveDiagonally => {
+                            match (
+                                self.rect.min.x.checked_sub_one(),
+                                self.rect.min.y.checked_sub_one(),
+                                self.rect.max.x.checked_add_one(),
+                                self.rect.max.y.checked_add_one(),
+                            ) {
+                                (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) => {
+                                    self.rect = Rect::xyxy(min_x, min_y, max_x, max_y);
+                                    self.current = Some(self.rect.max);
+                                },
+                                _ => {
+                                    self.current = None;
+                                }
+                            }
+
+                            self.next_action = MoveUp;
+                        },
+                        MoveUp => {
+                            let new = current.y.checked_sub_one()
+                                .map(|y| XY {
+                                    y,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.y == self.rect.min.y {
+                                    self.next_action = MoveLeft;
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveLeft => {
+                            let new = current.x.checked_sub_one()
+                                .map(|x| XY {
+                                    x,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.x == self.rect.min.x {
+                                    self.next_action = MoveDown;
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveDown => {
+                            let new = current.y.checked_add_one()
+                                .map(|y| XY {
+                                    y,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.y == self.rect.max.y {
+                                    self.next_action = MoveRight;
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveRight => {
+                            let new = current.x.checked_add_one()
+                                .map(|x| XY {
+                                    x,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if Some(new.x) == self.rect.max.x.checked_sub_one() {
+                                    self.next_action = MoveDiagonally;
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                    }
+                }
+
+                last
+            }
         }
     }
 
@@ -230,7 +352,7 @@ mod tile {
 
         let mut iter = XY::all_center_spiralish();
 
-        const COUNT: usize = 14;
+        const COUNT: usize = 20;
         let actual = {
             let mut actual = [None;COUNT];
             for i in 0..COUNT {
@@ -240,7 +362,7 @@ mod tile {
         };
 
         let expected: [Option<_>; COUNT] = [
-            exp!(C    , C + 1),
+            exp!(C    , C    ),
             exp!(C + 1, C + 1),
             exp!(C + 1, C    ),
             exp!(C + 1, C - 1),
@@ -248,15 +370,59 @@ mod tile {
             exp!(C - 1, C - 1),
             exp!(C - 1, C    ),
             exp!(C - 1, C + 1),
-            exp!(C    , C + 2),
-            exp!(C + 1, C + 2),
+            exp!(C    , C + 1),
             exp!(C + 2, C + 2),
             exp!(C + 2, C + 1),
             exp!(C + 2, C    ),
-            exp!(C + 1, C - 1),
+            exp!(C + 2, C - 1),
+            exp!(C + 2, C - 2),
+            exp!(C + 1, C - 2),
+            exp!(C    , C - 2),
+            exp!(C - 1, C - 2),
+            exp!(C - 2, C - 2),
+            exp!(C - 2, C - 1),
+            exp!(C - 2, C    ),
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[derive(Debug)]
+    pub(crate) struct Rect {
+        pub(crate) min: XY,
+        pub(crate) max: XY
+    }
+
+    macro_rules! rect {
+        ($min_x: expr, $min_y: expr, $max_x: expr, $max_y: expr $(,)?) => {
+            Rect {
+                min: XY {
+                    x: $min_x,
+                    y: $min_y,
+                },
+                max: XY {
+                    x: $max_x,
+                    y: $max_y,
+                },
+            }
+        };
+        ($min: expr, $max: expr $(,)?) => {
+            Rect {
+                min: $min,
+                max: $max,
+            }
+        }
+    }
+
+    impl Rect {
+        /// This exists because macro importing is complicated
+        fn xyxy(min_x: X, min_y: Y, max_x: X, max_y: Y) -> Self {
+            rect!(min_x, min_y, max_x, max_y)
+        }
+        /// This exists because macro importing is complicated
+        fn min_max(min: XY, max: XY) -> Self {
+            rect!(min, max)
+        }
     }
 
     pub fn xy_to_i(xy: XY) -> usize {
@@ -469,182 +635,7 @@ mod tile {
         // Currently there are an even amount of Coords, so there is no true center.
         const CENTER_INDEX: usize = Coord::ALL.len() / 2;
 
-        fn increasing_square_sine_wave() -> impl Iterator<Item = Coord> {
-            core::iter::once(Coord::ALL[Coord::CENTER_INDEX])
-                .chain(IncreasingSquareSineIter::default())
-        }
-
-        fn increasing_square_cos_wave() -> impl Iterator<Item = Coord> {
-            let mut iter = IncreasingSquareSineIter::default();
-            iter.next();
-            iter.next();
-
-            core::iter::once(Coord::ALL[Coord::CENTER_INDEX])
-                .chain(iter)
-        }
-    }
-
-    struct IncreasingSquareSineIter {
-        i: usize,
-        amplitude: isize,
-        wave_steps_left: usize,
-    }
-
-    impl Default for IncreasingSquareSineIter {
-        fn default() -> Self {
-            Self {
-                i: Coord::CENTER_INDEX,
-                amplitude: 0,
-                wave_steps_left: 0,
-                
-            }
-        }
-    }
-
-    impl Iterator for IncreasingSquareSineIter {
-        type Item = Coord;
-    
-        fn next(&mut self) -> Option<Self::Item> {
-            let last = Coord::ALL.get(self.i).cloned();
-
-            if last.is_some() {
-                if self.wave_steps_left > 0 {
-                    self.wave_steps_left -= 1;
-                    self.i = (Coord::CENTER_INDEX as isize + self.amplitude) as usize;
-                } else {
-                    self.i = Coord::CENTER_INDEX;
-                    if self.amplitude > 0 {
-                        self.wave_steps_left = self.amplitude as usize * 2 + 1;
-                        self.amplitude *= -1;
-                    } else {
-                        self.amplitude *= -1;
-                        // amplitude is now non-negative.
-                        assert!(self.amplitude >= 0);
-                        self.amplitude += 1;
-                        self.wave_steps_left = self.amplitude as usize * 2 + 1;
-                    }
-                }
-            }
-
-            Coord::ALL.get(self.i).cloned()
-        }
-    }
-
-    #[test]
-    fn sine_iter_returns_some_center_initially() {
-        let mut iter = IncreasingSquareSineIter::default();
-        assert_eq!(
-            iter.next(),
-            Some(Coord::ALL[Coord::CENTER_INDEX])
-        );
-    }
-
-    #[test]
-    fn sine_iter_stops_before_twice_tiles_length() {
-        let mut iter = IncreasingSquareSineIter::default();
-        let mut count = 0;
-        while let Some(coord) = iter.next() {
-            count += 1;
-            assert!(
-                count < 2 * TILES_LENGTH,
-                "coord was {:?}",
-                coord
-            )
-        }
-    }
-
-    #[test]
-    fn sine_iter_has_the_expected_inital_values() {
-        const C: usize = Coord::CENTER_INDEX;
-        macro_rules! exp {
-            ($i : expr) => {
-                Some(Coord::ALL[$i])
-            }
-        }
-        let mut iter = IncreasingSquareSineIter::default();
-        assert_eq!(
-            [
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-            ],
-            [
-                exp!(C),
-                exp!(C + 1),
-                exp!(C + 1),
-                exp!(C + 1),
-                exp!(C),
-                exp!(C - 1),
-                exp!(C - 1),
-                exp!(C - 1),
-                exp!(C),
-                exp!(C + 1),
-                exp!(C + 2),
-                exp!(C + 2),
-                exp!(C + 2),
-                exp!(C + 1),
-                exp!(C),
-            ]
-        );
-    }
-
-    #[test]
-    fn cos_iter_has_the_expected_inital_values() {
-        const C: usize = Coord::CENTER_INDEX;
-        macro_rules! exp {
-            ($i : expr) => {
-                Some(Coord::ALL[$i])
-            }
-        }
-        let mut iter = IncreasingSquareSineIter::default();
-        assert_eq!(
-            [
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-                iter.next(),
-            ],
-            [
-                exp!(C + 1),
-                exp!(C + 1),
-                exp!(C),
-                exp!(C - 1),
-                exp!(C - 1),
-                exp!(C - 1),
-                exp!(C),
-                exp!(C + 1),
-                exp!(C + 2),
-                exp!(C + 2),
-                exp!(C + 2),
-                exp!(C + 1),
-                exp!(C),
-                exp!(C - 1),
-                exp!(C - 2),
-            ]
-        );
+        const CENTER: Coord = Coord::ALL[Self::CENTER_INDEX];
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -790,7 +781,7 @@ impl Tiles {
         use tile::{Kind::*, Visibility::*, HintSpec::*};
         use Level::*;
 
-        const SCALE_FACTOR: usize = 256;
+        const SCALE_FACTOR: usize = 512;
 
         let mut tiles_remaining = match level {
             One => SCALE_FACTOR * 1,
