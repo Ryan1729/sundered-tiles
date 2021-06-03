@@ -145,6 +145,8 @@ mod tile {
             AddOne,
             SubOne,
         },
+        Xs,
+        xs_u32,
     };
 
     // An amount of tiles, which are usually arranged in a line.
@@ -203,7 +205,7 @@ mod tile {
                 })
         }
 
-        pub fn all_center_spiralish() -> impl Iterator<Item = XY> {
+        pub(crate) fn all_center_spiralish() -> sprialish::Iter {
             sprialish::Iter::starting_at(XY {
                 x: X(Coord::CENTER),
                 y: Y(Coord::CENTER),
@@ -229,7 +231,7 @@ mod tile {
         #[derive(Debug)]
         pub(crate) struct Iter {
             current: Option<XY>,
-            rect: Rect,
+            bounding_rect: Rect,
             next_action: NextAction,
         }
 
@@ -237,9 +239,13 @@ mod tile {
             pub(crate) fn starting_at(start: XY) -> Self {
                 Self {
                     current: Some(start),
-                    rect: Rect::min_max(start, start),
+                    bounding_rect: Rect::min_max(start, start),
                     next_action: <_>::default(),
                 }
+            }
+
+            pub(crate) fn bounding_rect(&self) -> Rect {
+                self.bounding_rect
             }
         }
 
@@ -254,14 +260,14 @@ mod tile {
                     match self.next_action {
                         MoveDiagonally => {
                             match (
-                                self.rect.min.x.checked_sub_one(),
-                                self.rect.min.y.checked_sub_one(),
-                                self.rect.max.x.checked_add_one(),
-                                self.rect.max.y.checked_add_one(),
+                                self.bounding_rect.min.x.checked_sub_one(),
+                                self.bounding_rect.min.y.checked_sub_one(),
+                                self.bounding_rect.max.x.checked_add_one(),
+                                self.bounding_rect.max.y.checked_add_one(),
                             ) {
                                 (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) => {
-                                    self.rect = Rect::xyxy(min_x, min_y, max_x, max_y);
-                                    self.current = Some(self.rect.max);
+                                    self.bounding_rect = Rect::xyxy(min_x, min_y, max_x, max_y);
+                                    self.current = Some(self.bounding_rect.max);
                                 },
                                 _ => {
                                     self.current = None;
@@ -278,7 +284,7 @@ mod tile {
                                 });
 
                             if let Some(new) = new {
-                                if new.y == self.rect.min.y {
+                                if new.y == self.bounding_rect.min.y {
                                     self.next_action = MoveLeft;
                                 }
                             }
@@ -293,7 +299,7 @@ mod tile {
                                 });
 
                             if let Some(new) = new {
-                                if new.x == self.rect.min.x {
+                                if new.x == self.bounding_rect.min.x {
                                     self.next_action = MoveDown;
                                 }
                             }
@@ -308,7 +314,7 @@ mod tile {
                                 });
 
                             if let Some(new) = new {
-                                if new.y == self.rect.max.y {
+                                if new.y == self.bounding_rect.max.y {
                                     self.next_action = MoveRight;
                                 }
                             }
@@ -323,7 +329,7 @@ mod tile {
                                 });
 
                             if let Some(new) = new {
-                                if Some(new.x) == self.rect.max.x.checked_sub_one() {
+                                if Some(new.x) == self.bounding_rect.max.x.checked_sub_one() {
                                     self.next_action = MoveDiagonally;
                                 }
                             }
@@ -387,7 +393,7 @@ mod tile {
         assert_eq!(actual, expected);
     }
 
-    #[derive(Debug)]
+    #[derive(Clone, Copy, Debug)]
     pub(crate) struct Rect {
         pub(crate) min: XY,
         pub(crate) max: XY
@@ -425,6 +431,25 @@ mod tile {
         }
     }
 
+    pub(crate) fn random_xy_in_rect(rng: &mut Xs, rect: Rect) -> XY {
+        XY {
+            x: X(to_coord_or_default(
+                (xs_u32(
+                    rng,
+                    u8::from(rect.min.x.0) as _,
+                    u8::from(rect.max.x.0) as _
+                )) as Count
+            )),
+            y: Y(to_coord_or_default(
+                (xs_u32(
+                    rng,
+                    u8::from(rect.min.y.0) as _,
+                    u8::from(rect.max.y.0) as _
+                )) as Count
+            )),
+        }
+    }
+
     pub fn xy_to_i(xy: XY) -> usize {
         u8::from(xy.y.0) as usize * Coord::COUNT as usize
         + u8::from(xy.x.0) as usize
@@ -432,13 +457,13 @@ mod tile {
 
     pub fn i_to_xy(index: usize) -> XY {
         XY {
-            x: X(core::convert::TryFrom::try_from(
+            x: X(to_coord_or_default(
                 (index % Coord::COUNT as usize) as Count
-            ).unwrap_or_default()),
-            y: Y(core::convert::TryFrom::try_from(
+            )),
+            y: Y(to_coord_or_default(
                 ((index % (TILES_LENGTH as usize) as usize) 
                 / Coord::COUNT as usize) as Count
-            ).unwrap_or_default()),
+            )),
         }
     }
 
@@ -493,6 +518,10 @@ mod tile {
         is_ident!(XY {x: X(C0), y: Y(C2)});
         is_ident!(XY {x: X(C1), y: Y(C2)});
         is_ident!(XY {x: X(C49), y: Y(C49)});
+    }
+
+    fn to_coord_or_default(n: Count) -> Coord {
+        core::convert::TryFrom::try_from(n).unwrap_or_default()
     }
 
     pub type Distance = u8;
@@ -788,8 +817,10 @@ impl Tiles {
             Two => SCALE_FACTOR * 2,
             Three => SCALE_FACTOR * 3,
         };
-
-        for xy in tile::XY::all_center_spiralish() {
+        // TODO: get rect from the iter once it's done, and select a uniformly 
+        // random tile within that rect in `set_random_tile!`.
+        let mut xy_iter = tile::XY::all_center_spiralish();
+        for xy in &mut xy_iter {
             let kind = match xs_u32(rng, 0, 4) {
                 1 => Red(Hidden),
                 2 => Green(Hidden),
@@ -810,15 +841,21 @@ impl Tiles {
             }
         }
 
+        // We expect this to be the smallest rect that covers the iterated tiles.
+        // If we add multiple islands of tiles, then we'll need to pull from each 
+        // bounding rect uniformly at random.
+        let bounding_rect = xy_iter.bounding_rect();
+
         macro_rules! set_random_tile {
             ($vis: ident, $($from: pat)|+ => $to: expr) => {{
-                let mut xy = None;
-                let mut index = xs_u32(rng, 0, TILES_LENGTH) as usize;
+                let mut selected_xy = None;
+                let start_xy = tile::random_xy_in_rect(rng, bounding_rect);
+                let mut index = tile::xy_to_i(start_xy);
 
                 for _ in 0..TILES_LENGTH as usize {
                     if let $($from)|+ = tiles[index].kind {
                         tiles[index].kind = $to;
-                        xy = Some(tile::i_to_xy(index));
+                        selected_xy = Some(tile::i_to_xy(index));
                         break
                     }
 
@@ -827,9 +864,9 @@ impl Tiles {
                 }
 
                 if cfg!(debug_assertions) {
-                    xy.expect("set_random_tile found no tile!")
+                    selected_xy.expect("set_random_tile found no tile!")
                 } else {
-                    xy.unwrap_or_default()
+                    selected_xy.unwrap_or_default()
                 }
             }}
         }
