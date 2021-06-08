@@ -724,6 +724,13 @@ mod tile {
         }
     }
 
+    pub(crate) fn is_hidden(kind: Kind) -> bool {
+        matches!(
+            get_visibility(kind),
+            Some(Visibility::Hidden)
+        )
+    }
+
     pub(crate) fn is_goal(kind: Kind) -> bool {
         matches!(kind, Kind::Goal(_))
     }
@@ -1023,12 +1030,26 @@ impl Default for Tool {
     }
 }
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+enum ViewMode {
+    Clean,
+    ShowAllDistances,
+    HideRevealed,
+}
+
+impl Default for ViewMode {
+    fn default() -> Self {
+        Self::Clean
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct State {
     sizes: draw::Sizes,
     board: Board,
     input_speed: InputSpeed,
     tool: Tool,
+    view_mode: ViewMode,
 }
 
 impl State {
@@ -1050,21 +1071,23 @@ fn is_last_level(state: &State) -> bool {
 
 pub type InputFlags = u16;
 
-pub const INPUT_UP_PRESSED: InputFlags         = 0b0_0000_0000_0001;
-pub const INPUT_DOWN_PRESSED: InputFlags       = 0b0_0000_0000_0010;
-pub const INPUT_LEFT_PRESSED: InputFlags       = 0b0_0000_0000_0100;
-pub const INPUT_RIGHT_PRESSED: InputFlags      = 0b0_0000_0000_1000;
+pub const INPUT_UP_PRESSED: InputFlags              = 0b0000_0000_0000_0001;
+pub const INPUT_DOWN_PRESSED: InputFlags            = 0b0000_0000_0000_0010;
+pub const INPUT_LEFT_PRESSED: InputFlags            = 0b0000_0000_0000_0100;
+pub const INPUT_RIGHT_PRESSED: InputFlags           = 0b0000_0000_0000_1000;
 
-pub const INPUT_UP_DOWN: InputFlags            = 0b0_0000_0001_0000;
-pub const INPUT_DOWN_DOWN: InputFlags          = 0b0_0000_0010_0000;
-pub const INPUT_LEFT_DOWN: InputFlags          = 0b0_0000_0100_0000;
-pub const INPUT_RIGHT_DOWN: InputFlags         = 0b0_0000_1000_0000;
+pub const INPUT_UP_DOWN: InputFlags                 = 0b0000_0000_0001_0000;
+pub const INPUT_DOWN_DOWN: InputFlags               = 0b0000_0000_0010_0000;
+pub const INPUT_LEFT_DOWN: InputFlags               = 0b0000_0000_0100_0000;
+pub const INPUT_RIGHT_DOWN: InputFlags              = 0b0000_0000_1000_0000;
 
-pub const INPUT_INTERACT_PRESSED: InputFlags   = 0b0_0001_0000_0000;
-pub const INPUT_FAST_PRESSED: InputFlags       = 0b0_0010_0000_0000;
-pub const INPUT_TOOL_LEFT_PRESSED: InputFlags  = 0b0_0100_0000_0000;
-pub const INPUT_TOOL_RIGHT_PRESSED: InputFlags = 0b0_1000_0000_0000;
-pub const INPUT_UI_RESET_PRESSED: InputFlags   = 0b1_0000_0000_0000;
+pub const INPUT_INTERACT_PRESSED: InputFlags        = 0b0000_0001_0000_0000;
+pub const INPUT_FAST_PRESSED: InputFlags            = 0b0000_0010_0000_0000;
+pub const INPUT_TOOL_LEFT_PRESSED: InputFlags       = 0b0000_0100_0000_0000;
+pub const INPUT_TOOL_RIGHT_PRESSED: InputFlags      = 0b0000_1000_0000_0000;
+pub const INPUT_UI_RESET_PRESSED: InputFlags        = 0b0001_0000_0000_0000;
+pub const INPUT_VIEW_MODE_LEFT_PRESSED: InputFlags  = 0b0010_0000_0000_0000;
+pub const INPUT_VIEW_MODE_RIGHT_PRESSED: InputFlags = 0b0100_0000_0000_0000;
 
 #[derive(Clone, Copy, Debug)]
 enum Input {
@@ -1126,6 +1149,7 @@ pub fn update(
     use UiPos::*;
     use draw::{SpriteSpec, TextSpec, TextKind, Command::*};
     use Tool::*;
+    use ViewMode::*;
 
     if draw_wh != state.sizes.draw_wh {
         state.sizes = draw::fresh_sizes(draw_wh);
@@ -1159,10 +1183,27 @@ pub fn update(
         };
     }
 
+    if INPUT_VIEW_MODE_LEFT_PRESSED & input_flags != 0 {
+        state.view_mode = match state.view_mode {
+            Clean => HideRevealed,
+            ShowAllDistances => Clean,
+            HideRevealed => ShowAllDistances,
+        };
+    }
+
+    if INPUT_VIEW_MODE_RIGHT_PRESSED & input_flags != 0 {
+        state.view_mode = match state.view_mode {
+            Clean => ShowAllDistances,
+            ShowAllDistances => HideRevealed,
+            HideRevealed => Clean,
+        };
+    }
+
     macro_rules! do_ui_reset {
         () => {
-            state.input_speed = InputSpeed::Standard;
-            state.tool = Selectrum;
+            state.input_speed = <_>::default();
+            state.tool = <_>::default();
+            state.view_mode = <_>::default();
         }
     }
 
@@ -1202,10 +1243,7 @@ pub fn update(
                 Selectrum => {
                     let mut tile = get_tile(&state.board.tiles, *xy);
 
-                    let started_hidden = matches!(
-                        tile::get_visibility(tile.data.kind),
-                        Some(tile::Visibility::Hidden)
-                    );
+                    let started_hidden = tile::is_hidden(tile.data.kind);
 
                     if started_hidden &&
                         (state.board.digs > 0 || cfg!(debug_assertions)) {
@@ -1287,7 +1325,8 @@ pub fn update(
     };
 
     for txy in tile::XY::all() {
-        let tile = get_tile(&state.board.tiles, txy);
+        let tiles = &state.board.tiles;
+        let tile = get_tile(tiles, txy);
 
         let xy = draw::tile_xy_to_draw(&state.sizes, txy);
 
@@ -1313,37 +1352,55 @@ pub fn update(
             Hint(Shown, _) => SpriteKind::Hint,
         };
 
-        commands.push(Sprite(SpriteSpec{
-            sprite,
-            xy
-        }));
-
-        let star_xy = match tile.data.kind {
-            Red(Shown) => Some(
-                get_star_xy(&state.board.tiles, tile::Colour::Red)
-            ),
-            Green(Shown) => Some(
-                get_star_xy(&state.board.tiles, tile::Colour::Green)
-            ),
-            Blue(Shown) => Some(
-                get_star_xy(&state.board.tiles, tile::Colour::Blue)
-            ),
-            _ => None,
+        let draw_tile = match state.view_mode {
+            Clean | ShowAllDistances => true,
+            HideRevealed => matches!(sprite, SpriteKind::Hidden),
         };
 
-        if let Some(star_xy) = star_xy {
-            let distance = tile::manhattan_distance(txy, star_xy);
-            commands.push(Text(TextSpec {
-                // We could avoid this allocation since there are only 99
-                // needed strings here. Maybe plus "??" for an error or something.
-                text: format!("{}{}", distance / 10, distance % 10),
-                xy,
-                wh: DrawWH {
-                    w: state.sizes.tile_side_length,
-                    h: state.sizes.tile_side_length,
-                },
-                kind: TextKind::DistanceMarker,
+        if draw_tile {
+            commands.push(Sprite(SpriteSpec{
+                sprite,
+                xy
             }));
+        }
+
+        if matches!(state.view_mode, ShowAllDistances|Clean) {
+            let star_xy = match tile.data.kind {
+                Red(Shown) => Some(
+                    get_star_xy(tiles, tile::Colour::Red)
+                ),
+                Green(Shown) => Some(
+                    get_star_xy(tiles, tile::Colour::Green)
+                ),
+                Blue(Shown) => Some(
+                    get_star_xy(tiles, tile::Colour::Blue)
+                ),
+                _ => None,
+            };
+
+            if let Some(star_xy) = star_xy {
+                let should_draw_distance = if matches!(state.view_mode, Clean) {
+                    tile::is_hidden(get_tile(tiles, star_xy).data.kind)
+                } else {
+                    // We already checked for HideRevealed above
+                    true
+                };
+
+                if should_draw_distance {
+                    let distance = tile::manhattan_distance(txy, star_xy);
+                    commands.push(Text(TextSpec {
+                        // We could avoid this allocation since there are only 99
+                        // needed strings here. Maybe plus "??" for an error or something.
+                        text: format!("{}{}", distance / 10, distance % 10),
+                        xy,
+                        wh: DrawWH {
+                            w: state.sizes.tile_side_length,
+                            h: state.sizes.tile_side_length,
+                        },
+                        kind: TextKind::DistanceMarker,
+                    }));
+                }
+            }
         }
     }
 
@@ -1565,17 +1622,25 @@ pub fn update(
         }
     }
 
-    if let InputSpeed::Fast = state.input_speed {
-        let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
-        commands.push(Text(TextSpec{
-            text: "Fast".to_owned(),
-            xy: DrawXY { x: right_text_x, y },
-            wh: DrawWH {
-                w: board_xywh.x - left_text_x,
-                h: small_section_h
-            },
-            kind: TextKind::Fast,
-        }));
+    {
+        let text = match state.view_mode {
+            Clean => None,
+            ShowAllDistances => Some("Show All Distances"),
+            HideRevealed => Some("Hide Revealed"),
+        };
+
+        if let Some(text) = text {
+            let y = MARGIN;
+            commands.push(Text(TextSpec{
+                text: text.to_owned(),
+                xy: DrawXY { x: right_text_x, y },
+                wh: DrawWH {
+                    w: board_xywh.x - left_text_x,
+                    h: small_section_h
+                },
+                kind: TextKind::Fast,
+            }));
+        }
     }
 
     {
@@ -1598,5 +1663,18 @@ pub fn update(
                 }));
             }
         }
+    }
+
+    if let InputSpeed::Fast = state.input_speed {
+        let y = state.sizes.draw_wh.h * (MARGIN - 1.) / MARGIN;
+        commands.push(Text(TextSpec{
+            text: "Fast".to_owned(),
+            xy: DrawXY { x: right_text_x, y },
+            wh: DrawWH {
+                w: board_xywh.x - left_text_x,
+                h: small_section_h
+            },
+            kind: TextKind::Fast,
+        }));
     }
 }
