@@ -258,9 +258,54 @@ mod raylib_rs_platform {
 
         const SPRITE_BORDER: f32 = 4.;
 
+        let mut show_stats = false;
+        use std::time::Instant;
+        struct TimeSpan {
+            start: Instant,
+            end: Instant,
+        }
+
+        impl Default for TimeSpan {
+            fn default() -> Self {
+                let start = Instant::now();
+                Self {
+                    start,
+                    end: start,
+                }
+            }
+        }
+
+        impl std::fmt::Display for TimeSpan {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(
+                    f,
+                    "{: >6.3} ms",
+                    (self.end - self.start).as_micros() as f32 / 1000.0
+                )
+            }
+        }
+
+        #[derive(Default)]
+        struct FrameStats {
+            loop_body: TimeSpan,
+            input_gather: TimeSpan,
+            update: TimeSpan,
+            render: TimeSpan,
+        }
+
+        let mut prev_stats = FrameStats::default();
+
         while !rl.window_should_close() {
+            let mut current_stats = FrameStats::default();
+            current_stats.loop_body.start = Instant::now();
+            current_stats.input_gather.start = current_stats.loop_body.start;
+
             if rl.is_key_pressed(KEY_F11) {
                 rl.toggle_fullscreen();
+            }
+
+            if rl.is_key_pressed(KEY_F10) {
+                show_stats = !show_stats;
             }
 
             let mut input_flags = 0;
@@ -324,6 +369,8 @@ mod raylib_rs_platform {
             if rl.is_key_pressed(KEY_R) || rl.is_key_pressed(KEY_Z) {
                 input_flags |= game::INPUT_UI_RESET_PRESSED;
             }
+            current_stats.input_gather.end = Instant::now();
+            current_stats.update.start = current_stats.input_gather.end;
 
             game::update(
                 &mut state,
@@ -331,6 +378,9 @@ mod raylib_rs_platform {
                 input_flags,
                 draw_wh(&rl)
             );
+
+            current_stats.update.end = Instant::now();
+            current_stats.render.start = current_stats.update.end;
 
             let screen_render_rect = Rectangle {
                 x: 0.,
@@ -504,6 +554,30 @@ mod raylib_rs_platform {
                         }
                     }
                 }
+
+                if show_stats {
+                    shader_d.draw_text_rec(
+                        &font,
+                        &format!(
+                            "loop {}\ninput {}\nupdate {}\nrender {}",
+                            prev_stats.loop_body,
+                            prev_stats.input_gather,
+                            prev_stats.update,
+                            prev_stats.render,
+                        ),
+                        Rectangle {
+                            x: 0.,
+                            y: 0.,
+                            width: sizes.play_xywh.x,
+                            height: sizes.play_xywh.h,
+                        },
+                        // Constant arrived at through trial and error.
+                        sizes.draw_wh.w * (1./96.),
+                        1.,
+                        true, // word_wrap
+                        TEXT
+                    );
+                }
             }
 
             let render_target_source_rect = Rectangle {
@@ -522,6 +596,11 @@ mod raylib_rs_platform {
                 0.0,
                 NO_TINT
             );
+
+            current_stats.render.end = Instant::now();
+            current_stats.loop_body.end = current_stats.render.end;
+
+            prev_stats = current_stats;
         }
     }
 
