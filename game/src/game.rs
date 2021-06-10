@@ -678,11 +678,11 @@ mod tile {
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum Kind {
         Empty,
-        Red(Visibility),
+        Red(Visibility, DistanceIntel),
         RedStar(Visibility),
-        Green(Visibility),
+        Green(Visibility, DistanceIntel),
         GreenStar(Visibility),
-        Blue(Visibility),
+        Blue(Visibility, DistanceIntel),
         BlueStar(Visibility),
         Goal(Visibility),
         Hint(Visibility, HintSpec)
@@ -698,11 +698,11 @@ mod tile {
         use Kind::*;
         match kind {
             Empty => None,
-            Red(vis)
+            Red(vis, _)
             | RedStar(vis)
-            | Green(vis)
+            | Green(vis, _)
             | GreenStar(vis)
-            | Blue(vis)
+            | Blue(vis, _)
             | BlueStar(vis)
             | Goal(vis)
             | Hint(vis, _) => Some(vis),
@@ -713,11 +713,11 @@ mod tile {
         use Kind::*;
         match kind {
             Empty => Empty,
-            Red(_) => Red(vis),
+            Red(_, intel) => Red(vis, intel),
             RedStar(_) => RedStar(vis),
-            Green(_) => Green(vis),
+            Green(_, intel) => Green(vis, intel),
             GreenStar(_) => GreenStar(vis),
-            Blue(_) => Blue(vis),
+            Blue(_, intel) => Blue(vis, intel),
             BlueStar(_) => BlueStar(vis),
             Goal(_) => Goal(vis),
             Hint(_, hint_spec) => Hint(vis, hint_spec),
@@ -739,14 +739,14 @@ mod tile {
         use Kind::*;
         match kind {
             Empty => "an empty space",
-            Red(_) => "a red tile",
-            RedStar(_) => "the red star tile",
-            Green(_) => "a green tile",
-            GreenStar(_) => "the green star tile",
-            Blue(_) => "a blue tile",
-            BlueStar(_) => "the blue star tile",
-            Goal(_) => "the goal tile",
-            Hint(_, _) => "a hint tile",
+            Red(..) => "a red tile",
+            RedStar(..) => "the red star tile",
+            Green(..) => "a green tile",
+            GreenStar(..) => "the green star tile",
+            Blue(..) => "a blue tile",
+            BlueStar(..) => "the blue star tile",
+            Goal(..) => "the goal tile",
+            Hint(..) => "a hint tile",
         }
     }
 
@@ -759,6 +759,79 @@ mod tile {
     impl Default for Visibility {
         fn default() -> Self {
             Self::Hidden
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum IntelDigit {
+        // One would only ever tell you almost nothing (>1) or exactly how far (=1)
+        Two,
+        Three,
+        Four,
+        Five,
+        Six,
+        Seven,
+        Eight,
+        Nine,
+    }
+
+    impl Default for IntelDigit {
+        fn default() -> Self {
+            Self::Two
+        }
+    }
+
+    impl From<IntelDigit> for Distance {
+        fn from(digit: IntelDigit) -> Self {
+            use IntelDigit::*;
+            match digit {
+                Two => 2,
+                Three => 3,
+                Four => 4,
+                Five => 5,
+                Six => 6,
+                Seven => 7,
+                Eight => 8,
+                Nine => 9,
+            }
+        }
+    }
+
+    impl IntelDigit {
+        pub(crate) fn from_rng(rng: &mut Xs) -> Self {
+            use IntelDigit::*;
+            match xs_u32(rng, 0, 8) {
+                0 => Two,
+                1 => Three,
+                2 => Four,
+                3 => Five,
+                4 => Six,
+                5 => Seven,
+                6 => Eight,
+                _ => Nine,
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum DistanceIntel {
+        Full,
+        PartialAmount(IntelDigit)
+    }
+
+    impl Default for DistanceIntel {
+        fn default() -> Self {
+            Self::Full
+        }
+    }
+
+    impl DistanceIntel {
+        pub(crate) fn from_rng(rng: &mut Xs) -> Self {
+            use DistanceIntel::*;
+            match xs_u32(rng, 0, 2) {
+                0 => Full,
+                _ => PartialAmount(IntelDigit::from_rng(rng)),
+            }
         }
     }
 
@@ -814,7 +887,7 @@ impl Tiles {
     fn from_rng(rng: &mut Xs, level: Level) -> Self {
         let mut tiles = [TileData::default(); TILES_LENGTH as _];
 
-        use tile::{Kind::*, Visibility::*, HintSpec::*};
+        use tile::{Kind::*, Visibility::*, HintSpec::*, DistanceIntel::{self, *}};
         use Level::*;
 
         const SCALE_FACTOR: usize = 512;
@@ -828,10 +901,13 @@ impl Tiles {
         // random tile within that rect in `set_random_tile!`.
         let mut xy_iter = tile::XY::all_center_spiralish();
         for xy in &mut xy_iter {
-            let kind = match xs_u32(rng, 0, 4) {
-                1 => Red(Hidden),
-                2 => Green(Hidden),
-                3 => Blue(Hidden),
+            let kind = match xs_u32(rng, 0, 15) {
+                1|4|7 => Red(Hidden, Full),
+                2|5|8 => Green(Hidden, Full),
+                3|6|9 => Blue(Hidden, Full),
+                10 => Red(Hidden, DistanceIntel::from_rng(rng)),
+                11 => Green(Hidden, DistanceIntel::from_rng(rng)),
+                12 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
                 _ => Empty,
             };
 
@@ -878,30 +954,30 @@ impl Tiles {
             }}
         }
 
-        let red_star_xy = set_random_tile!(vis, Red(vis) => RedStar(vis));
-        let green_star_xy = set_random_tile!(vis, Green(vis) => GreenStar(vis));
-        let blue_star_xy = set_random_tile!(vis, Blue(vis) => BlueStar(vis));
+        let red_star_xy = set_random_tile!(vis, Red(vis, _) => RedStar(vis));
+        let green_star_xy = set_random_tile!(vis, Green(vis, _) => GreenStar(vis));
+        let blue_star_xy = set_random_tile!(vis, Blue(vis, _) => BlueStar(vis));
 
         let goal_xy = set_random_tile!(
             vis,
-            Red(vis)|Green(vis)|Blue(vis) => Goal(vis)
+            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Goal(vis)
         );
         // TODO Only add these sometimes? Maybe based on difficulty?
         let _ = set_random_tile!(
             vis,
-            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneUpFrom)
+            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneUpFrom)
         );
         let _ = set_random_tile!(
             vis,
-            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneDownFrom)
+            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneDownFrom)
         );
         let _ = set_random_tile!(
             vis,
-            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneLeftFrom)
+            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneLeftFrom)
         );
         let _ = set_random_tile!(
             vis,
-            Red(vis)|Green(vis)|Blue(vis) => Hint(vis, GoalIsOneRightFrom)
+            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneRightFrom)
         );
 
         Self {
@@ -1262,8 +1338,8 @@ pub fn update(
                                 state.board.digs = state.board.digs.saturating_add(1);
 
                                 for index in 0..TILES_LENGTH as usize {
-                                    if let $variant(Hidden) = state.board.tiles.tiles[index].kind {
-                                        state.board.tiles.tiles[index].kind = $variant(Shown);
+                                    if let $variant(Hidden, intel) = state.board.tiles.tiles[index].kind {
+                                        state.board.tiles.tiles[index].kind = $variant(Shown, intel);
                                     }
                                 }
                             }}
@@ -1334,19 +1410,19 @@ pub fn update(
 
         let sprite = match tile.data.kind {
             Empty => continue,
-            Red(Hidden)
+            Red(Hidden, _)
             | RedStar(Hidden)
-            | Green(Hidden)
+            | Green(Hidden, _)
             | GreenStar(Hidden)
-            | Blue(Hidden)
+            | Blue(Hidden, _)
             | BlueStar(Hidden)
             | Goal(Hidden)
             | Hint(Hidden, _) => SpriteKind::Hidden,
-            Red(Shown) => SpriteKind::Red,
+            Red(Shown, _) => SpriteKind::Red,
             RedStar(Shown) => SpriteKind::RedStar,
-            Green(Shown) => SpriteKind::Green,
+            Green(Shown, _) => SpriteKind::Green,
             GreenStar(Shown) => SpriteKind::GreenStar,
-            Blue(Shown) => SpriteKind::Blue,
+            Blue(Shown, _) => SpriteKind::Blue,
             BlueStar(Shown) => SpriteKind::BlueStar,
             Goal(Shown) => goal_sprite,
             Hint(Shown, _) => SpriteKind::Hint,
@@ -1365,20 +1441,23 @@ pub fn update(
         }
 
         if matches!(state.view_mode, ShowAllDistances|Clean) {
-            let star_xy = match tile.data.kind {
-                Red(Shown) => Some(
-                    get_star_xy(tiles, tile::Colour::Red)
-                ),
-                Green(Shown) => Some(
-                    get_star_xy(tiles, tile::Colour::Green)
-                ),
-                Blue(Shown) => Some(
-                    get_star_xy(tiles, tile::Colour::Blue)
-                ),
+            let distance_info = match tile.data.kind {
+                Red(Shown, intel) => Some((
+                    get_star_xy(tiles, tile::Colour::Red),
+                    intel,
+                )),
+                Green(Shown, intel) => Some((
+                    get_star_xy(tiles, tile::Colour::Green),
+                    intel,
+                )),
+                Blue(Shown, intel) => Some((
+                    get_star_xy(tiles, tile::Colour::Blue),
+                    intel,
+                )),
                 _ => None,
             };
 
-            if let Some(star_xy) = star_xy {
+            if let Some((star_xy, intel)) = distance_info {
                 let should_draw_distance = if matches!(state.view_mode, Clean) {
                     tile::is_hidden(get_tile(tiles, star_xy).data.kind)
                 } else {
@@ -1387,11 +1466,28 @@ pub fn update(
                 };
 
                 if should_draw_distance {
+                    use tile::{Distance, DistanceIntel::*};
+
                     let distance = tile::manhattan_distance(txy, star_xy);
+
+                    // We could technically avoid this allocation since there 
+                    // are only finitely many needed strings here.
+                    let text = match intel {
+                        Full => format!("{}{}", distance / 10, distance % 10),
+                        PartialAmount(digit) => {
+                            let digit_distance = Distance::from(digit);
+                            if distance == digit_distance {
+                                format!("{}{}", distance / 10, distance % 10)
+                            } else if distance > digit_distance {
+                                format!(">{}", digit_distance)
+                            } else /* distance < digit_distance */{
+                                format!("<{}", digit_distance)
+                            }
+                        }
+                    };
+
                     commands.push(Text(TextSpec {
-                        // We could avoid this allocation since there are only 99
-                        // needed strings here. Maybe plus "??" for an error or something.
-                        text: format!("{}{}", distance / 10, distance % 10),
+                        text,
                         xy,
                         wh: DrawWH {
                             w: state.sizes.tile_side_length,
@@ -1507,11 +1603,11 @@ pub fn update(
                         use tile::Kind::*;
                         match get_tile(tiles, target_xy).data.kind {
                             Empty => None,
-                            Red(_) => Some(SpriteKind::Red),
+                            Red(_, _) => Some(SpriteKind::Red),
                             RedStar(_) => Some(SpriteKind::RedStar),
-                            Green(_) => Some(SpriteKind::Green),
+                            Green(_, _) => Some(SpriteKind::Green),
                             GreenStar(_) => Some(SpriteKind::GreenStar),
-                            Blue(_) => Some(SpriteKind::Blue),
+                            Blue(_, _) => Some(SpriteKind::Blue),
                             BlueStar(_) => Some(SpriteKind::BlueStar),
                             Goal(_) => Some(goal_sprite),
                             Hint(_, _) => Some(SpriteKind::Hint),
