@@ -814,9 +814,16 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub(crate) enum PrevNext {
+        Prev,
+        Next
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub(crate) enum DistanceIntel {
         Full,
-        PartialAmount(IntelDigit)
+        PartialAmount(IntelDigit),
+        PartialColour(PrevNext),
     }
 
     impl Default for DistanceIntel {
@@ -828,9 +835,15 @@ mod tile {
     impl DistanceIntel {
         pub(crate) fn from_rng(rng: &mut Xs) -> Self {
             use DistanceIntel::*;
-            match xs_u32(rng, 0, 2) {
+            use PrevNext::*;
+            match xs_u32(rng, 0, 3) {
                 0 => Full,
-                _ => PartialAmount(IntelDigit::from_rng(rng)),
+                1 => PartialAmount(IntelDigit::from_rng(rng)),
+                _ => if xs_u32(rng, 0, 2) == 1 {
+                    PartialColour(Prev)
+                } else {
+                    PartialColour(Next)
+                },
             }
         }
     }
@@ -1406,7 +1419,7 @@ pub fn update(
 
         let xy = draw::tile_xy_to_draw(&state.sizes, txy);
 
-        use tile::{Kind::*, Visibility::*};
+        use tile::{Kind::*, Visibility::*, DistanceIntel::*, PrevNext::*};
 
         let sprite = match tile.data.kind {
             Empty => continue,
@@ -1418,10 +1431,16 @@ pub fn update(
             | BlueStar(Hidden)
             | Goal(Hidden)
             | Hint(Hidden, _) => SpriteKind::Hidden,
+            Red(Shown, PartialColour(Prev)) => SpriteKind::BlueRed,
+            Red(Shown, PartialColour(Next)) => SpriteKind::RedGreen,
             Red(Shown, _) => SpriteKind::Red,
             RedStar(Shown) => SpriteKind::RedStar,
+            Green(Shown, PartialColour(Prev)) => SpriteKind::RedGreen,
+            Green(Shown, PartialColour(Next)) => SpriteKind::GreenBlue,
             Green(Shown, _) => SpriteKind::Green,
             GreenStar(Shown) => SpriteKind::GreenStar,
+            Blue(Shown, PartialColour(Prev)) => SpriteKind::GreenBlue,
+            Blue(Shown, PartialColour(Next)) => SpriteKind::BlueRed,
             Blue(Shown, _) => SpriteKind::Blue,
             BlueStar(Shown) => SpriteKind::BlueStar,
             Goal(Shown) => goal_sprite,
@@ -1473,7 +1492,6 @@ pub fn update(
                     // We could technically avoid this allocation since there 
                     // are only finitely many needed strings here.
                     let text = match intel {
-                        Full => format!("{}{}", distance / 10, distance % 10),
                         PartialAmount(digit) => {
                             let digit_distance = Distance::from(digit);
                             if distance == digit_distance {
@@ -1483,7 +1501,8 @@ pub fn update(
                             } else /* distance < digit_distance */{
                                 format!("<{}", digit_distance)
                             }
-                        }
+                        },
+                        _ => format!("{}{}", distance / 10, distance % 10),
                     };
 
                     commands.push(Text(TextSpec {
