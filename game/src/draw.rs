@@ -184,6 +184,40 @@ impl Default for SpriteKind {
     }
 }
 
+pub(crate) fn sprite_kind_from_tile_kind(
+    kind: tile::Kind,
+    goal_sprite: SpriteKind,
+) -> Option<SpriteKind> {
+    use tile::{Kind::*, Visibility::*, DistanceIntel::*, PrevNext::*};
+    let sprite_kind = match kind {
+        Empty => return None,
+        Red(Hidden, _)
+        | RedStar(Hidden)
+        | Green(Hidden, _)
+        | GreenStar(Hidden)
+        | Blue(Hidden, _)
+        | BlueStar(Hidden)
+        | Goal(Hidden)
+        | Hint(Hidden, _) => SpriteKind::Hidden,
+        Red(Shown, PartialColour(Prev)) => SpriteKind::BlueRed,
+        Red(Shown, PartialColour(Next)) => SpriteKind::RedGreen,
+        Red(Shown, _) => SpriteKind::Red,
+        RedStar(Shown) => SpriteKind::RedStar,
+        Green(Shown, PartialColour(Prev)) => SpriteKind::RedGreen,
+        Green(Shown, PartialColour(Next)) => SpriteKind::GreenBlue,
+        Green(Shown, _) => SpriteKind::Green,
+        GreenStar(Shown) => SpriteKind::GreenStar,
+        Blue(Shown, PartialColour(Prev)) => SpriteKind::GreenBlue,
+        Blue(Shown, PartialColour(Next)) => SpriteKind::BlueRed,
+        Blue(Shown, _) => SpriteKind::Blue,
+        BlueStar(Shown) => SpriteKind::BlueStar,
+        Goal(Shown) => goal_sprite,
+        Hint(Shown, _) => SpriteKind::Hint,
+    };
+
+    Some(sprite_kind)
+}
+
 #[derive(Debug)]
 pub enum Command {
     Sprite(SpriteSpec),

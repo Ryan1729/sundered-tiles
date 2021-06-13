@@ -1419,32 +1419,15 @@ pub fn update(
 
         let xy = draw::tile_xy_to_draw(&state.sizes, txy);
 
-        use tile::{Kind::*, Visibility::*, DistanceIntel::*, PrevNext::*};
+        use tile::{Kind::*, Visibility::*};
 
-        let sprite = match tile.data.kind {
-            Empty => continue,
-            Red(Hidden, _)
-            | RedStar(Hidden)
-            | Green(Hidden, _)
-            | GreenStar(Hidden)
-            | Blue(Hidden, _)
-            | BlueStar(Hidden)
-            | Goal(Hidden)
-            | Hint(Hidden, _) => SpriteKind::Hidden,
-            Red(Shown, PartialColour(Prev)) => SpriteKind::BlueRed,
-            Red(Shown, PartialColour(Next)) => SpriteKind::RedGreen,
-            Red(Shown, _) => SpriteKind::Red,
-            RedStar(Shown) => SpriteKind::RedStar,
-            Green(Shown, PartialColour(Prev)) => SpriteKind::RedGreen,
-            Green(Shown, PartialColour(Next)) => SpriteKind::GreenBlue,
-            Green(Shown, _) => SpriteKind::Green,
-            GreenStar(Shown) => SpriteKind::GreenStar,
-            Blue(Shown, PartialColour(Prev)) => SpriteKind::GreenBlue,
-            Blue(Shown, PartialColour(Next)) => SpriteKind::BlueRed,
-            Blue(Shown, _) => SpriteKind::Blue,
-            BlueStar(Shown) => SpriteKind::BlueStar,
-            Goal(Shown) => goal_sprite,
-            Hint(Shown, _) => SpriteKind::Hint,
+        let sprite = if let Some(sprite) = draw::sprite_kind_from_tile_kind(
+            tile.data.kind,
+            goal_sprite
+        ) {
+            sprite
+        } else {
+            continue
         };
 
         let draw_tile = match state.view_mode {
@@ -1619,18 +1602,10 @@ pub fn update(
             macro_rules! target_sprite {
                 (edge => $edge: ident) => {
                     if let Some(target_xy) = target_xy {
-                        use tile::Kind::*;
-                        match get_tile(tiles, target_xy).data.kind {
-                            Empty => None,
-                            Red(_, _) => Some(SpriteKind::Red),
-                            RedStar(_) => Some(SpriteKind::RedStar),
-                            Green(_, _) => Some(SpriteKind::Green),
-                            GreenStar(_) => Some(SpriteKind::GreenStar),
-                            Blue(_, _) => Some(SpriteKind::Blue),
-                            BlueStar(_) => Some(SpriteKind::BlueStar),
-                            Goal(_) => Some(goal_sprite),
-                            Hint(_, _) => Some(SpriteKind::Hint),
-                        }
+                        draw::sprite_kind_from_tile_kind(
+                            get_tile(tiles, target_xy).data.kind,
+                            goal_sprite,
+                        )
                     } else {
                         Some(SpriteKind::$edge)
                     };
