@@ -915,12 +915,12 @@ impl Tiles {
         let mut xy_iter = tile::XY::all_center_spiralish();
         for xy in &mut xy_iter {
             let kind = match xs_u32(rng, 0, 15) {
-                1|4|7 => Red(Hidden, Full),
-                2|5|8 => Green(Hidden, Full),
-                3|6|9 => Blue(Hidden, Full),
-                10 => Red(Hidden, DistanceIntel::from_rng(rng)),
-                11 => Green(Hidden, DistanceIntel::from_rng(rng)),
-                12 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
+                1 => Red(Hidden, Full),
+                2 => Green(Hidden, Full),
+                3 => Blue(Hidden, Full),
+                4|7|10 => Red(Hidden, DistanceIntel::from_rng(rng)),
+                5|8|11 => Green(Hidden, DistanceIntel::from_rng(rng)),
+                6|9|12 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
                 _ => Empty,
             };
 
