@@ -737,12 +737,20 @@ mod tile {
 
     pub(crate) fn kind_description(kind: Kind) -> &'static str {
         use Kind::*;
+        use DistanceIntel::*;
+        use PrevNext::*;
         match kind {
             Empty => "an empty space",
+            Red(_, PartialColour(Prev)) => "a blue/red tile",
+            Red(_, PartialColour(Next)) => "a red/green tile",
             Red(..) => "a red tile",
             RedStar(..) => "the red star tile",
+            Green(_, PartialColour(Prev)) => "a red/green tile",
+            Green(_, PartialColour(Next)) => "a green/blue tile",
             Green(..) => "a green tile",
             GreenStar(..) => "the green star tile",
+            Blue(_, PartialColour(Prev)) => "a green/blue tile",
+            Blue(_, PartialColour(Next)) => "a blue/red tile",
             Blue(..) => "a blue tile",
             BlueStar(..) => "the blue star tile",
             Goal(..) => "the goal tile",
