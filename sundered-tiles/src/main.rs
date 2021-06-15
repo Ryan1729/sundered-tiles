@@ -43,12 +43,34 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         InstrumentalGoal => 7.0,
         TerminalGoal => 8.0,
         Hint => 9.0,
-        EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 10.,
+        EdgeUp | EdgeDown | EdgeLeft | EdgeRight
+        | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 10.,
         QuestionMark => 11.,
         RedGreen => 12.,
         GreenBlue => 13.,
         BlueRed => 14.,
         Selectrum | RulerEnd => 15.0,
+    };
+
+    let sy = match sprite {
+        Hidden
+        | Red
+        | Green
+        | Blue
+        | RedStar
+        | GreenStar
+        | BlueStar
+        | InstrumentalGoal
+        | TerminalGoal
+        | Hint
+        | Selectrum
+        | RulerEnd
+        | QuestionMark
+        | RedGreen
+        | GreenBlue
+        | BlueRed
+        | EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 0.,
+        EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 1.,
     };
 
     let rotation = match sprite {
@@ -68,15 +90,16 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | RedGreen
         | GreenBlue
         | BlueRed
-        | EdgeDown => 0.,
-        EdgeLeft => 90.,
-        EdgeUp => 180.,
-        EdgeRight => 270.,
+        | EdgeDown
+        | EdgeDownRight => 0.,
+        EdgeLeft | EdgeUpRight => 90.,
+        EdgeUp | EdgeUpLeft=> 180.,
+        EdgeRight | EdgeDownLeft => 270.,
     };
 
     SourceSpec {
         x: sx * SPRITE_PIXELS_PER_TILE_SIDE,
-        y: 0.0,
+        y: sy * SPRITE_PIXELS_PER_TILE_SIDE,
         rotation,
     }
 }
@@ -260,7 +283,11 @@ mod raylib_rs_platform {
                 | RedGreen
                 | GreenBlue
                 | BlueRed
-                | QuestionMark => NO_TINT,
+                | QuestionMark
+                | EdgeUpLeft
+                | EdgeUpRight
+                | EdgeDownLeft
+                | EdgeDownRight => NO_TINT,
                 RulerEnd => RULER_TINT
             }
         }

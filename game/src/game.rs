@@ -668,11 +668,21 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub(crate) enum RelativeDelta {
+        OneUpOneLeft,
+        OneUp,
+        OneUpOneRight,
+        OneLeft,
+        OneRight,
+        OneDownOneLeft,
+        OneDown,
+        OneDownOneRight,
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
-        GoalIsOneUpFrom,
-        GoalIsOneDownFrom,
-        GoalIsOneLeftFrom,
-        GoalIsOneRightFrom,
+        GoalIs(RelativeDelta),
+        // We plan for something like GoalIsNot([RelativeDelta; N])
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -908,7 +918,13 @@ impl Tiles {
     fn from_rng(rng: &mut Xs, level: Level) -> Self {
         let mut tiles = [TileData::default(); TILES_LENGTH as _];
 
-        use tile::{Kind::*, Visibility::*, HintSpec::*, DistanceIntel::{self, *}};
+        use tile::{
+            Kind::*,
+            Visibility::*,
+            HintSpec::*,
+            RelativeDelta::*,
+            DistanceIntel::{self, *}
+        };
         use Level::*;
 
         const SCALE_FACTOR: usize = 512;
@@ -983,23 +999,25 @@ impl Tiles {
             vis,
             Red(vis, _)|Green(vis, _)|Blue(vis, _) => Goal(vis)
         );
+
+        macro_rules! set_hint {
+            ($hint_spec: expr) => {
+                let _ = set_random_tile!(
+                    vis,
+                    Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, $hint_spec)
+                );
+            }
+        }
+
         // TODO Only add these sometimes? Maybe based on difficulty?
-        let _ = set_random_tile!(
-            vis,
-            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneUpFrom)
-        );
-        let _ = set_random_tile!(
-            vis,
-            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneDownFrom)
-        );
-        let _ = set_random_tile!(
-            vis,
-            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneLeftFrom)
-        );
-        let _ = set_random_tile!(
-            vis,
-            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, GoalIsOneRightFrom)
-        );
+        set_hint!(GoalIs(OneUpOneLeft));
+        set_hint!(GoalIs(OneUp));
+        set_hint!(GoalIs(OneUpOneRight));
+        set_hint!(GoalIs(OneLeft));
+        set_hint!(GoalIs(OneRight));
+        set_hint!(GoalIs(OneDownOneLeft));
+        set_hint!(GoalIs(OneDown));
+        set_hint!(GoalIs(OneDownOneRight));
 
         Self {
             tiles,
@@ -1546,37 +1564,70 @@ pub fn update(
         };
 
         if let Some(hint_spec) = hint_spec {
-            use tile::HintSpec::*;
+            use tile::{HintSpec::*, RelativeDelta::*};
 
             let goal_xy = get_goal_xy(tiles);
+
+            macro_rules! inc_x {
+                ($xy: expr) => {{
+                    let xy = $xy;
+                    xy.x.checked_add_one().map(|x| tile::XY {
+                        x,
+                        ..xy
+                    })
+                }}
+            }
+
+            macro_rules! dec_x {
+                ($xy: expr) => {{
+                    let xy = $xy;
+                    xy.x.checked_sub_one().map(|x| tile::XY {
+                        x,
+                        ..xy
+                    })
+                }}
+            }
+
+            macro_rules! inc_y {
+                ($xy: expr) => {{
+                    let xy = $xy;
+                    xy.y.checked_add_one().map(|y| tile::XY {
+                        y,
+                        ..xy
+                    })
+                }}
+            }
+
+            macro_rules! dec_y {
+                ($xy: expr) => {{
+                    let xy = $xy;
+                    xy.y.checked_sub_one().map(|y| tile::XY {
+                        y,
+                        ..xy
+                    })
+                }}
+            }
+
             let (direction, target_xy) = match hint_spec {
-                GoalIsOneUpFrom => (
-                    "up",
-                    goal_xy.y.checked_add_one().map(|y| tile::XY {
-                        y,
-                        ..goal_xy
-                    })
+                GoalIs(OneUpOneLeft) => (
+                    "up and left",
+                    inc_y!(goal_xy).and_then(|xy| dec_x!(xy))
                 ),
-                GoalIsOneDownFrom => (
-                    "down",
-                    goal_xy.y.checked_sub_one().map(|y| tile::XY {
-                        y,
-                        ..goal_xy
-                    })
+                GoalIs(OneUp) => ("up", inc_y!(goal_xy)),
+                GoalIs(OneUpOneRight) => (
+                    "up and right",
+                    inc_y!(goal_xy).and_then(|xy| inc_x!(xy))
                 ),
-                GoalIsOneLeftFrom => (
-                    "left",
-                    goal_xy.x.checked_add_one().map(|x| tile::XY {
-                        x,
-                        ..goal_xy
-                    })
+                GoalIs(OneLeft) => ("left", dec_x!(goal_xy)),
+                GoalIs(OneRight) => ("right", inc_x!(goal_xy)),
+                GoalIs(OneDownOneLeft) => (
+                    "down and left",
+                    dec_y!(goal_xy).and_then(|xy| dec_x!(xy))
                 ),
-                GoalIsOneRightFrom => (
-                    "right",
-                    goal_xy.x.checked_sub_one().map(|x| tile::XY {
-                        x,
-                        ..goal_xy
-                    })
+                GoalIs(OneDown) => ("down", dec_y!(goal_xy)),
+                GoalIs(OneDownOneRight) => (
+                    "down and right",
+                    dec_y!(goal_xy).and_then(|xy| inc_x!(xy))
                 ),
             };
 
@@ -1606,32 +1657,54 @@ pub fn update(
             const DOWN_INDEX: usize = CENTER_INDEX + HINT_TILES_PER_ROW;
             const LEFT_INDEX: usize = CENTER_INDEX - 1;
             const RIGHT_INDEX: usize = CENTER_INDEX + 1;
+            const UP_LEFT_INDEX: usize = UP_INDEX - 1;
+            const UP_RIGHT_INDEX: usize = UP_INDEX + 1;
+            const DOWN_LEFT_INDEX: usize = DOWN_INDEX - 1;
+            const DOWN_RIGHT_INDEX: usize = DOWN_INDEX + 1;
 
             macro_rules! target_sprite {
-                (edge => $edge: ident) => {
+                (edge => $edge: expr) => {{
+                    use SpriteKind::*;
                     if let Some(target_xy) = target_xy {
                         draw::sprite_kind_from_tile_kind(
                             get_tile(tiles, target_xy).data.kind,
                             goal_sprite,
                         )
                     } else {
-                        Some(SpriteKind::$edge)
-                    };
-                }
+                        // TODO make `target_xy` into a `Result` or custom enum where 
+                        // the other variant indicates the edge situation such that 
+                        // we can tell which sprite to use, without needing this macro
+                        // at all. Currently the returned value will be wrong sometimes
+                        // no matter what $edge is.
+                        Some($edge)
+                    }
+                }}
             }
 
             match hint_spec {
-                GoalIsOneUpFrom => {
-                    hint_sprites[DOWN_INDEX] = target_sprite!(edge => EdgeUp);
+                GoalIs(OneUpOneLeft) => {
+                    hint_sprites[UP_LEFT_INDEX] = target_sprite!(edge => EdgeUpLeft);
                 },
-                GoalIsOneDownFrom => {
-                    hint_sprites[UP_INDEX] = target_sprite!(edge => EdgeDown);
+                GoalIs(OneUp) => {
+                    hint_sprites[UP_INDEX] = target_sprite!(edge => EdgeUp);
                 },
-                GoalIsOneLeftFrom => {
+                GoalIs(OneUpOneRight) => {
+                    hint_sprites[UP_RIGHT_INDEX] = target_sprite!(edge => EdgeUpRight);
+                },
+                GoalIs(OneLeft) => {
+                    hint_sprites[LEFT_INDEX] = target_sprite!(edge => EdgeRight);
+                },
+                GoalIs(OneRight) => {
                     hint_sprites[RIGHT_INDEX] = target_sprite!(edge => EdgeLeft);
                 },
-                GoalIsOneRightFrom => {
-                    hint_sprites[LEFT_INDEX] = target_sprite!(edge => EdgeRight);
+                GoalIs(OneDownOneLeft) => {
+                    hint_sprites[DOWN_LEFT_INDEX] = target_sprite!(edge => EdgeDownLeft);
+                },
+                GoalIs(OneDown) => {
+                    hint_sprites[DOWN_INDEX] = target_sprite!(edge => EdgeDown);
+                },
+                GoalIs(OneDownOneRight) => {
+                    hint_sprites[DOWN_RIGHT_INDEX] = target_sprite!(edge => EdgeDownRight);
                 },
             };
 

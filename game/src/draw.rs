@@ -176,6 +176,10 @@ pub enum SpriteKind {
     RedGreen,
     GreenBlue,
     BlueRed,
+    EdgeUpLeft,
+    EdgeUpRight,
+    EdgeDownLeft,
+    EdgeDownRight,
 }
 
 impl Default for SpriteKind {
