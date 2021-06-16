@@ -1550,6 +1550,7 @@ pub fn update(
     const HINT_TILES_COUNT: usize = HINT_TILES_PER_ROW * HINT_TILES_PER_COLUMN;
 
     let hint_info = {
+        use SpriteKind::*;
         let tiles = &state.board.tiles;
         let hint_spec = match state.board.ui_pos {
             Tile(txy) => {
@@ -1566,72 +1567,121 @@ pub fn update(
         if let Some(hint_spec) = hint_spec {
             use tile::{HintSpec::*, RelativeDelta::*};
 
+            #[derive(Copy, Clone)]
+            enum WentOff {
+                UpAndLeftEdges,
+                UpEdge,
+                UpAndRightEdges,
+                LeftEdge,
+                RightEdge,
+                DownAndLeftEdges,
+                DownEdge,
+                DownAndRightEdges,
+            }
+            use WentOff::*;
+            fn merge(a: WentOff, b: WentOff) -> WentOff {
+                match (a, b) {
+                    (UpEdge, LeftEdge)
+                    | (LeftEdge, UpEdge)
+                    | (UpAndLeftEdges, UpEdge)
+                    | (UpAndLeftEdges, LeftEdge) => UpAndLeftEdges,
+                    (UpEdge, RightEdge)
+                    | (RightEdge, UpEdge)
+                    | (UpAndRightEdges, UpEdge)
+                    | (UpAndRightEdges, RightEdge) => UpAndRightEdges,
+                    (DownEdge, LeftEdge)
+                    | (LeftEdge, DownEdge)
+                    | (DownAndLeftEdges, DownEdge)
+                    | (DownAndLeftEdges, LeftEdge) => DownAndLeftEdges,
+                    (DownEdge, RightEdge)
+                    | (RightEdge, DownEdge)
+                    | (DownAndRightEdges, DownEdge)
+                    | (DownAndRightEdges, RightEdge) => DownAndRightEdges,
+                    // If they match this does the right thing. If they are an
+                    // unexpected pair, say, (UpEdge, DownEdge), then we return 
+                    // something that is at least partially right.
+                    _ => b
+                }
+            }
+
             let goal_xy = get_goal_xy(tiles);
 
+            // These macros assume that they will only chained in such a way that 
+            // the edge lines are only crossed once in each direction. At the upper
+            // left corner, just up, or up then left should both work. But up then 
+            // down, etc. will likely have undesired behaviour.
             macro_rules! inc_x {
                 ($xy: expr) => {{
-                    let xy = $xy;
-                    xy.x.checked_add_one().map(|x| tile::XY {
-                        x,
-                        ..xy
-                    })
+                    match $xy {
+                        Ok(xy) => xy.x.checked_add_one().map(|x| tile::XY {
+                            x,
+                            ..xy
+                        }).ok_or(RightEdge),
+                        Err(went_off) => Err(merge(went_off, RightEdge))
+                    }
                 }}
             }
 
             macro_rules! dec_x {
                 ($xy: expr) => {{
-                    let xy = $xy;
-                    xy.x.checked_sub_one().map(|x| tile::XY {
-                        x,
-                        ..xy
-                    })
+                    match $xy {
+                        Ok(xy) => xy.x.checked_sub_one().map(|x| tile::XY {
+                            x,
+                            ..xy
+                        }).ok_or(LeftEdge),
+                        Err(went_off) => Err(merge(went_off, LeftEdge))
+                    }
                 }}
             }
 
             macro_rules! inc_y {
                 ($xy: expr) => {{
-                    let xy = $xy;
-                    xy.y.checked_add_one().map(|y| tile::XY {
-                        y,
-                        ..xy
-                    })
+                    match $xy {
+                        Ok(xy) => xy.y.checked_add_one().map(|y| tile::XY {
+                            y,
+                            ..xy
+                        }).ok_or(DownEdge),
+                        Err(went_off) => Err(merge(went_off, DownEdge))
+                    }
                 }}
             }
 
             macro_rules! dec_y {
                 ($xy: expr) => {{
-                    let xy = $xy;
-                    xy.y.checked_sub_one().map(|y| tile::XY {
-                        y,
-                        ..xy
-                    })
+                    match $xy {
+                        Ok(xy) => xy.y.checked_sub_one().map(|y| tile::XY {
+                            y,
+                            ..xy
+                        }).ok_or(UpEdge),
+                        Err(went_off) => Err(merge(went_off, UpEdge))
+                    }
                 }}
             }
 
             let (direction, target_xy) = match hint_spec {
                 GoalIs(OneUpOneLeft) => (
                     "up and left",
-                    inc_y!(goal_xy).and_then(|xy| dec_x!(xy))
+                    dec_x!(dec_y!(Ok(goal_xy)))
                 ),
-                GoalIs(OneUp) => ("up", inc_y!(goal_xy)),
+                GoalIs(OneUp) => ("up", dec_y!(Ok(goal_xy))),
                 GoalIs(OneUpOneRight) => (
                     "up and right",
-                    inc_y!(goal_xy).and_then(|xy| inc_x!(xy))
+                    inc_x!(dec_y!(Ok(goal_xy)))
                 ),
-                GoalIs(OneLeft) => ("left", dec_x!(goal_xy)),
-                GoalIs(OneRight) => ("right", inc_x!(goal_xy)),
+                GoalIs(OneLeft) => ("left", dec_x!(Ok(goal_xy))),
+                GoalIs(OneRight) => ("right", inc_x!(Ok(goal_xy))),
                 GoalIs(OneDownOneLeft) => (
                     "down and left",
-                    dec_y!(goal_xy).and_then(|xy| dec_x!(xy))
+                    dec_x!(inc_y!(Ok(goal_xy)))
                 ),
-                GoalIs(OneDown) => ("down", dec_y!(goal_xy)),
+                GoalIs(OneDown) => ("down", inc_y!(Ok(goal_xy))),
                 GoalIs(OneDownOneRight) => (
                     "down and right",
-                    dec_y!(goal_xy).and_then(|xy| inc_x!(xy))
+                    inc_x!(inc_y!(Ok(goal_xy)))
                 ),
             };
 
-            let description = if let Some(target_xy) = target_xy {
+            let description = if let Ok(target_xy) = target_xy {
                 tile::kind_description(get_tile(tiles, target_xy).data.kind)
             } else {
                 "the edge of the grid"
@@ -1643,7 +1693,6 @@ pub fn update(
                 description
             );
 
-            
             let mut hint_sprites = [
                 Some(SpriteKind::QuestionMark);
                 HINT_TILES_COUNT
@@ -1662,49 +1711,56 @@ pub fn update(
             const DOWN_LEFT_INDEX: usize = DOWN_INDEX - 1;
             const DOWN_RIGHT_INDEX: usize = DOWN_INDEX + 1;
 
-            macro_rules! target_sprite {
-                (edge => $edge: expr) => {{
-                    use SpriteKind::*;
-                    if let Some(target_xy) = target_xy {
-                        draw::sprite_kind_from_tile_kind(
-                            get_tile(tiles, target_xy).data.kind,
-                            goal_sprite,
-                        )
-                    } else {
-                        // TODO make `target_xy` into a `Result` or custom enum where 
-                        // the other variant indicates the edge situation such that 
-                        // we can tell which sprite to use, without needing this macro
-                        // at all. Currently the returned value will be wrong sometimes
-                        // no matter what $edge is.
-                        Some($edge)
-                    }
-                }}
-            }
+            let target_sprite = match target_xy {
+                Ok(target_xy) => {
+                    draw::sprite_kind_from_tile_kind(
+                        get_tile(tiles, target_xy).data.kind,
+                        goal_sprite,
+                    )
+                },
+                Err(went_off) => {
+                    // When talking about which edges were went off of, it's most 
+                    // natural to talk about the edge from the perspective of the 
+                    // tile. When talking about the sprite it is most natural to
+                    // talk about the direction the arrow is pointing.
+                    let sprite = match went_off {
+                        UpAndLeftEdges => EdgeDownRight,
+                        UpEdge => EdgeDown,
+                        UpAndRightEdges => EdgeDownLeft,
+                        LeftEdge => EdgeRight,
+                        RightEdge => EdgeLeft,
+                        DownAndLeftEdges => EdgeUpLeft,
+                        DownEdge => EdgeUp,
+                        DownAndRightEdges => EdgeUpRight,
+                    };
+                    Some(sprite)
+                }
+            };
 
             match hint_spec {
                 GoalIs(OneUpOneLeft) => {
-                    hint_sprites[UP_LEFT_INDEX] = target_sprite!(edge => EdgeUpLeft);
+                    hint_sprites[UP_LEFT_INDEX] = target_sprite;
                 },
                 GoalIs(OneUp) => {
-                    hint_sprites[UP_INDEX] = target_sprite!(edge => EdgeUp);
+                    hint_sprites[UP_INDEX] = target_sprite;
                 },
                 GoalIs(OneUpOneRight) => {
-                    hint_sprites[UP_RIGHT_INDEX] = target_sprite!(edge => EdgeUpRight);
+                    hint_sprites[UP_RIGHT_INDEX] = target_sprite;
                 },
                 GoalIs(OneLeft) => {
-                    hint_sprites[LEFT_INDEX] = target_sprite!(edge => EdgeRight);
+                    hint_sprites[LEFT_INDEX] = target_sprite;
                 },
                 GoalIs(OneRight) => {
-                    hint_sprites[RIGHT_INDEX] = target_sprite!(edge => EdgeLeft);
+                    hint_sprites[RIGHT_INDEX] = target_sprite;
                 },
                 GoalIs(OneDownOneLeft) => {
-                    hint_sprites[DOWN_LEFT_INDEX] = target_sprite!(edge => EdgeDownLeft);
+                    hint_sprites[DOWN_LEFT_INDEX] = target_sprite;
                 },
                 GoalIs(OneDown) => {
-                    hint_sprites[DOWN_INDEX] = target_sprite!(edge => EdgeDown);
+                    hint_sprites[DOWN_INDEX] = target_sprite;
                 },
                 GoalIs(OneDownOneRight) => {
-                    hint_sprites[DOWN_RIGHT_INDEX] = target_sprite!(edge => EdgeDownRight);
+                    hint_sprites[DOWN_RIGHT_INDEX] = target_sprite;
                 },
             };
 
