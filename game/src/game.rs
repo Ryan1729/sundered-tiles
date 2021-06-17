@@ -211,6 +211,34 @@ mod tile {
                 y: Y(Coord::CENTER),
             })
         }
+
+        pub(crate) fn upper_left_quadrant_spiralish() -> sprialish::Iter {
+            sprialish::Iter::starting_at(XY {
+                x: X(Coord::QUARTER),
+                y: Y(Coord::QUARTER),
+            })
+        }
+
+        pub(crate) fn upper_right_quadrant_spiralish() -> sprialish::Iter {
+            sprialish::Iter::starting_at(XY {
+                x: X(Coord::THREE_QUARTERS),
+                y: Y(Coord::QUARTER),
+            })
+        }
+
+        pub(crate) fn lower_left_quadrant_spiralish() -> sprialish::Iter {
+            sprialish::Iter::starting_at(XY {
+                x: X(Coord::QUARTER),
+                y: Y(Coord::THREE_QUARTERS),
+            })
+        }
+
+        pub(crate) fn lower_right_quadrant_spiralish() -> sprialish::Iter {
+            sprialish::Iter::starting_at(XY {
+                x: X(Coord::THREE_QUARTERS),
+                y: Y(Coord::THREE_QUARTERS),
+            })
+        }
     }
 
     mod sprialish {
@@ -432,6 +460,8 @@ mod tile {
     }
 
     pub(crate) fn random_xy_in_rect(rng: &mut Xs, rect: Rect) -> XY {
+        assert_ne!(u8::from(rect.max.x.0), 0);
+        assert_ne!(u8::from(rect.max.y.0), 0);
         XY {
             x: X(to_coord_or_default(
                 (xs_u32(
@@ -665,6 +695,14 @@ mod tile {
         const CENTER_INDEX: usize = Coord::ALL.len() / 2;
 
         const CENTER: Coord = Coord::ALL[Self::CENTER_INDEX];
+
+        const QUARTER_INDEX: usize = Self::CENTER_INDEX / 2;
+
+        const QUARTER: Coord = Coord::ALL[Self::QUARTER_INDEX];
+
+        const THREE_QUARTERS_INDEX: usize = Self::CENTER_INDEX + Self::QUARTER_INDEX;
+
+        const THREE_QUARTERS: Coord = Coord::ALL[Self::THREE_QUARTERS_INDEX];
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -934,9 +972,17 @@ impl Tiles {
             Two => SCALE_FACTOR * 2,
             Three => SCALE_FACTOR * 3,
         };
+
+
         // TODO: get rect from the iter once it's done, and select a uniformly 
         // random tile within that rect in `set_random_tile!`.
-        let mut xy_iter = tile::XY::all_center_spiralish();
+        let mut xy_iter = match 1 {//xs_u32(rng, 0, 5) {
+            0 => tile::XY::all_center_spiralish(),
+            1 => tile::XY::upper_left_quadrant_spiralish(),
+            2 => tile::XY::upper_right_quadrant_spiralish(),
+            3 => tile::XY::lower_left_quadrant_spiralish(),
+            _ => tile::XY::lower_right_quadrant_spiralish(),
+        };
         for xy in &mut xy_iter {
             let kind = match xs_u32(rng, 0, 15) {
                 1 => Red(Hidden, Full),
