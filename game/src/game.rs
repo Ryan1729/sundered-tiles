@@ -175,6 +175,10 @@ mod tile {
                 pub fn proportion(&self) -> unit::Proportion {
                     self.0.proportion()
                 }
+
+                const ZERO: $struct_name = $struct_name(Coord::ZERO);
+
+                const MAX: $struct_name = $struct_name(Coord::MAX);
             }
         }
     }
@@ -205,46 +209,60 @@ mod tile {
                 })
         }
 
-        pub(crate) fn all_center_spiralish() -> sprialish::Iter {
-            sprialish::Iter::starting_at(XY {
+        pub(crate) fn all_center_spiralish() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::OutIter::starting_at(XY {
                 x: X(Coord::CENTER),
                 y: Y(Coord::CENTER),
-            })
+            }))
         }
 
-        pub(crate) fn upper_left_quadrant_spiralish() -> sprialish::Iter {
-            sprialish::Iter::starting_at(XY {
+        #[allow(unused)]
+        pub(crate) fn upper_left_quadrant_spiralish() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::OutIter::starting_at(XY {
                 x: X(Coord::QUARTER),
                 y: Y(Coord::QUARTER),
-            })
+            }))
         }
 
-        pub(crate) fn upper_right_quadrant_spiralish() -> sprialish::Iter {
-            sprialish::Iter::starting_at(XY {
+        #[allow(unused)]
+        pub(crate) fn upper_right_quadrant_spiralish() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::OutIter::starting_at(XY {
                 x: X(Coord::THREE_QUARTERS),
                 y: Y(Coord::QUARTER),
-            })
+            }))
         }
 
-        pub(crate) fn lower_left_quadrant_spiralish() -> sprialish::Iter {
-            sprialish::Iter::starting_at(XY {
+        #[allow(unused)]
+        pub(crate) fn lower_left_quadrant_spiralish() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::OutIter::starting_at(XY {
                 x: X(Coord::QUARTER),
                 y: Y(Coord::THREE_QUARTERS),
-            })
+            }))
         }
 
-        pub(crate) fn lower_right_quadrant_spiralish() -> sprialish::Iter {
-            sprialish::Iter::starting_at(XY {
+        #[allow(unused)]
+        pub(crate) fn lower_right_quadrant_spiralish() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::OutIter::starting_at(XY {
                 x: X(Coord::THREE_QUARTERS),
                 y: Y(Coord::THREE_QUARTERS),
-            })
+            }))
         }
+
+        pub(crate) fn upper_left_spiral_in() -> Box<dyn sprialish::IterWithBounds> {
+            Box::new(sprialish::InIter::starting_at(XY {
+                x: X(Coord::ZERO),
+                y: Y(Coord::ZERO),
+            }))
+        }
+
+        const ZERO: XY = XY { x: X::ZERO, y: Y::ZERO };
+        const MAX: XY = XY { x: X::MAX, y: Y::MAX };
     }
 
     mod sprialish {
         use super::*;
 
-        #[derive(Debug)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         enum NextAction {
             MoveDiagonally,
             MoveUp,
@@ -252,18 +270,24 @@ mod tile {
             MoveDown,
             MoveRight,
         }
+
         impl Default for NextAction {
             fn default() -> Self { Self::MoveDiagonally }
         }
 
+        pub(crate) trait IterWithBounds: Iterator<Item = XY> {
+            // TODO should be bounding_rects, and return multiple
+            fn bounding_rect(&self) -> Rect;
+        }
+
         #[derive(Debug)]
-        pub(crate) struct Iter {
+        pub(crate) struct OutIter {
             current: Option<XY>,
             bounding_rect: Rect,
             next_action: NextAction,
         }
 
-        impl Iter {
+        impl OutIter {
             pub(crate) fn starting_at(start: XY) -> Self {
                 Self {
                     current: Some(start),
@@ -271,13 +295,15 @@ mod tile {
                     next_action: <_>::default(),
                 }
             }
+        }
 
-            pub(crate) fn bounding_rect(&self) -> Rect {
+        impl IterWithBounds for OutIter {
+            fn bounding_rect(&self) -> Rect {
                 self.bounding_rect
             }
         }
 
-        impl Iterator for Iter {
+        impl Iterator for OutIter {
             type Item = XY;
     
             fn next(&mut self) -> Option<Self::Item> {
@@ -359,6 +385,156 @@ mod tile {
                             if let Some(new) = new {
                                 if Some(new.x) == self.bounding_rect.max.x.checked_sub_one() {
                                     self.next_action = MoveDiagonally;
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                    }
+                }
+
+                last
+            }
+        }
+
+        #[derive(Debug)]
+        pub(crate) struct InIter {
+            current: Option<XY>,
+            shrinking_rect: Rect,
+            next_action: NextAction,
+            initial_action: NextAction,
+        }
+
+        impl InIter {
+            pub(crate) fn starting_at(start: XY) -> Self {
+                let mut next_action = NextAction::MoveLeft;
+                if start.x == X::ZERO {
+                    next_action = NextAction::MoveUp;
+                }
+
+                if start.y == Y::ZERO {
+                    next_action = NextAction::MoveRight;
+                }
+
+                if start.x == X::MAX {
+                    next_action = NextAction::MoveDown;
+                }
+
+                if start.y == Y::MAX {
+                    next_action = NextAction::MoveLeft;
+                }
+
+                Self {
+                    current: Some(start),
+                    shrinking_rect: Rect::min_max(
+                        XY::ZERO,
+                        XY::MAX
+                    ),
+                    next_action,
+                    initial_action: next_action,
+                }
+            }
+        }
+
+        impl IterWithBounds for InIter {
+            fn bounding_rect(&self) -> Rect {
+                self.shrinking_rect
+            }
+        }
+
+        impl Iterator for InIter {
+            type Item = XY;
+    
+            fn next(&mut self) -> Option<Self::Item> {
+                let last = self.current;
+    
+                if let Some(current) = last {
+                    use NextAction::*;
+
+                    macro_rules! shrink_if_needed {
+                        () => {
+                            if self.initial_action == self.next_action {
+                                match (
+                                    self.shrinking_rect.min.x.checked_add_one(),
+                                    self.shrinking_rect.min.y.checked_add_one(),
+                                    self.shrinking_rect.max.x.checked_sub_one(),
+                                    self.shrinking_rect.max.y.checked_sub_one(),
+                                ) {
+                                    (Some(min_x), Some(min_y), Some(max_x), Some(max_y)) 
+                                    if min_x != max_x && min_y != max_y => {
+                                        self.shrinking_rect = Rect::xyxy(min_x, min_y, max_x, max_y);
+                                    },
+                                    _ => {
+                                        self.current = None;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    match self.next_action {
+                        MoveDiagonally => {
+                            // TODO get rid of this case.
+                            self.current = None;
+                        },
+                        MoveUp => {
+                            let new = current.y.checked_sub_one()
+                                .map(|y| XY {
+                                    y,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.y == self.shrinking_rect.min.y {
+                                    self.next_action = MoveLeft;
+                                    shrink_if_needed!();
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveLeft => {
+                            let new = current.x.checked_sub_one()
+                                .map(|x| XY {
+                                    x,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.x == self.shrinking_rect.min.x {
+                                    self.next_action = MoveDown;
+                                    shrink_if_needed!();
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveDown => {
+                            let new = current.y.checked_add_one()
+                                .map(|y| XY {
+                                    y,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if new.y == self.shrinking_rect.max.y {
+                                    self.next_action = MoveRight;
+                                    shrink_if_needed!();
+                                }
+                            }
+
+                            self.current = new;
+                        },
+                        MoveRight => {
+                            let new = current.x.checked_add_one()
+                                .map(|x| XY {
+                                    x,
+                                    ..current
+                                });
+
+                            if let Some(new) = new {
+                                if Some(new.x) == self.shrinking_rect.max.x.checked_sub_one() {
+                                    self.next_action = MoveUp;
+                                    shrink_if_needed!();
                                 }
                             }
 
@@ -703,6 +879,9 @@ mod tile {
         const THREE_QUARTERS_INDEX: usize = Self::CENTER_INDEX + Self::QUARTER_INDEX;
 
         const THREE_QUARTERS: Coord = Coord::ALL[Self::THREE_QUARTERS_INDEX];
+
+        const ZERO: Coord = Coord::ALL[0];
+        const MAX: Coord = Coord::ALL[Coord::ALL.len() - 1];
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -974,14 +1153,15 @@ impl Tiles {
         };
 
 
-        // TODO: get rect from the iter once it's done, and select a uniformly 
-        // random tile within that rect in `set_random_tile!`.
         let mut xy_iter = match 1 {//xs_u32(rng, 0, 5) {
             0 => tile::XY::all_center_spiralish(),
+            /*
             1 => tile::XY::upper_left_quadrant_spiralish(),
             2 => tile::XY::upper_right_quadrant_spiralish(),
             3 => tile::XY::lower_left_quadrant_spiralish(),
             _ => tile::XY::lower_right_quadrant_spiralish(),
+            */
+            _ => tile::XY::upper_left_spiral_in(),
         };
         for xy in &mut xy_iter {
             let kind = match xs_u32(rng, 0, 15) {
@@ -1008,8 +1188,8 @@ impl Tiles {
         }
 
         // We expect this to be the smallest rect that covers the iterated tiles.
-        // If we add multiple islands of tiles, then we'll need to pull from each 
-        // bounding rect uniformly at random.
+        // TODO: If we add multiple islands of tiles, then we'll need to pull from 
+        // each bounding rect uniformly at random.
         let bounding_rect = xy_iter.bounding_rect();
 
         macro_rules! set_random_tile {
