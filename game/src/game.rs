@@ -1887,23 +1887,31 @@ pub fn update(
             let (direction, target_xy) = match hint_spec {
                 GoalIs(OneUpOneLeft) => (
                     "up and left",
-                    dec_x!(dec_y!(Ok(goal_xy)))
+                    // go one down, one right from goal
+                    inc_x!(inc_y!(Ok(goal_xy)))
                 ),
-                GoalIs(OneUp) => ("up", dec_y!(Ok(goal_xy))),
+                // go one down from goal
+                GoalIs(OneUp) => ("up", inc_y!(Ok(goal_xy))),
                 GoalIs(OneUpOneRight) => (
                     "up and right",
-                    inc_x!(dec_y!(Ok(goal_xy)))
-                ),
-                GoalIs(OneLeft) => ("left", dec_x!(Ok(goal_xy))),
-                GoalIs(OneRight) => ("right", inc_x!(Ok(goal_xy))),
-                GoalIs(OneDownOneLeft) => (
-                    "down and left",
+                    // go one down, one left from goal
                     dec_x!(inc_y!(Ok(goal_xy)))
                 ),
-                GoalIs(OneDown) => ("down", inc_y!(Ok(goal_xy))),
+                // go one right from goal
+                GoalIs(OneLeft) => ("left", inc_x!(Ok(goal_xy))),
+                // go one left from goal
+                GoalIs(OneRight) => ("right", dec_x!(Ok(goal_xy))),
+                // go one up, one right from goal
+                GoalIs(OneDownOneLeft) => (
+                    "down and left",
+                    inc_x!(dec_y!(Ok(goal_xy)))
+                ),
+                // go one up from goal
+                GoalIs(OneDown) => ("down", dec_y!(Ok(goal_xy))),
+                // go one up, one left from goal
                 GoalIs(OneDownOneRight) => (
                     "down and right",
-                    inc_x!(inc_y!(Ok(goal_xy)))
+                    dec_x!(dec_y!(Ok(goal_xy)))
                 ),
             };
 
@@ -1945,19 +1953,15 @@ pub fn update(
                     )
                 },
                 Err(went_off) => {
-                    // When talking about which edges were went off of, it's most 
-                    // natural to talk about the edge from the perspective of the 
-                    // tile. When talking about the sprite it is most natural to
-                    // talk about the direction the arrow is pointing.
                     let sprite = match went_off {
-                        UpAndLeftEdges => EdgeDownRight,
-                        UpEdge => EdgeDown,
-                        UpAndRightEdges => EdgeDownLeft,
-                        LeftEdge => EdgeRight,
-                        RightEdge => EdgeLeft,
-                        DownAndLeftEdges => EdgeUpLeft,
-                        DownEdge => EdgeUp,
-                        DownAndRightEdges => EdgeUpRight,
+                        UpAndLeftEdges => EdgeUpLeft,
+                        UpEdge => EdgeUp,
+                        UpAndRightEdges => EdgeUpRight,
+                        LeftEdge => EdgeLeft,
+                        RightEdge => EdgeRight,
+                        DownAndLeftEdges => EdgeDownLeft,
+                        DownEdge => EdgeDown,
+                        DownAndRightEdges => EdgeDownRight,
                     };
                     Some(sprite)
                 }
@@ -1965,28 +1969,28 @@ pub fn update(
 
             match hint_spec {
                 GoalIs(OneUpOneLeft) => {
-                    hint_sprites[UP_LEFT_INDEX] = target_sprite;
+                    hint_sprites[DOWN_RIGHT_INDEX] = target_sprite;
                 },
                 GoalIs(OneUp) => {
-                    hint_sprites[UP_INDEX] = target_sprite;
-                },
-                GoalIs(OneUpOneRight) => {
-                    hint_sprites[UP_RIGHT_INDEX] = target_sprite;
-                },
-                GoalIs(OneLeft) => {
-                    hint_sprites[LEFT_INDEX] = target_sprite;
-                },
-                GoalIs(OneRight) => {
-                    hint_sprites[RIGHT_INDEX] = target_sprite;
-                },
-                GoalIs(OneDownOneLeft) => {
-                    hint_sprites[DOWN_LEFT_INDEX] = target_sprite;
-                },
-                GoalIs(OneDown) => {
                     hint_sprites[DOWN_INDEX] = target_sprite;
                 },
+                GoalIs(OneUpOneRight) => {
+                    hint_sprites[DOWN_LEFT_INDEX] = target_sprite;
+                },
+                GoalIs(OneLeft) => {
+                    hint_sprites[RIGHT_INDEX] = target_sprite;
+                },
+                GoalIs(OneRight) => {
+                    hint_sprites[LEFT_INDEX] = target_sprite;
+                },
+                GoalIs(OneDownOneLeft) => {
+                    hint_sprites[UP_RIGHT_INDEX] = target_sprite;
+                },
+                GoalIs(OneDown) => {
+                    hint_sprites[UP_INDEX] = target_sprite;
+                },
                 GoalIs(OneDownOneRight) => {
-                    hint_sprites[DOWN_RIGHT_INDEX] = target_sprite;
+                    hint_sprites[UP_LEFT_INDEX] = target_sprite;
                 },
             };
 
