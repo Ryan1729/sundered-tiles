@@ -1110,9 +1110,11 @@ struct Tile {
     data: TileData
 }
 
+type TileDataArray = [TileData; TILES_LENGTH as _];
+
 #[derive(Clone, Debug)]
 pub struct Tiles {
-    tiles: [TileData; TILES_LENGTH as _],
+    tiles: TileDataArray,
     red_star_xy: tile::XY,
     green_star_xy: tile::XY,
     blue_star_xy: tile::XY,
@@ -1255,11 +1257,15 @@ impl Tiles {
     }
 }
 
-fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
+fn get_tile_from_array(tile_array: &TileDataArray, xy: tile::XY) -> Tile {
     Tile {
         xy,
-        data: tiles.tiles[tile::xy_to_i(xy)]
+        data: tile_array[tile::xy_to_i(xy)]
     }
+}
+
+fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
+    get_tile_from_array(&tiles.tiles, xy)
 }
 
 fn set_tile(tiles: &mut Tiles, tile: Tile) {
@@ -1273,10 +1279,6 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
         Green => tiles.green_star_xy,
         Blue => tiles.blue_star_xy,
     }
-}
-
-fn get_goal_xy(tiles: &Tiles) -> tile::XY {
-    tiles.goal_xy
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -1488,17 +1490,246 @@ fn render_goal_sprite(board: &Board) -> SpriteKind {
     }
 }
 
-const HINT_TILES_PER_ROW: usize = 3;
-const HINT_TILES_PER_COLUMN: usize = 3;
-const HINT_TILES_COUNT: usize = HINT_TILES_PER_ROW * HINT_TILES_PER_COLUMN;
+mod hint {
+    pub(crate) const TILES_PER_ROW: usize = 3;
+    pub(crate) const TILES_PER_COLUMN: usize = 3;
+    pub(crate) const TILES_COUNT: usize = TILES_PER_ROW * TILES_PER_COLUMN;
+    
+    pub(crate) const CENTER_INDEX: usize = TILES_COUNT / 2;
+    pub(crate) const UP_INDEX: usize = CENTER_INDEX - TILES_PER_ROW;
+    pub(crate) const DOWN_INDEX: usize = CENTER_INDEX + TILES_PER_ROW;
+    pub(crate) const LEFT_INDEX: usize = CENTER_INDEX - 1;
+    pub(crate) const RIGHT_INDEX: usize = CENTER_INDEX + 1;
+    pub(crate) const UP_LEFT_INDEX: usize = UP_INDEX - 1;
+    pub(crate) const UP_RIGHT_INDEX: usize = UP_INDEX + 1;
+    pub(crate) const DOWN_LEFT_INDEX: usize = DOWN_INDEX - 1;
+    pub(crate) const DOWN_RIGHT_INDEX: usize = DOWN_INDEX + 1;
+}
 
-type HintInfo = (String, [Option<SpriteKind>; HINT_TILES_COUNT]);
+type HintInfo = (String, [Option<SpriteKind>; hint::TILES_COUNT]);
 
-// TODO write tests to see if we get the data we expect, since what gets rendered is not what we expect
+fn render_hint_spec(
+    tile_array: &TileDataArray,
+    hint_spec: tile::HintSpec,
+    goal_sprite: SpriteKind,
+    goal_xy: tile::XY,
+) -> HintInfo {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    #[derive(Copy, Clone)]
+    enum WentOff {
+        UpAndLeftEdges,
+        UpEdge,
+        UpAndRightEdges,
+        LeftEdge,
+        RightEdge,
+        DownAndLeftEdges,
+        DownEdge,
+        DownAndRightEdges,
+    }
+    use WentOff::*;
+    fn merge(a: WentOff, b: WentOff) -> WentOff {
+        match (a, b) {
+            (UpEdge, LeftEdge)
+            | (LeftEdge, UpEdge)
+            | (UpAndLeftEdges, UpEdge)
+            | (UpAndLeftEdges, LeftEdge) => UpAndLeftEdges,
+            (UpEdge, RightEdge)
+            | (RightEdge, UpEdge)
+            | (UpAndRightEdges, UpEdge)
+            | (UpAndRightEdges, RightEdge) => UpAndRightEdges,
+            (DownEdge, LeftEdge)
+            | (LeftEdge, DownEdge)
+            | (DownAndLeftEdges, DownEdge)
+            | (DownAndLeftEdges, LeftEdge) => DownAndLeftEdges,
+            (DownEdge, RightEdge)
+            | (RightEdge, DownEdge)
+            | (DownAndRightEdges, DownEdge)
+            | (DownAndRightEdges, RightEdge) => DownAndRightEdges,
+            // If they match this does the right thing. If they are an
+            // unexpected pair, say, (UpEdge, DownEdge), then we return 
+            // something that is at least partially right.
+            _ => b
+        }
+    }
+
+    // These macros assume that they will only chained in such a way that 
+    // the edge lines are only crossed once in each direction. At the upper
+    // left corner, just up, or up then left should both work. But up then 
+    // down, etc. will likely have undesired behaviour.
+    macro_rules! inc_x {
+        ($xy: expr) => {{
+            match $xy {
+                Ok(xy) => xy.x.checked_add_one().map(|x| tile::XY {
+                    x,
+                    ..xy
+                }).ok_or(RightEdge),
+                Err(went_off) => Err(merge(went_off, RightEdge))
+            }
+        }}
+    }
+
+    macro_rules! dec_x {
+        ($xy: expr) => {{
+            match $xy {
+                Ok(xy) => xy.x.checked_sub_one().map(|x| tile::XY {
+                    x,
+                    ..xy
+                }).ok_or(LeftEdge),
+                Err(went_off) => Err(merge(went_off, LeftEdge))
+            }
+        }}
+    }
+
+    macro_rules! inc_y {
+        ($xy: expr) => {{
+            match $xy {
+                Ok(xy) => xy.y.checked_add_one().map(|y| tile::XY {
+                    y,
+                    ..xy
+                }).ok_or(DownEdge),
+                Err(went_off) => Err(merge(went_off, DownEdge))
+            }
+        }}
+    }
+
+    macro_rules! dec_y {
+        ($xy: expr) => {{
+            match $xy {
+                Ok(xy) => xy.y.checked_sub_one().map(|y| tile::XY {
+                    y,
+                    ..xy
+                }).ok_or(UpEdge),
+                Err(went_off) => Err(merge(went_off, UpEdge))
+            }
+        }}
+    }
+
+    let (direction, target_xy) = match hint_spec {
+        GoalIs(OneUpOneLeft) => (
+            "up and left",
+            // go one down, one right from goal
+            inc_x!(inc_y!(Ok(goal_xy)))
+        ),
+        // go one down from goal
+        GoalIs(OneUp) => ("up", inc_y!(Ok(goal_xy))),
+        GoalIs(OneUpOneRight) => (
+            "up and right",
+            // go one down, one left from goal
+            dec_x!(inc_y!(Ok(goal_xy)))
+        ),
+        // go one right from goal
+        GoalIs(OneLeft) => ("left", inc_x!(Ok(goal_xy))),
+        // go one left from goal
+        GoalIs(OneRight) => ("right", dec_x!(Ok(goal_xy))),
+        // go one up, one right from goal
+        GoalIs(OneDownOneLeft) => (
+            "down and left",
+            inc_x!(dec_y!(Ok(goal_xy)))
+        ),
+        // go one up from goal
+        GoalIs(OneDown) => ("down", dec_y!(Ok(goal_xy))),
+        // go one up, one left from goal
+        GoalIs(OneDownOneRight) => (
+            "down and right",
+            dec_x!(dec_y!(Ok(goal_xy)))
+        ),
+    };
+
+    let description = if let Ok(target_xy) = target_xy {
+        tile::kind_description(get_tile_from_array(tile_array, target_xy).data.kind)
+    } else {
+        "the edge of the grid"
+    };
+
+    let hint_string = format!(
+        "The goal is one tile {} from {}.",
+        direction,
+        description
+    );
+
+    let mut hint_sprites = [
+        Some(SpriteKind::QuestionMark);
+        hint::TILES_COUNT
+    ];
+
+    hint_sprites[hint::CENTER_INDEX] = Some(goal_sprite);
+
+    let target_sprite = match target_xy {
+        Ok(target_xy) => {
+            draw::sprite_kind_from_tile_kind(
+                get_tile_from_array(tile_array, target_xy).data.kind,
+                goal_sprite,
+            )
+        },
+        Err(went_off) => {
+            let sprite = match went_off {
+                UpAndLeftEdges => EdgeUpLeft,
+                UpEdge => EdgeUp,
+                UpAndRightEdges => EdgeUpRight,
+                LeftEdge => EdgeLeft,
+                RightEdge => EdgeRight,
+                DownAndLeftEdges => EdgeDownLeft,
+                DownEdge => EdgeDown,
+                DownAndRightEdges => EdgeDownRight,
+            };
+            Some(sprite)
+        }
+    };
+
+    match hint_spec {
+        GoalIs(OneUpOneLeft) => {
+            hint_sprites[hint::DOWN_RIGHT_INDEX] = target_sprite;
+        },
+        GoalIs(OneUp) => {
+            hint_sprites[hint::DOWN_INDEX] = target_sprite;
+        },
+        GoalIs(OneUpOneRight) => {
+            hint_sprites[hint::DOWN_LEFT_INDEX] = target_sprite;
+        },
+        GoalIs(OneLeft) => {
+            hint_sprites[hint::RIGHT_INDEX] = target_sprite;
+        },
+        GoalIs(OneRight) => {
+            hint_sprites[hint::LEFT_INDEX] = target_sprite;
+        },
+        GoalIs(OneDownOneLeft) => {
+            hint_sprites[hint::UP_RIGHT_INDEX] = target_sprite;
+        },
+        GoalIs(OneDown) => {
+            hint_sprites[hint::UP_INDEX] = target_sprite;
+        },
+        GoalIs(OneDownOneRight) => {
+            hint_sprites[hint::UP_LEFT_INDEX] = target_sprite;
+        },
+    };
+
+    (
+        hint_string,
+        hint_sprites,
+    )
+}
+
+#[test]
+fn goal_is_one_up_one_left_produces_the_expect_hints() {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    let tile_array = [TileData::default(); TILES_LENGTH as _];
+
+    let (_, sprites) = render_hint_spec(
+        &tile_array,
+        GoalIs(OneDownOneRight),
+        InstrumentalGoal,
+        <_>::default(),
+    );
+
+    assert_eq!(EdgeDownRight, sprites[hint::UP_LEFT_INDEX].expect("UP_LEFT_INDEX"));
+}
 
 fn render_hint_info(board: &Board) -> Option<HintInfo> {
     use UiPos::*;
-    use SpriteKind::*;
     let tiles = &board.tiles;
     let hint_spec = match board.ui_pos {
         Tile(txy) => {
@@ -1513,214 +1744,11 @@ fn render_hint_info(board: &Board) -> Option<HintInfo> {
     };
 
     if let Some(hint_spec) = hint_spec {
-        use tile::{HintSpec::*, RelativeDelta::*};
-
-        #[derive(Copy, Clone)]
-        enum WentOff {
-            UpAndLeftEdges,
-            UpEdge,
-            UpAndRightEdges,
-            LeftEdge,
-            RightEdge,
-            DownAndLeftEdges,
-            DownEdge,
-            DownAndRightEdges,
-        }
-        use WentOff::*;
-        fn merge(a: WentOff, b: WentOff) -> WentOff {
-            match (a, b) {
-                (UpEdge, LeftEdge)
-                | (LeftEdge, UpEdge)
-                | (UpAndLeftEdges, UpEdge)
-                | (UpAndLeftEdges, LeftEdge) => UpAndLeftEdges,
-                (UpEdge, RightEdge)
-                | (RightEdge, UpEdge)
-                | (UpAndRightEdges, UpEdge)
-                | (UpAndRightEdges, RightEdge) => UpAndRightEdges,
-                (DownEdge, LeftEdge)
-                | (LeftEdge, DownEdge)
-                | (DownAndLeftEdges, DownEdge)
-                | (DownAndLeftEdges, LeftEdge) => DownAndLeftEdges,
-                (DownEdge, RightEdge)
-                | (RightEdge, DownEdge)
-                | (DownAndRightEdges, DownEdge)
-                | (DownAndRightEdges, RightEdge) => DownAndRightEdges,
-                // If they match this does the right thing. If they are an
-                // unexpected pair, say, (UpEdge, DownEdge), then we return 
-                // something that is at least partially right.
-                _ => b
-            }
-        }
-
-        let goal_xy = get_goal_xy(tiles);
-
-        // These macros assume that they will only chained in such a way that 
-        // the edge lines are only crossed once in each direction. At the upper
-        // left corner, just up, or up then left should both work. But up then 
-        // down, etc. will likely have undesired behaviour.
-        macro_rules! inc_x {
-            ($xy: expr) => {{
-                match $xy {
-                    Ok(xy) => xy.x.checked_add_one().map(|x| tile::XY {
-                        x,
-                        ..xy
-                    }).ok_or(RightEdge),
-                    Err(went_off) => Err(merge(went_off, RightEdge))
-                }
-            }}
-        }
-
-        macro_rules! dec_x {
-            ($xy: expr) => {{
-                match $xy {
-                    Ok(xy) => xy.x.checked_sub_one().map(|x| tile::XY {
-                        x,
-                        ..xy
-                    }).ok_or(LeftEdge),
-                    Err(went_off) => Err(merge(went_off, LeftEdge))
-                }
-            }}
-        }
-
-        macro_rules! inc_y {
-            ($xy: expr) => {{
-                match $xy {
-                    Ok(xy) => xy.y.checked_add_one().map(|y| tile::XY {
-                        y,
-                        ..xy
-                    }).ok_or(DownEdge),
-                    Err(went_off) => Err(merge(went_off, DownEdge))
-                }
-            }}
-        }
-
-        macro_rules! dec_y {
-            ($xy: expr) => {{
-                match $xy {
-                    Ok(xy) => xy.y.checked_sub_one().map(|y| tile::XY {
-                        y,
-                        ..xy
-                    }).ok_or(UpEdge),
-                    Err(went_off) => Err(merge(went_off, UpEdge))
-                }
-            }}
-        }
-
-        let (direction, target_xy) = match hint_spec {
-            GoalIs(OneUpOneLeft) => (
-                "up and left",
-                // go one down, one right from goal
-                inc_x!(inc_y!(Ok(goal_xy)))
-            ),
-            // go one down from goal
-            GoalIs(OneUp) => ("up", inc_y!(Ok(goal_xy))),
-            GoalIs(OneUpOneRight) => (
-                "up and right",
-                // go one down, one left from goal
-                dec_x!(inc_y!(Ok(goal_xy)))
-            ),
-            // go one right from goal
-            GoalIs(OneLeft) => ("left", inc_x!(Ok(goal_xy))),
-            // go one left from goal
-            GoalIs(OneRight) => ("right", dec_x!(Ok(goal_xy))),
-            // go one up, one right from goal
-            GoalIs(OneDownOneLeft) => (
-                "down and left",
-                inc_x!(dec_y!(Ok(goal_xy)))
-            ),
-            // go one up from goal
-            GoalIs(OneDown) => ("down", dec_y!(Ok(goal_xy))),
-            // go one up, one left from goal
-            GoalIs(OneDownOneRight) => (
-                "down and right",
-                dec_x!(dec_y!(Ok(goal_xy)))
-            ),
-        };
-
-        let description = if let Ok(target_xy) = target_xy {
-            tile::kind_description(get_tile(tiles, target_xy).data.kind)
-        } else {
-            "the edge of the grid"
-        };
-
-        let goal_sprite = render_goal_sprite(board);
-
-        let hint_string = format!(
-            "The goal is one tile {} from {}.",
-            direction,
-            description
-        );
-
-        let mut hint_sprites = [
-            Some(SpriteKind::QuestionMark);
-            HINT_TILES_COUNT
-        ];
-
-        const CENTER_INDEX: usize = HINT_TILES_COUNT / 2;
-
-        hint_sprites[CENTER_INDEX] = Some(goal_sprite);
-
-        const UP_INDEX: usize = CENTER_INDEX - HINT_TILES_PER_ROW;
-        const DOWN_INDEX: usize = CENTER_INDEX + HINT_TILES_PER_ROW;
-        const LEFT_INDEX: usize = CENTER_INDEX - 1;
-        const RIGHT_INDEX: usize = CENTER_INDEX + 1;
-        const UP_LEFT_INDEX: usize = UP_INDEX - 1;
-        const UP_RIGHT_INDEX: usize = UP_INDEX + 1;
-        const DOWN_LEFT_INDEX: usize = DOWN_INDEX - 1;
-        const DOWN_RIGHT_INDEX: usize = DOWN_INDEX + 1;
-
-        let target_sprite = match target_xy {
-            Ok(target_xy) => {
-                draw::sprite_kind_from_tile_kind(
-                    get_tile(tiles, target_xy).data.kind,
-                    goal_sprite,
-                )
-            },
-            Err(went_off) => {
-                let sprite = match went_off {
-                    UpAndLeftEdges => EdgeUpLeft,
-                    UpEdge => EdgeUp,
-                    UpAndRightEdges => EdgeUpRight,
-                    LeftEdge => EdgeLeft,
-                    RightEdge => EdgeRight,
-                    DownAndLeftEdges => EdgeDownLeft,
-                    DownEdge => EdgeDown,
-                    DownAndRightEdges => EdgeDownRight,
-                };
-                Some(sprite)
-            }
-        };
-
-        match hint_spec {
-            GoalIs(OneUpOneLeft) => {
-                hint_sprites[DOWN_RIGHT_INDEX] = target_sprite;
-            },
-            GoalIs(OneUp) => {
-                hint_sprites[DOWN_INDEX] = target_sprite;
-            },
-            GoalIs(OneUpOneRight) => {
-                hint_sprites[DOWN_LEFT_INDEX] = target_sprite;
-            },
-            GoalIs(OneLeft) => {
-                hint_sprites[RIGHT_INDEX] = target_sprite;
-            },
-            GoalIs(OneRight) => {
-                hint_sprites[LEFT_INDEX] = target_sprite;
-            },
-            GoalIs(OneDownOneLeft) => {
-                hint_sprites[UP_RIGHT_INDEX] = target_sprite;
-            },
-            GoalIs(OneDown) => {
-                hint_sprites[UP_INDEX] = target_sprite;
-            },
-            GoalIs(OneDownOneRight) => {
-                hint_sprites[UP_LEFT_INDEX] = target_sprite;
-            },
-        };
-
-        Some((
-            hint_string,
-            hint_sprites,
+        Some(render_hint_spec(
+            &tiles.tiles,
+            hint_spec,
+            render_goal_sprite(board),
+            tiles.goal_xy,
         ))
     } else {
         None
@@ -2074,11 +2102,11 @@ pub fn update(
 
             let left_hint_tile_x = left_text_x + state.sizes.tile_side_length;
 
-            for column in 0..HINT_TILES_PER_COLUMN {
+            for column in 0..hint::TILES_PER_COLUMN {
                 y += state.sizes.tile_side_length;
 
-                for row in 0..HINT_TILES_PER_ROW {
-                    if let Some(sprite) = hint_sprites[row + HINT_TILES_PER_ROW * column] {
+                for row in 0..hint::TILES_PER_ROW {
+                    if let Some(sprite) = hint_sprites[row + hint::TILES_PER_ROW * column] {
                         commands.push(Sprite(SpriteSpec{
                             sprite,
                             xy: DrawXY {

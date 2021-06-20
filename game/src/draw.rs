@@ -154,7 +154,7 @@ pub fn tile_xy_to_draw(sizes: &Sizes, txy: tile::XY) -> DrawXY {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpriteKind {
     Hidden,
     Red,
