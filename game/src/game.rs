@@ -1406,8 +1406,8 @@ pub fn sizes(state: &State) -> draw::Sizes {
     state.sizes.clone()
 }
 
-fn is_last_level(state: &State) -> bool {
-    next_level(state.board.level) == state.board.level
+fn is_last_level(board: &Board) -> bool {
+    next_level(board.level) == board.level
 }
 
 pub type InputFlags = u16;
@@ -1480,8 +1480,8 @@ impl Input {
     }
 }
 
-fn render_goal_sprite(state: &State) -> SpriteKind {
-    if is_last_level(state) {
+fn render_goal_sprite(board: &Board) -> SpriteKind {
+    if is_last_level(board) {
         SpriteKind::TerminalGoal
     } else {
         SpriteKind::InstrumentalGoal
@@ -1496,11 +1496,11 @@ type HintInfo = (String, [Option<SpriteKind>; HINT_TILES_COUNT]);
 
 // TODO write tests to see if we get the data we expect, since what gets rendered is not what we expect
 
-fn render_hint_info(state: &State) -> Option<HintInfo> {
+fn render_hint_info(board: &Board) -> Option<HintInfo> {
     use UiPos::*;
     use SpriteKind::*;
-    let tiles = &state.board.tiles;
-    let hint_spec = match state.board.ui_pos {
+    let tiles = &board.tiles;
+    let hint_spec = match board.ui_pos {
         Tile(txy) => {
             let tile = get_tile(tiles, txy);
 
@@ -1643,7 +1643,7 @@ fn render_hint_info(state: &State) -> Option<HintInfo> {
             "the edge of the grid"
         };
 
-        let goal_sprite = render_goal_sprite(state);
+        let goal_sprite = render_goal_sprite(board);
 
         let hint_string = format!(
             "The goal is one tile {} from {}.",
@@ -1868,7 +1868,7 @@ pub fn update(
                     use tile::{Kind::*, Visibility::*};
         
                     if !started_hidden && tile::is_goal(tile.data.kind) {
-                        if is_last_level(state) {
+                        if is_last_level(&state.board) {
                             for xy in tile::XY::all() {
                                 set_tile(&mut state.board.tiles, crate::Tile {
                                     xy,
@@ -1906,7 +1906,7 @@ pub fn update(
         },
     }
 
-    let goal_sprite = render_goal_sprite(state);
+    let goal_sprite = render_goal_sprite(&state.board);
 
     for txy in tile::XY::all() {
         let tiles = &state.board.tiles;
@@ -2014,7 +2014,7 @@ pub fn update(
         }));
     }
 
-    let hint_info = render_hint_info(&state);
+    let hint_info = render_hint_info(&state.board);
 
     let board_xywh = &state.sizes.board_xywh;
     let left_text_x = state.sizes.play_xywh.x + MARGIN;
