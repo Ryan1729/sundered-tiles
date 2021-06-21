@@ -1517,7 +1517,7 @@ fn render_hint_spec(
     use SpriteKind::*;
     use tile::{HintSpec::*, RelativeDelta::*};
 
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Clone, Debug)]
     enum WentOff {
         UpAndLeftEdges,
         UpEdge,
@@ -1664,15 +1664,19 @@ fn render_hint_spec(
             )
         },
         Err(went_off) => {
+            // When talking about which edges were went off of, it's most
+            // natural to talk about the edge from the perspective of the
+            // tile. When talking about the sprite it is most natural to
+            // talk about the direction the arrow is pointing.
             let sprite = match went_off {
-                UpAndLeftEdges => EdgeUpLeft,
-                UpEdge => EdgeUp,
-                UpAndRightEdges => EdgeUpRight,
-                LeftEdge => EdgeLeft,
-                RightEdge => EdgeRight,
-                DownAndLeftEdges => EdgeDownLeft,
-                DownEdge => EdgeDown,
-                DownAndRightEdges => EdgeDownRight,
+                UpAndLeftEdges => EdgeDownRight,
+                UpEdge => EdgeDown,
+                UpAndRightEdges => EdgeDownLeft,
+                LeftEdge => EdgeRight,
+                RightEdge => EdgeLeft,
+                DownAndLeftEdges => EdgeUpRight,
+                DownEdge => EdgeUp,
+                DownAndRightEdges => EdgeUpLeft,
             };
             Some(sprite)
         }
