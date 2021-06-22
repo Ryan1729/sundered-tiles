@@ -93,7 +93,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | EdgeDown
         | EdgeDownRight => 0.,
         EdgeLeft | EdgeUpRight => 90.,
-        EdgeUp | EdgeUpLeft=> 180.,
+        EdgeUp | EdgeUpLeft => 180.,
         EdgeRight | EdgeDownLeft => 270.,
     };
 
@@ -473,6 +473,12 @@ mod raylib_rs_platform {
                         Sprite(s) => {
                             let spec = source_spec(s.sprite);
 
+                            let render_rect = Rectangle {
+                                x: s.xy.x,
+                                y: s.xy.y,
+                                ..tile_base_render_rect
+                            };
+
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 Rectangle {
@@ -480,12 +486,11 @@ mod raylib_rs_platform {
                                     y: spec.y + SPRITE_BORDER,
                                     ..tile_base_source_rect
                                 },
-                                Rectangle {
-                                    x: s.xy.x,
-                                    y: s.xy.y,
-                                    ..tile_base_render_rect
+                                render_rect,
+                                Vector2{
+                                    x: render_rect.width / 2.,
+                                    y: render_rect.height / 2.,
                                 },
-                                Vector2::default(),
                                 spec.rotation,
                                 tint_from_kind(s.sprite)
                             );
