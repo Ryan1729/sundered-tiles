@@ -92,9 +92,9 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | BlueRed
         | EdgeDown
         | EdgeDownRight => 0.,
-        EdgeLeft | EdgeUpRight => 90.,
+        EdgeLeft | EdgeDownLeft => 90.,
         EdgeUp | EdgeUpLeft => 180.,
-        EdgeRight | EdgeDownLeft => 270.,
+        EdgeRight | EdgeUpRight => 270.,
     };
 
     SourceSpec {
@@ -488,8 +488,8 @@ mod raylib_rs_platform {
                                 },
                                 render_rect,
                                 Vector2{
-                                    x: render_rect.width / 2.,
-                                    y: render_rect.height / 2.,
+                                    x: (render_rect.width / 2.).round(),
+                                    y: (render_rect.height / 2.).round(),
                                 },
                                 spec.rotation,
                                 tint_from_kind(s.sprite)
