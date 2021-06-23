@@ -1211,7 +1211,7 @@ impl Tiles {
         const SCALE_FACTOR: usize = 512;
 
         let mut tiles_remaining = match level {
-            One => SCALE_FACTOR * 1,
+            One => 49 * 4,//SCALE_FACTOR * 1,
             Two => SCALE_FACTOR * 2,
             Three => SCALE_FACTOR * 3,
         };
