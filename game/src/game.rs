@@ -485,7 +485,7 @@ mod tile {
 
                             if let Some(new) = new {
                                 if new.y == self.shrinking_rect.min.y {
-                                    self.next_action = MoveLeft;
+                                    self.next_action = MoveRight;
                                     shrink_if_needed!();
                                 }
                             }
@@ -501,7 +501,7 @@ mod tile {
 
                             if let Some(new) = new {
                                 if new.x == self.shrinking_rect.min.x {
-                                    self.next_action = MoveDown;
+                                    self.next_action = MoveUp;
                                     shrink_if_needed!();
                                 }
                             }
@@ -517,7 +517,7 @@ mod tile {
 
                             if let Some(new) = new {
                                 if new.y == self.shrinking_rect.max.y {
-                                    self.next_action = MoveRight;
+                                    self.next_action = MoveLeft;
                                     shrink_if_needed!();
                                 }
                             }
@@ -533,7 +533,7 @@ mod tile {
 
                             if let Some(new) = new {
                                 if Some(new.x) == self.shrinking_rect.max.x.checked_sub_one() {
-                                    self.next_action = MoveUp;
+                                    self.next_action = MoveDown;
                                     shrink_if_needed!();
                                 }
                             }
@@ -595,6 +595,66 @@ mod tile {
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn upper_left_spiral_in_produces_the_expected_initial_values() {
+        macro_rules! exp {
+            ($x: expr, $y: expr) => {
+                Some(XY { 
+                    x: X(Coord::ALL[$x]),
+                    y: Y(Coord::ALL[$y])
+                })
+            }
+        }
+
+        let mut iter = XY::upper_left_spiral_in();
+
+        // This named constant just makes it more obvious what the 1 is for.
+        const AT_CORNER: usize = 1;
+        // These we might actually change later.
+        const PRE_CORNER: usize = 2;
+        const POST_CORNER: usize = 2;
+        const CORNER_COUNT: usize = PRE_CORNER + AT_CORNER + POST_CORNER;
+
+        const FIRST_CORNER_COUNT: usize = AT_CORNER + POST_CORNER;
+        let mut first_corner = [None; FIRST_CORNER_COUNT];
+
+        for i in 0..FIRST_CORNER_COUNT {
+            first_corner[i] = iter.next();
+        }
+
+        assert_eq!(
+            first_corner,
+            [    
+                exp!(0, 0),
+                exp!(1, 0),
+                exp!(2, 0),
+            ]
+        );
+
+        for _ in 0..Coord::COUNT as usize - FIRST_CORNER_COUNT - (PRE_CORNER + AT_CORNER) {
+            iter.next();
+        }
+
+        let mut second_corner = [None; CORNER_COUNT];
+
+        for i in 0..CORNER_COUNT {
+            second_corner[i] = iter.next();
+        }
+
+        const MAX_INDEX: usize = Coord::MAX_INDEX as _;
+
+        assert_eq!(
+            second_corner,
+            [    
+                exp!(MAX_INDEX - 2, 0),
+                exp!(MAX_INDEX - 1, 0),
+                exp!(MAX_INDEX    , 0),
+                exp!(MAX_INDEX    , 1),
+                exp!(MAX_INDEX    , 2),
+            ]
+        );
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -766,6 +826,8 @@ mod tile {
                 pub const ALL: [Coord; Self::COUNT as usize] = [
                     $(Coord::$variants,)+
                 ];
+
+                pub const MAX_INDEX: Count = Self::COUNT - 1;
             }
 
             impl From<Coord> for u8 {
