@@ -532,7 +532,7 @@ mod tile {
                                 });
 
                             if let Some(new) = new {
-                                if Some(new.x) == self.shrinking_rect.max.x.checked_sub_one() {
+                                if new.x == self.shrinking_rect.max.x {
                                     self.next_action = MoveDown;
                                     shrink_if_needed!();
                                 }
