@@ -26,8 +26,7 @@ use game::SpriteKind;
 struct SourceSpec {
     x: f32,
     y: f32,
-    flip_x: bool,
-    flip_y: bool,
+    rotation: f32,
 }
 
 fn source_spec(sprite: SpriteKind) -> SourceSpec {
@@ -74,7 +73,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 1.,
     };
 
-    let (flip_x, flip_y) = match sprite {
+    let rotation = match sprite {
         Hidden
         | Red
         | Green
@@ -92,17 +91,16 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | GreenBlue
         | BlueRed
         | EdgeDown
-        | EdgeDownRight => (false, false),
-        EdgeLeft | EdgeDownLeft => (true, false),
-        EdgeUp | EdgeUpLeft => (true, true),
-        EdgeRight | EdgeUpRight => (false, true),
+        | EdgeDownRight => 0.,
+        EdgeLeft | EdgeDownLeft => 90.,
+        EdgeUp | EdgeUpLeft => 180.,
+        EdgeRight | EdgeUpRight => 270.,
     };
 
     SourceSpec {
         x: sx * SPRITE_PIXELS_PER_TILE_SIDE,
         y: sy * SPRITE_PIXELS_PER_TILE_SIDE,
-        flip_x,
-        flip_y,
+        rotation,
     }
 }
 
@@ -475,32 +473,29 @@ mod raylib_rs_platform {
                         Sprite(s) => {
                             let spec = source_spec(s.sprite);
 
+                            let origin = Vector2 {
+                                x: (tile_base_render_rect.width / 2.).round(),
+                                y: (tile_base_render_rect.height / 2.).round(),
+                            };
+
                             let render_rect = Rectangle {
-                                x: s.xy.x,
-                                y: s.xy.y,
+                                x: s.xy.x + origin.x,
+                                y: s.xy.y + origin.y,
                                 ..tile_base_render_rect
                             };
 
-                            let mut source_rect = Rectangle {
+                            let source_rect = Rectangle {
                                 x: spec.x + SPRITE_BORDER,
                                 y: spec.y + SPRITE_BORDER,
                                 ..tile_base_source_rect
                             };
 
-                            if spec.flip_x {
-                                source_rect.width *= -1.;
-                            }
-
-                            if spec.flip_y {
-                                source_rect.height *= -1.;
-                            }
-
                             shader_d.draw_texture_pro(
                                 &spritesheet,
                                 source_rect,
                                 render_rect,
-                                Vector2::default(),
-                                0.0,
+                                origin,
+                                spec.rotation,
                                 tint_from_kind(s.sprite)
                             );
                         }
