@@ -177,7 +177,8 @@ mod tile {
                 }
 
                 pub(crate) const ZERO: $struct_name = $struct_name(Coord::ZERO);
-
+                #[allow(unused)] // Desired in the tests
+                pub(crate) const CENTER: $struct_name = $struct_name(Coord::CENTER);
                 pub(crate) const MAX: $struct_name = $struct_name(Coord::MAX);
             }
         }
@@ -1795,7 +1796,7 @@ fn goal_is_one_down_one_right_produces_the_expected_hints() {
 }
 
 #[test]
-fn goal_is_one_down_one_left_produces_the_expected_hints() {
+fn goal_is_one_down_one_left_produces_the_expected_hint_spec() {
     use SpriteKind::*;
     use tile::{HintSpec::*, RelativeDelta::*};
 
@@ -1813,6 +1814,48 @@ fn goal_is_one_down_one_left_produces_the_expected_hints() {
     );
 
     assert_eq!(EdgeDownLeft, sprites[hint::UP_RIGHT_INDEX].expect("UP_RIGHT_INDEX"));
+}
+
+#[test]
+fn goal_is_one_up_one_left_produces_the_expected_hint_spec_in_the_max_corner() {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    let tile_array = [TileData::default(); TILES_LENGTH as _];
+    let goal_xy = tile::XY{
+        x: tile::X::MAX,
+        y: tile::Y::MAX,
+    };
+
+    let (_, sprites) = render_hint_spec(
+        &tile_array,
+        GoalIs(OneUpOneLeft),
+        InstrumentalGoal,
+        goal_xy,
+    );
+
+    assert_eq!(EdgeUpLeft, sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX"));
+}
+
+#[test]
+fn goal_is_one_up_one_left_produces_the_expected_hint_spec_on_the_x_max_edge() {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    let tile_array = [TileData::default(); TILES_LENGTH as _];
+    let goal_xy = tile::XY {
+        x: tile::X::MAX,
+        y: tile::Y::CENTER,
+    };
+
+    let (_, sprites) = render_hint_spec(
+        &tile_array,
+        GoalIs(OneUpOneLeft),
+        InstrumentalGoal,
+        goal_xy,
+    );
+
+    assert_eq!(EdgeUpLeft, sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX"));
 }
 
 fn render_hint_info(board: &Board) -> Option<HintInfo> {
