@@ -1669,18 +1669,32 @@ fn render_hint_spec(
         }}
     }
 
+    macro_rules! use_most_diagonal_err {
+        ($start_expr: expr => $op1: ident, $op2: ident $(,)? ) => {{
+            match ($op1!($op2!($start_expr)), $op2!($op1!($start_expr))) {
+                (Ok(a), _) | (_, Ok(a)) => Ok(a),
+                (Err(a), Err(b)) => Err(merge(a, b)),
+            }
+        }}
+    }
+
+
     let (direction, target_xy) = match hint_spec {
+        // go one down, one right from goal
         GoalIs(OneUpOneLeft) => (
             "up and left",
-            // go one down, one right from goal
-            inc_x!(inc_y!(Ok(goal_xy)))
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x, inc_y
+            )
         ),
         // go one down from goal
         GoalIs(OneUp) => ("up", inc_y!(Ok(goal_xy))),
+        // go one down, one left from goal
         GoalIs(OneUpOneRight) => (
             "up and right",
-            // go one down, one left from goal
-            dec_x!(inc_y!(Ok(goal_xy)))
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x, inc_y
+            )
         ),
         // go one right from goal
         GoalIs(OneLeft) => ("left", inc_x!(Ok(goal_xy))),
@@ -1689,14 +1703,18 @@ fn render_hint_spec(
         // go one up, one right from goal
         GoalIs(OneDownOneLeft) => (
             "down and left",
-            inc_x!(dec_y!(Ok(goal_xy)))
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x, dec_y
+            )
         ),
         // go one up from goal
         GoalIs(OneDown) => ("down", dec_y!(Ok(goal_xy))),
         // go one up, one left from goal
         GoalIs(OneDownOneRight) => (
             "down and right",
-            dec_x!(dec_y!(Ok(goal_xy)))
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x, dec_y
+            )
         ),
     };
 
