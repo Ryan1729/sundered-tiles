@@ -176,6 +176,7 @@ pub enum SpriteKind {
     RedGreen,
     GreenBlue,
     BlueRed,
+    GoalDistanceHint,
     EdgeUpLeft,
     EdgeUpRight,
     EdgeDownLeft,
@@ -202,7 +203,8 @@ pub(crate) fn sprite_kind_from_tile_kind(
         | Blue(Hidden, _)
         | BlueStar(Hidden)
         | Goal(Hidden)
-        | Hint(Hidden, _) => SpriteKind::Hidden,
+        | Hint(Hidden, _)
+        | GoalDistance(Hidden, _) => SpriteKind::Hidden,
         Red(Shown, PartialColour(Prev)) => SpriteKind::BlueRed,
         Red(Shown, PartialColour(Next)) => SpriteKind::RedGreen,
         Red(Shown, _) => SpriteKind::Red,
@@ -217,6 +219,7 @@ pub(crate) fn sprite_kind_from_tile_kind(
         BlueStar(Shown) => SpriteKind::BlueStar,
         Goal(Shown) => goal_sprite,
         Hint(Shown, _) => SpriteKind::Hint,
+        GoalDistance(Shown, _) => SpriteKind::GoalDistanceHint,
     };
 
     Some(sprite_kind)

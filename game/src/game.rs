@@ -975,7 +975,8 @@ mod tile {
         Blue(Visibility, DistanceIntel),
         BlueStar(Visibility),
         Goal(Visibility),
-        Hint(Visibility, HintSpec)
+        Hint(Visibility, HintSpec),
+        GoalDistance(Visibility, GoalDistanceIntel)
     }
 
     impl Default for Kind {
@@ -995,7 +996,8 @@ mod tile {
             | Blue(vis, _)
             | BlueStar(vis)
             | Goal(vis)
-            | Hint(vis, _) => Some(vis),
+            | Hint(vis, _)
+            | GoalDistance(vis, _) => Some(vis),
         }
     }
 
@@ -1011,6 +1013,7 @@ mod tile {
             BlueStar(_) => BlueStar(vis),
             Goal(_) => Goal(vis),
             Hint(_, hint_spec) => Hint(vis, hint_spec),
+            GoalDistance(_, intel) => GoalDistance(vis, intel),
         }
     }
 
@@ -1045,6 +1048,7 @@ mod tile {
             BlueStar(..) => "the blue star tile",
             Goal(..) => "the goal tile",
             Hint(..) => "a hint tile",
+            GoalDistance(_, _) => "a goal distance hint tile",
         }
     }
 
@@ -1147,6 +1151,38 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub(crate) enum GoalDistanceIntel {
+        Full,
+        PartialAmount(IntelDigit),
+    }
+
+    impl Default for GoalDistanceIntel {
+        fn default() -> Self {
+            Self::Full
+        }
+    }
+
+    impl GoalDistanceIntel {
+        pub fn or_full_from_distance_intel(intel: DistanceIntel) -> Self {
+            use DistanceIntel::*;
+            match intel {
+                Full | PartialColour(..) => Self::Full,
+                PartialAmount(digit) => Self::PartialAmount(digit),
+            }
+        }
+    }
+
+    impl From<GoalDistanceIntel> for DistanceIntel {
+        fn from(goal_intel: GoalDistanceIntel) -> Self {
+            use GoalDistanceIntel::*;
+            match goal_intel {
+                Full => Self::Full,
+                PartialAmount(digit) => Self::PartialAmount(digit),
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub(crate) enum Colour {
         Red,
         Green,
@@ -1205,7 +1241,8 @@ impl Tiles {
             Visibility::*,
             HintSpec::*,
             RelativeDelta::*,
-            DistanceIntel::{self, *}
+            DistanceIntel::{self, *},
+            GoalDistanceIntel
         };
         use Level::*;
 
@@ -1289,6 +1326,30 @@ impl Tiles {
         let goal_xy = set_random_tile!(
             vis,
             Red(vis, _)|Green(vis, _)|Blue(vis, _) => Goal(vis)
+        );
+
+        set_random_tile!(
+            vis,
+            Red(vis, intel) => GoalDistance(
+                vis,
+                GoalDistanceIntel::or_full_from_distance_intel(intel)
+            )
+        );
+
+        set_random_tile!(
+            vis,
+            Green(vis, intel) => GoalDistance(
+                vis,
+                GoalDistanceIntel::or_full_from_distance_intel(intel)
+            )
+        );
+
+        set_random_tile!(
+            vis,
+            Blue(vis, intel) => GoalDistance(
+                vis,
+                GoalDistanceIntel::or_full_from_distance_intel(intel)
+            )
         );
 
         macro_rules! set_hint {
@@ -2127,12 +2188,16 @@ pub fn update(
                     get_star_xy(tiles, tile::Colour::Blue),
                     intel,
                 )),
+                GoalDistance(Shown, goal_intel) => Some((
+                    tiles.goal_xy,
+                    tile::DistanceIntel::from(goal_intel),
+                )),
                 _ => None,
             };
 
-            if let Some((star_xy, intel)) = distance_info {
+            if let Some((target_xy, intel)) = distance_info {
                 let should_draw_distance = if matches!(state.view_mode, Clean) {
-                    tile::is_hidden(get_tile(tiles, star_xy).data.kind)
+                    tile::is_hidden(get_tile(tiles, target_xy).data.kind)
                 } else {
                     // We already checked for HideRevealed above
                     true
@@ -2141,7 +2206,7 @@ pub fn update(
                 if should_draw_distance {
                     use tile::{Distance, DistanceIntel::*};
 
-                    let distance = tile::manhattan_distance(txy, star_xy);
+                    let distance = tile::manhattan_distance(txy, target_xy);
 
                     // We could technically avoid this allocation since there 
                     // are only finitely many needed strings here.
