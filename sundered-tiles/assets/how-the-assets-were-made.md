@@ -30,7 +30,9 @@ When I came up with the idea of partial colour information, it sems like I insta
 
 For the two-edge arrow I started by copying the one-edge arrow and pasting a copy rotated by 90 degrees over top of it. Then I manually trimmed the overlap on the edge line so we get a nice corner. I then set the grid to 4 by 4 again, and depeted the overlapping arrows. Then I copied just the arrow from the one-edge arrow and rotated a copy by -45 degrees using the "Arbitrary Rotation" tool. Following the grid, I was faced with the choice of two places to place the center of the arrow: One snap point such that part of the arrow bled into the 4 by 4 cell next to the corner line, and the first snap point that did not. I choase the first point that did not bleed.
 
-When preparing to add the goal hints, I knwo I wanted a tile that numbers would be drawn over like the existing coloured tiles. I considered making tiles that contained the instrumental goal or the terminal goal tiles depending on the level, but I decided that would probably be too busy.  So, as a quick solution I just duplicated the hint tile and removed the 'i' from it.
+When preparing to add the goal hints, I knew I wanted a tile that numbers would be drawn over like the existing coloured tiles. I considered making tiles that contained the instrumental goal or the terminal goal tiles depending on the level, but I decided that would probably be too busy.  So, as a quick solution I just duplicated the hint tile and removed the 'i' from it.
+
+After making that goal hint tile I was somewhat unsatisfied with it. So as an alternative I tried making a blank version of the map, by painting over the X and dotted line with colours from the map, with the selct and bucket tools. But the light text over that was too hard to read. So, at least for now I'll stick wwith the blanked out hint tile. But I'll keep the blank map, in case it's useful later
 
 
 
