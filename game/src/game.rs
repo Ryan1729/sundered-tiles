@@ -1615,8 +1615,8 @@ fn render_goal_sprite(board: &Board) -> SpriteKind {
 }
 
 mod hint {
-    pub(crate) const TILES_PER_ROW: usize = 3;
-    pub(crate) const TILES_PER_COLUMN: usize = 3;
+    pub(crate) const TILES_PER_ROW: usize = 5;
+    pub(crate) const TILES_PER_COLUMN: usize = 5;
     pub(crate) const TILES_COUNT: usize = TILES_PER_ROW * TILES_PER_COLUMN;
     
     pub(crate) const CENTER_INDEX: usize = TILES_COUNT / 2;
