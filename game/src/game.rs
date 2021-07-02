@@ -949,6 +949,7 @@ mod tile {
 
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum RelativeDelta {
+        // Inner ring
         OneUpOneLeft,
         OneUp,
         OneUpOneRight,
@@ -957,6 +958,23 @@ mod tile {
         OneDownOneLeft,
         OneDown,
         OneDownOneRight,
+        // Outer ring
+        TwoUpTwoLeft,
+        TwoUpOneLeft,
+        TwoUp,
+        TwoUpOneRight,
+        TwoUpTwoRight,
+        OneUpTwoLeft,
+        OneUpTwoRight,
+        TwoLeft,
+        TwoRight,
+        OneDownTwoRight,
+        OneDownTwoLeft,
+        TwoDownTwoLeft,
+        TwoDownOneLeft,
+        TwoDown,
+        TwoDownOneRight,
+        TwoDownTwoRight,
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -1371,6 +1389,23 @@ impl Tiles {
         set_hint!(GoalIs(OneDown));
         set_hint!(GoalIs(OneDownOneRight));
 
+        set_hint!(GoalIs(TwoUpTwoLeft));
+        set_hint!(GoalIs(TwoUpOneLeft));
+        set_hint!(GoalIs(TwoUp));
+        set_hint!(GoalIs(TwoUpOneRight));
+        set_hint!(GoalIs(TwoUpTwoRight));
+        set_hint!(GoalIs(OneUpTwoLeft));
+        set_hint!(GoalIs(OneUpTwoRight));
+        set_hint!(GoalIs(TwoLeft));
+        set_hint!(GoalIs(TwoRight));
+        set_hint!(GoalIs(OneDownTwoRight));
+        set_hint!(GoalIs(OneDownTwoLeft));
+        set_hint!(GoalIs(TwoDownTwoLeft));
+        set_hint!(GoalIs(TwoDownOneLeft));
+        set_hint!(GoalIs(TwoDown));
+        set_hint!(GoalIs(TwoDownOneRight));
+        set_hint!(GoalIs(TwoDownTwoRight));
+
         Self {
             tiles,
             red_star_xy,
@@ -1628,6 +1663,23 @@ mod hint {
     pub(crate) const UP_RIGHT_INDEX: usize = UP_INDEX + 1;
     pub(crate) const DOWN_LEFT_INDEX: usize = DOWN_INDEX - 1;
     pub(crate) const DOWN_RIGHT_INDEX: usize = DOWN_INDEX + 1;
+
+    pub(crate) const TWO_UP_TWO_LEFT_INDEX: usize = TWO_UP_INDEX - 2;
+    pub(crate) const TWO_UP_ONE_LEFT_INDEX: usize = TWO_UP_INDEX - 1;
+    pub(crate) const TWO_UP_INDEX: usize = CENTER_INDEX - (2 * TILES_PER_ROW);
+    pub(crate) const TWO_UP_ONE_RIGHT_INDEX: usize = TWO_UP_INDEX + 1;
+    pub(crate) const TWO_UP_TWO_RIGHT_INDEX: usize = TWO_UP_INDEX + 2;
+    pub(crate) const UP_TWO_LEFT_INDEX: usize = TWO_LEFT_INDEX - TILES_PER_ROW;
+    pub(crate) const UP_TWO_RIGHT_INDEX: usize = TWO_RIGHT_INDEX - TILES_PER_ROW;
+    pub(crate) const TWO_LEFT_INDEX: usize = LEFT_INDEX - 1;
+    pub(crate) const TWO_RIGHT_INDEX: usize = RIGHT_INDEX + 1;
+    pub(crate) const DOWN_TWO_LEFT_INDEX: usize = TWO_LEFT_INDEX + TILES_PER_ROW;
+    pub(crate) const DOWN_TWO_RIGHT_INDEX: usize = TWO_RIGHT_INDEX + TILES_PER_ROW;
+    pub(crate) const TWO_DOWN_TWO_RIGHT_INDEX: usize = TWO_DOWN_INDEX - 2;
+    pub(crate) const TWO_DOWN_ONE_RIGHT_INDEX: usize = TWO_DOWN_INDEX - 1;
+    pub(crate) const TWO_DOWN_INDEX: usize = CENTER_INDEX + (2 * TILES_PER_ROW);
+    pub(crate) const TWO_DOWN_ONE_LEFT_INDEX: usize = TWO_DOWN_INDEX + 1;
+    pub(crate) const TWO_DOWN_TWO_LEFT_INDEX: usize = TWO_DOWN_INDEX + 2;
 }
 
 type HintInfo = (String, [Option<SpriteKind>; hint::TILES_COUNT]);
@@ -1736,7 +1788,34 @@ fn render_hint_spec(
                 (Ok(a), _) | (_, Ok(a)) => Ok(a),
                 (Err(a), Err(b)) => Err(merge(a, b)),
             }
-        }}
+        }};
+        ($start_expr: expr => $op1: ident * 2, $op2: ident $(,)? ) => {{
+            match (
+                $op1!($op1!($op2!($start_expr))),
+                $op2!($op1!($op1!($start_expr)))
+            ) {
+                (Ok(a), _) | (_, Ok(a)) => Ok(a),
+                (Err(a), Err(b)) => Err(merge(a, b)),
+            }
+        }};
+        ($start_expr: expr => $op1: ident, $op2: ident * 2 $(,)? ) => {{
+            match (
+                $op1!($op2!($op2!($start_expr))),
+                $op2!($op2!($op1!($start_expr)))
+            ) {
+                (Ok(a), _) | (_, Ok(a)) => Ok(a),
+                (Err(a), Err(b)) => Err(merge(a, b)),
+            }
+        }};
+        ($start_expr: expr => $op1: ident * 2, $op2: ident * 2 $(,)? ) => {{
+            match (
+                $op1!($op1!($op2!($op2!($start_expr)))),
+                $op2!($op2!($op1!($op1!($start_expr))))
+            ) {
+                (Ok(a), _) | (_, Ok(a)) => Ok(a),
+                (Err(a), Err(b)) => Err(merge(a, b)),
+            }
+        }};
     }
 
 
@@ -1775,6 +1854,99 @@ fn render_hint_spec(
             "down and right",
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, dec_y
+            )
+        ),
+
+        // go two down, two right from goal
+        GoalIs(TwoUpTwoLeft) => (
+            "two up and two left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x * 2, inc_y * 2
+            )
+        ),
+        // go two down, one right from goal
+        GoalIs(TwoUpOneLeft) => (
+            "two up and one left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x, inc_y * 2
+            )
+        ),
+        // go two down from goal
+        GoalIs(TwoUp) => ("two up", inc_y!(inc_y!(Ok(goal_xy)))),
+        // go two down, one left from goal
+        GoalIs(TwoUpOneRight) => (
+            "two up and one right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x, inc_y * 2
+            )
+        ),
+        // go two down, two left from goal
+        GoalIs(TwoUpTwoRight) => (
+            "two up and two right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x * 2, inc_y * 2
+            )
+        ),
+        // go one down, two right from goal
+        GoalIs(OneUpTwoLeft) => (
+            "up and two left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x * 2, inc_y
+            )
+        ),
+        // go two down, two left from goal
+        GoalIs(OneUpTwoRight) => (
+            "up and two right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x * 2, inc_y
+            )
+        ),
+        // go two right from goal
+        GoalIs(TwoLeft) => ("two left", inc_x!(inc_x!(Ok(goal_xy)))),
+        // go two left from goal
+        GoalIs(TwoRight) => ("two right", dec_x!(dec_x!(Ok(goal_xy)))),
+        // go one up, two right from goal
+        GoalIs(OneDownTwoLeft) => (
+            "down and two left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x * 2, dec_y
+            )
+        ),
+        // go two up, two left from goal
+        GoalIs(OneDownTwoRight) => (
+            "down and two right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x * 2, dec_y
+            )
+        ),
+        // go two up, two right from goal
+        GoalIs(TwoDownTwoLeft) => (
+            "two down and two left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x * 2, dec_y * 2
+            )
+        ),
+        // go two up, one right from goal
+        GoalIs(TwoDownOneLeft) => (
+            "two down and one left",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => inc_x, dec_y * 2
+            )
+        ),
+        // go two up from goal
+        GoalIs(TwoDown) => ("two down", dec_y!(dec_y!(Ok(goal_xy)))),
+        // go two up, one left from goal
+        GoalIs(TwoDownOneRight) => (
+            "two down and one right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x, dec_y * 2
+            )
+        ),
+        // go two up, two left from goal
+        GoalIs(TwoDownTwoRight) => (
+            "two down and two right",
+            use_most_diagonal_err!(
+                Ok(goal_xy) => dec_x * 2, dec_y * 2
             )
         ),
     };
@@ -1824,32 +1996,35 @@ fn render_hint_spec(
         }
     };
 
-    match hint_spec {
-        GoalIs(OneUpOneLeft) => {
-            hint_sprites[hint::DOWN_RIGHT_INDEX] = target_sprite;
-        },
-        GoalIs(OneUp) => {
-            hint_sprites[hint::DOWN_INDEX] = target_sprite;
-        },
-        GoalIs(OneUpOneRight) => {
-            hint_sprites[hint::DOWN_LEFT_INDEX] = target_sprite;
-        },
-        GoalIs(OneLeft) => {
-            hint_sprites[hint::RIGHT_INDEX] = target_sprite;
-        },
-        GoalIs(OneRight) => {
-            hint_sprites[hint::LEFT_INDEX] = target_sprite;
-        },
-        GoalIs(OneDownOneLeft) => {
-            hint_sprites[hint::UP_RIGHT_INDEX] = target_sprite;
-        },
-        GoalIs(OneDown) => {
-            hint_sprites[hint::UP_INDEX] = target_sprite;
-        },
-        GoalIs(OneDownOneRight) => {
-            hint_sprites[hint::UP_LEFT_INDEX] = target_sprite;
-        },
+    let target_index = match hint_spec {
+        GoalIs(OneUpOneLeft) => hint::DOWN_RIGHT_INDEX,
+        GoalIs(OneUp) => hint::DOWN_INDEX,
+        GoalIs(OneUpOneRight) => hint::DOWN_LEFT_INDEX,
+        GoalIs(OneLeft) => hint::RIGHT_INDEX,
+        GoalIs(OneRight) => hint::LEFT_INDEX,
+        GoalIs(OneDownOneLeft) => hint::UP_RIGHT_INDEX,
+        GoalIs(OneDown) => hint::UP_INDEX,
+        GoalIs(OneDownOneRight) => hint::UP_LEFT_INDEX,
+
+        GoalIs(TwoUpTwoLeft) => hint::TWO_DOWN_TWO_RIGHT_INDEX,
+        GoalIs(TwoUpOneLeft) => hint::TWO_DOWN_ONE_RIGHT_INDEX,
+        GoalIs(TwoUp) => hint::TWO_DOWN_INDEX,
+        GoalIs(TwoUpOneRight) => hint::TWO_DOWN_ONE_LEFT_INDEX,
+        GoalIs(TwoUpTwoRight) => hint::TWO_DOWN_TWO_LEFT_INDEX,
+        GoalIs(OneUpTwoLeft) => hint::DOWN_TWO_RIGHT_INDEX,
+        GoalIs(OneUpTwoRight) => hint::DOWN_TWO_LEFT_INDEX,
+        GoalIs(TwoLeft) => hint::TWO_RIGHT_INDEX,
+        GoalIs(TwoRight) => hint::TWO_LEFT_INDEX,
+        GoalIs(OneDownTwoRight) => hint::UP_TWO_RIGHT_INDEX,
+        GoalIs(OneDownTwoLeft) => hint::UP_TWO_LEFT_INDEX,
+        GoalIs(TwoDownTwoLeft) => hint::TWO_UP_TWO_RIGHT_INDEX,
+        GoalIs(TwoDownOneLeft) => hint::TWO_UP_ONE_RIGHT_INDEX,
+        GoalIs(TwoDown) => hint::TWO_UP_INDEX,
+        GoalIs(TwoDownOneRight) => hint::TWO_UP_ONE_LEFT_INDEX,
+        GoalIs(TwoDownTwoRight) => hint::TWO_UP_TWO_LEFT_INDEX,
     };
+
+    hint_sprites[target_index] = target_sprite;
 
     (
         hint_string,
