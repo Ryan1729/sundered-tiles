@@ -2016,8 +2016,8 @@ fn render_hint_spec(
         GoalIs(OneUpTwoRight) => hint::DOWN_TWO_LEFT_INDEX,
         GoalIs(TwoLeft) => hint::TWO_RIGHT_INDEX,
         GoalIs(TwoRight) => hint::TWO_LEFT_INDEX,
-        GoalIs(OneDownTwoRight) => hint::UP_TWO_RIGHT_INDEX,
-        GoalIs(OneDownTwoLeft) => hint::UP_TWO_LEFT_INDEX,
+        GoalIs(OneDownTwoRight) => hint::UP_TWO_LEFT_INDEX,
+        GoalIs(OneDownTwoLeft) => hint::UP_TWO_RIGHT_INDEX,
         GoalIs(TwoDownTwoLeft) => hint::TWO_UP_TWO_RIGHT_INDEX,
         GoalIs(TwoDownOneLeft) => hint::TWO_UP_ONE_RIGHT_INDEX,
         GoalIs(TwoDown) => hint::TWO_UP_INDEX,
@@ -2132,6 +2132,27 @@ fn goal_is_two_up_one_left_produces_the_expected_hint_spec() {
     );
 
     assert_eq!(EdgeUpLeft, sprites[hint::TWO_DOWN_ONE_RIGHT_INDEX].expect("TWO_DOWN_ONE_RIGHT_INDEX"));
+}
+
+#[test]
+fn goal_is_one_down_two_left_produces_the_expected_hint_spec() {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    let tile_array = [TileData::default(); TILES_LENGTH as _];
+    let goal_xy = tile::XY{
+        x: tile::X::MAX,
+        y: tile::Y::ZERO,
+    };
+
+    let (_, sprites) = render_hint_spec(
+        &tile_array,
+        GoalIs(OneDownTwoLeft),
+        InstrumentalGoal,
+        goal_xy,
+    );
+
+    assert_eq!(EdgeDownLeft, sprites[hint::UP_TWO_RIGHT_INDEX].expect("UP_TWO_RIGHT_INDEX"));
 }
 
 fn render_hint_info(board: &Board) -> Option<HintInfo> {
