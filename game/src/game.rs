@@ -1820,83 +1820,84 @@ fn render_hint_spec(
 
 
     let (direction, target_xy) = match hint_spec {
-        // go one down, one right from goal
         GoalIs(OneUpOneLeft) => (
-            "up and left",
+            "one up and left",
+            // go one down, one right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x, inc_y
             )
         ),
         // go one down from goal
-        GoalIs(OneUp) => ("up", inc_y!(Ok(goal_xy))),
-        // go one down, one left from goal
+        GoalIs(OneUp) => ("one up", inc_y!(Ok(goal_xy))),
         GoalIs(OneUpOneRight) => (
-            "up and right",
+            "one up and right",
+            // go one down, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, inc_y
             )
         ),
         // go one right from goal
-        GoalIs(OneLeft) => ("left", inc_x!(Ok(goal_xy))),
+        GoalIs(OneLeft) => ("one left", inc_x!(Ok(goal_xy))),
         // go one left from goal
-        GoalIs(OneRight) => ("right", dec_x!(Ok(goal_xy))),
-        // go one up, one right from goal
+        GoalIs(OneRight) => ("one right", dec_x!(Ok(goal_xy))),
         GoalIs(OneDownOneLeft) => (
-            "down and left",
+            "one down and left",
+            // go one up, one right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x, dec_y
             )
         ),
         // go one up from goal
-        GoalIs(OneDown) => ("down", dec_y!(Ok(goal_xy))),
-        // go one up, one left from goal
+        GoalIs(OneDown) => ("one down", dec_y!(Ok(goal_xy))),
+        
         GoalIs(OneDownOneRight) => (
-            "down and right",
+            "one down and right",
+            // go one up, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, dec_y
             )
         ),
 
-        // go two down, two right from goal
         GoalIs(TwoUpTwoLeft) => (
             "two up and two left",
+            // go two down, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, inc_y * 2
             )
         ),
-        // go two down, one right from goal
         GoalIs(TwoUpOneLeft) => (
             "two up and one left",
+            // go two down, one right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x, inc_y * 2
             )
         ),
         // go two down from goal
         GoalIs(TwoUp) => ("two up", inc_y!(inc_y!(Ok(goal_xy)))),
-        // go two down, one left from goal
         GoalIs(TwoUpOneRight) => (
             "two up and one right",
+            // go two down, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, inc_y * 2
             )
         ),
-        // go two down, two left from goal
         GoalIs(TwoUpTwoRight) => (
             "two up and two right",
+            // go two down, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, inc_y * 2
             )
         ),
-        // go one down, two right from goal
         GoalIs(OneUpTwoLeft) => (
-            "up and two left",
+            "one up and two left",
+            // go one down, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, inc_y
             )
         ),
-        // go two down, two left from goal
         GoalIs(OneUpTwoRight) => (
-            "up and two right",
+            "one up and two right",
+            // go two down, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, inc_y
             )
@@ -1905,46 +1906,46 @@ fn render_hint_spec(
         GoalIs(TwoLeft) => ("two left", inc_x!(inc_x!(Ok(goal_xy)))),
         // go two left from goal
         GoalIs(TwoRight) => ("two right", dec_x!(dec_x!(Ok(goal_xy)))),
-        // go one up, two right from goal
         GoalIs(OneDownTwoLeft) => (
-            "down and two left",
+            "one down and two left",
+            // go one up, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, dec_y
             )
         ),
-        // go two up, two left from goal
         GoalIs(OneDownTwoRight) => (
-            "down and two right",
+            "one down and two right",
+            // go one up, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, dec_y
             )
         ),
-        // go two up, two right from goal
         GoalIs(TwoDownTwoLeft) => (
             "two down and two left",
+            // go two up, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, dec_y * 2
             )
         ),
-        // go two up, one right from goal
         GoalIs(TwoDownOneLeft) => (
             "two down and one left",
+            // go two up, one right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x, dec_y * 2
             )
         ),
         // go two up from goal
         GoalIs(TwoDown) => ("two down", dec_y!(dec_y!(Ok(goal_xy)))),
-        // go two up, one left from goal
         GoalIs(TwoDownOneRight) => (
             "two down and one right",
+            // go two up, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, dec_y * 2
             )
-        ),
-        // go two up, two left from goal
+        ),        
         GoalIs(TwoDownTwoRight) => (
             "two down and two right",
+            // go two up, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, dec_y * 2
             )
@@ -1958,7 +1959,7 @@ fn render_hint_spec(
     };
 
     let hint_string = format!(
-        "The goal is one tile {} from {}.",
+        "The goal is {} from {}.",
         direction,
         description
     );
