@@ -2460,7 +2460,7 @@ pub fn update(
     const MARGIN: f32 = 16.;
 
     let small_section_h = state.sizes.draw_wh.h / 8. - MARGIN;
-    let large_section_h = small_section_h * 3.;
+    let large_section_h = small_section_h * 4.;
     {
         let mut y = MARGIN;
 
