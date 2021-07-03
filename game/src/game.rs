@@ -1675,11 +1675,11 @@ mod hint {
     pub(crate) const TWO_RIGHT_INDEX: usize = RIGHT_INDEX + 1;
     pub(crate) const DOWN_TWO_LEFT_INDEX: usize = TWO_LEFT_INDEX + TILES_PER_ROW;
     pub(crate) const DOWN_TWO_RIGHT_INDEX: usize = TWO_RIGHT_INDEX + TILES_PER_ROW;
-    pub(crate) const TWO_DOWN_TWO_RIGHT_INDEX: usize = TWO_DOWN_INDEX - 2;
-    pub(crate) const TWO_DOWN_ONE_RIGHT_INDEX: usize = TWO_DOWN_INDEX - 1;
+    pub(crate) const TWO_DOWN_TWO_LEFT_INDEX: usize = TWO_DOWN_INDEX - 2;
+    pub(crate) const TWO_DOWN_ONE_LEFT_INDEX: usize = TWO_DOWN_INDEX - 1;
     pub(crate) const TWO_DOWN_INDEX: usize = CENTER_INDEX + (2 * TILES_PER_ROW);
-    pub(crate) const TWO_DOWN_ONE_LEFT_INDEX: usize = TWO_DOWN_INDEX + 1;
-    pub(crate) const TWO_DOWN_TWO_LEFT_INDEX: usize = TWO_DOWN_INDEX + 2;
+    pub(crate) const TWO_DOWN_ONE_RIGHT_INDEX: usize = TWO_DOWN_INDEX + 1;
+    pub(crate) const TWO_DOWN_TWO_RIGHT_INDEX: usize = TWO_DOWN_INDEX + 2;
 }
 
 type HintInfo = (String, [Option<SpriteKind>; hint::TILES_COUNT]);
@@ -2110,6 +2110,27 @@ fn goal_is_one_up_one_left_produces_the_expected_hint_spec_on_the_x_max_edge() {
     );
 
     assert_eq!(EdgeUpLeft, sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX"));
+}
+
+#[test]
+fn goal_is_two_up_one_left_produces_the_expected_hint_spec() {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+
+    let tile_array = [TileData::default(); TILES_LENGTH as _];
+    let goal_xy = tile::XY{
+        x: tile::X::MAX,
+        y: tile::Y::MAX,
+    };
+
+    let (_, sprites) = render_hint_spec(
+        &tile_array,
+        GoalIs(TwoUpOneLeft),
+        InstrumentalGoal,
+        goal_xy,
+    );
+
+    assert_eq!(EdgeUpLeft, sprites[hint::TWO_DOWN_ONE_RIGHT_INDEX].expect("TWO_DOWN_ONE_RIGHT_INDEX"));
 }
 
 fn render_hint_info(board: &Board) -> Option<HintInfo> {
