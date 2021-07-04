@@ -1973,7 +1973,7 @@ fn render_hint_spec(
 
     let target_sprite = match target_xy {
         Ok(target_xy) => {
-            draw::sprite_kind_from_tile_kind(
+            draw::shown_sprite_kind_from_tile_kind(
                 get_tile_from_array(tile_array, target_xy).data.kind,
                 goal_sprite,
             )

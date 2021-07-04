@@ -225,6 +225,33 @@ pub(crate) fn sprite_kind_from_tile_kind(
     Some(sprite_kind)
 }
 
+pub(crate) fn shown_sprite_kind_from_tile_kind(
+    kind: tile::Kind,
+    goal_sprite: SpriteKind,
+) -> Option<SpriteKind> {
+    use tile::{Kind::*, DistanceIntel::*, PrevNext::*};
+    let sprite_kind = match kind {
+        Empty => return None,
+        Red(_, PartialColour(Prev)) => SpriteKind::BlueRed,
+        Red(_, PartialColour(Next)) => SpriteKind::RedGreen,
+        Red(_, _) => SpriteKind::Red,
+        RedStar(_) => SpriteKind::RedStar,
+        Green(_, PartialColour(Prev)) => SpriteKind::RedGreen,
+        Green(_, PartialColour(Next)) => SpriteKind::GreenBlue,
+        Green(_, _) => SpriteKind::Green,
+        GreenStar(_) => SpriteKind::GreenStar,
+        Blue(_, PartialColour(Prev)) => SpriteKind::GreenBlue,
+        Blue(_, PartialColour(Next)) => SpriteKind::BlueRed,
+        Blue(_, _) => SpriteKind::Blue,
+        BlueStar(_) => SpriteKind::BlueStar,
+        Goal(_) => goal_sprite,
+        Hint(_, _) => SpriteKind::Hint,
+        GoalDistance(_, _) => SpriteKind::GoalDistanceHint,
+    };
+
+    Some(sprite_kind)
+}
+
 #[derive(Debug)]
 pub enum Command {
     Sprite(SpriteSpec),
