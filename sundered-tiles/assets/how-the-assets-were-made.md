@@ -36,5 +36,5 @@ After making that goal hint tile I was somewhat unsatisfied with it. So as an al
 
 I found the goal distance hint tile was still not distinct enough from a blue tile. So I decided to combine the previous ideas and place a blue circle on top of the blank map. I looked back at these notes to get the size and exact colour of the circle.
 
-
+For the "not" symbol, I selected a 96 by 96 circle, intentionally the same size as the info circle, and then filled it in with the edge arrow red (#de4949). I then shrunk the circle selection to 64 by 64 and deleted that part of the circle leaving a ring. I then set the grid to be 32 by 32, so I have 4 snap points within the edges of the circle. Then I used the paths tool to select a line from the lower left of those snap points to the upper right one of those. I then used Edit > Stroke Path to draw a solid colour, 16 pixel thick line, completing the symbol.
 
