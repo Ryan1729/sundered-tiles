@@ -977,10 +977,22 @@ mod tile {
         TwoDownTwoRight,
     }
 
+    /// By default, `GoalIsNot` hints are much less powerful than GoalIs hints. 
+    /// This can be demonstrated by counting how many possibilties each eliminates.
+    /// As of this writing, while we include multiple `GoalIsNot` hints per tile
+    /// when we set one, we do not include enough extra ones to match the power of 
+    /// a `GoalIs` hint. We do this for two reasons:
+    /// * At this point, we think this might be better for game balance
+    /// * It seems like it would be more mentally taxing to integrate more 
+    ///   `GoalIsNot` hints. So it might be best if the player is encouraged to do 
+    ///   this less.
+    const HINTS_PER_GOAL_IS_NOT: usize = 3;
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
-        // We plan for something like GoalIsNot([RelativeDelta; N])
+        #[allow(unused)] // FIXME actually use this
+        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT])
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -1682,28 +1694,43 @@ mod hint {
     pub(crate) const TWO_DOWN_TWO_RIGHT_INDEX: usize = TWO_DOWN_INDEX + 2;
 }
 
-type HintInfo = (String, [Option<SpriteKind>; hint::TILES_COUNT]);
+#[derive(Clone, Copy, Debug)]
+struct HintSprite {
+    sprite: SpriteKind,
+    overlay: Option<SpriteKind>,
+}
 
-fn render_hint_spec(
-    tile_array: &TileDataArray,
-    hint_spec: tile::HintSpec,
-    goal_sprite: SpriteKind,
-    goal_xy: tile::XY,
-) -> HintInfo {
-    use SpriteKind::*;
-    use tile::{HintSpec::*, RelativeDelta::*};
-
-    #[derive(Copy, Clone, Debug)]
-    enum WentOff {
-        UpAndLeftEdges,
-        UpEdge,
-        UpAndRightEdges,
-        LeftEdge,
-        RightEdge,
-        DownAndLeftEdges,
-        DownEdge,
-        DownAndRightEdges,
+impl From<HintSprite> for SpriteKind {
+    fn from(hint_sprite: HintSprite) -> Self {
+        hint_sprite.sprite
     }
+}
+
+type HintInfo = (String, [Option<HintSprite>; hint::TILES_COUNT]);
+
+#[derive(Copy, Clone, Debug)]
+enum WentOff {
+    UpAndLeftEdges,
+    UpEdge,
+    UpAndRightEdges,
+    LeftEdge,
+    RightEdge,
+    DownAndLeftEdges,
+    DownEdge,
+    DownAndRightEdges,
+}
+
+struct HintTarget {
+    direction: &'static str,
+    xy: Result<tile::XY, WentOff>,
+}
+
+fn render_hint_target(
+    relative_delta: tile::RelativeDelta,
+    goal_xy: tile::XY,
+) -> HintTarget {
+    use tile::{RelativeDelta::*};
+
     use WentOff::*;
     fn merge(a: WentOff, b: WentOff) -> WentOff {
         match (a, b) {
@@ -1818,9 +1845,8 @@ fn render_hint_spec(
         }};
     }
 
-
-    let (direction, target_xy) = match hint_spec {
-        GoalIs(OneUpOneLeft) => (
+    let (direction, xy) = match relative_delta {
+        OneUpOneLeft => (
             "one up and left",
             // go one down, one right from goal
             use_most_diagonal_err!(
@@ -1828,8 +1854,8 @@ fn render_hint_spec(
             )
         ),
         // go one down from goal
-        GoalIs(OneUp) => ("one up", inc_y!(Ok(goal_xy))),
-        GoalIs(OneUpOneRight) => (
+        OneUp => ("one up", inc_y!(Ok(goal_xy))),
+        OneUpOneRight => (
             "one up and right",
             // go one down, one left from goal
             use_most_diagonal_err!(
@@ -1837,10 +1863,10 @@ fn render_hint_spec(
             )
         ),
         // go one right from goal
-        GoalIs(OneLeft) => ("one left", inc_x!(Ok(goal_xy))),
+        OneLeft => ("one left", inc_x!(Ok(goal_xy))),
         // go one left from goal
-        GoalIs(OneRight) => ("one right", dec_x!(Ok(goal_xy))),
-        GoalIs(OneDownOneLeft) => (
+        OneRight => ("one right", dec_x!(Ok(goal_xy))),
+        OneDownOneLeft => (
             "one down and left",
             // go one up, one right from goal
             use_most_diagonal_err!(
@@ -1848,9 +1874,9 @@ fn render_hint_spec(
             )
         ),
         // go one up from goal
-        GoalIs(OneDown) => ("one down", dec_y!(Ok(goal_xy))),
+        OneDown => ("one down", dec_y!(Ok(goal_xy))),
         
-        GoalIs(OneDownOneRight) => (
+        OneDownOneRight => (
             "one down and right",
             // go one up, one left from goal
             use_most_diagonal_err!(
@@ -1858,14 +1884,14 @@ fn render_hint_spec(
             )
         ),
 
-        GoalIs(TwoUpTwoLeft) => (
+        TwoUpTwoLeft => (
             "two up and two left",
             // go two down, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, inc_y * 2
             )
         ),
-        GoalIs(TwoUpOneLeft) => (
+        TwoUpOneLeft => (
             "two up and one left",
             // go two down, one right from goal
             use_most_diagonal_err!(
@@ -1873,29 +1899,29 @@ fn render_hint_spec(
             )
         ),
         // go two down from goal
-        GoalIs(TwoUp) => ("two up", inc_y!(inc_y!(Ok(goal_xy)))),
-        GoalIs(TwoUpOneRight) => (
+        TwoUp => ("two up", inc_y!(inc_y!(Ok(goal_xy)))),
+        TwoUpOneRight => (
             "two up and one right",
             // go two down, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, inc_y * 2
             )
         ),
-        GoalIs(TwoUpTwoRight) => (
+        TwoUpTwoRight => (
             "two up and two right",
             // go two down, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, inc_y * 2
             )
         ),
-        GoalIs(OneUpTwoLeft) => (
+        OneUpTwoLeft => (
             "one up and two left",
             // go one down, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, inc_y
             )
         ),
-        GoalIs(OneUpTwoRight) => (
+        OneUpTwoRight => (
             "one up and two right",
             // go two down, two left from goal
             use_most_diagonal_err!(
@@ -1903,31 +1929,31 @@ fn render_hint_spec(
             )
         ),
         // go two right from goal
-        GoalIs(TwoLeft) => ("two left", inc_x!(inc_x!(Ok(goal_xy)))),
+        TwoLeft => ("two left", inc_x!(inc_x!(Ok(goal_xy)))),
         // go two left from goal
-        GoalIs(TwoRight) => ("two right", dec_x!(dec_x!(Ok(goal_xy)))),
-        GoalIs(OneDownTwoLeft) => (
+        TwoRight => ("two right", dec_x!(dec_x!(Ok(goal_xy)))),
+        OneDownTwoLeft => (
             "one down and two left",
             // go one up, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, dec_y
             )
         ),
-        GoalIs(OneDownTwoRight) => (
+        OneDownTwoRight => (
             "one down and two right",
             // go one up, two left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x * 2, dec_y
             )
         ),
-        GoalIs(TwoDownTwoLeft) => (
+        TwoDownTwoLeft => (
             "two down and two left",
             // go two up, two right from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => inc_x * 2, dec_y * 2
             )
         ),
-        GoalIs(TwoDownOneLeft) => (
+        TwoDownOneLeft => (
             "two down and one left",
             // go two up, one right from goal
             use_most_diagonal_err!(
@@ -1935,15 +1961,15 @@ fn render_hint_spec(
             )
         ),
         // go two up from goal
-        GoalIs(TwoDown) => ("two down", dec_y!(dec_y!(Ok(goal_xy)))),
-        GoalIs(TwoDownOneRight) => (
+        TwoDown => ("two down", dec_y!(dec_y!(Ok(goal_xy)))),
+        TwoDownOneRight => (
             "two down and one right",
             // go two up, one left from goal
             use_most_diagonal_err!(
                 Ok(goal_xy) => dec_x, dec_y * 2
             )
         ),        
-        GoalIs(TwoDownTwoRight) => (
+        TwoDownTwoRight => (
             "two down and two right",
             // go two up, two left from goal
             use_most_diagonal_err!(
@@ -1951,6 +1977,34 @@ fn render_hint_spec(
             )
         ),
     };
+
+    HintTarget{
+        direction, 
+        xy
+    }
+}
+
+fn render_hint_spec(
+    tile_array: &TileDataArray,
+    hint_spec: tile::HintSpec,
+    goal_sprite: SpriteKind,
+    goal_xy: tile::XY,
+) -> HintInfo {
+    use SpriteKind::*;
+    use tile::{HintSpec::*, RelativeDelta::*};
+    use WentOff::*;
+
+    // FIXME implement `GoalIsNot` case properly, by looping over the array and 
+    // updating the descrption and hint sprites accordingly
+    let relative_delta = match hint_spec {
+        GoalIs(relative_delta) => relative_delta,
+        GoalIsNot(relative_deltas) => relative_deltas[0],
+    };
+
+    let HintTarget{ direction, xy: target_xy } = render_hint_target(
+        relative_delta,
+        goal_xy,
+    );
 
     let description = if let Ok(target_xy) = target_xy {
         tile::kind_description(get_tile_from_array(tile_array, target_xy).data.kind)
@@ -1965,13 +2019,19 @@ fn render_hint_spec(
     );
 
     let mut hint_sprites = [
-        Some(SpriteKind::QuestionMark);
+        Some(HintSprite { 
+            sprite: SpriteKind::QuestionMark,
+            overlay: None
+        });
         hint::TILES_COUNT
     ];
 
-    hint_sprites[hint::CENTER_INDEX] = Some(goal_sprite);
+    hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
+        sprite: goal_sprite,
+        overlay: None
+    });
 
-    let target_sprite = match target_xy {
+    let target_sprite: Option<SpriteKind> = match target_xy {
         Ok(target_xy) => {
             draw::shown_sprite_kind_from_tile_kind(
                 get_tile_from_array(tile_array, target_xy).data.kind,
@@ -1997,35 +2057,40 @@ fn render_hint_spec(
         }
     };
 
-    let target_index = match hint_spec {
-        GoalIs(OneUpOneLeft) => hint::DOWN_RIGHT_INDEX,
-        GoalIs(OneUp) => hint::DOWN_INDEX,
-        GoalIs(OneUpOneRight) => hint::DOWN_LEFT_INDEX,
-        GoalIs(OneLeft) => hint::RIGHT_INDEX,
-        GoalIs(OneRight) => hint::LEFT_INDEX,
-        GoalIs(OneDownOneLeft) => hint::UP_RIGHT_INDEX,
-        GoalIs(OneDown) => hint::UP_INDEX,
-        GoalIs(OneDownOneRight) => hint::UP_LEFT_INDEX,
+    let target_index = match relative_delta {
+        OneUpOneLeft => hint::DOWN_RIGHT_INDEX,
+        OneUp => hint::DOWN_INDEX,
+        OneUpOneRight => hint::DOWN_LEFT_INDEX,
+        OneLeft => hint::RIGHT_INDEX,
+        OneRight => hint::LEFT_INDEX,
+        OneDownOneLeft => hint::UP_RIGHT_INDEX,
+        OneDown => hint::UP_INDEX,
+        OneDownOneRight => hint::UP_LEFT_INDEX,
 
-        GoalIs(TwoUpTwoLeft) => hint::TWO_DOWN_TWO_RIGHT_INDEX,
-        GoalIs(TwoUpOneLeft) => hint::TWO_DOWN_ONE_RIGHT_INDEX,
-        GoalIs(TwoUp) => hint::TWO_DOWN_INDEX,
-        GoalIs(TwoUpOneRight) => hint::TWO_DOWN_ONE_LEFT_INDEX,
-        GoalIs(TwoUpTwoRight) => hint::TWO_DOWN_TWO_LEFT_INDEX,
-        GoalIs(OneUpTwoLeft) => hint::DOWN_TWO_RIGHT_INDEX,
-        GoalIs(OneUpTwoRight) => hint::DOWN_TWO_LEFT_INDEX,
-        GoalIs(TwoLeft) => hint::TWO_RIGHT_INDEX,
-        GoalIs(TwoRight) => hint::TWO_LEFT_INDEX,
-        GoalIs(OneDownTwoRight) => hint::UP_TWO_LEFT_INDEX,
-        GoalIs(OneDownTwoLeft) => hint::UP_TWO_RIGHT_INDEX,
-        GoalIs(TwoDownTwoLeft) => hint::TWO_UP_TWO_RIGHT_INDEX,
-        GoalIs(TwoDownOneLeft) => hint::TWO_UP_ONE_RIGHT_INDEX,
-        GoalIs(TwoDown) => hint::TWO_UP_INDEX,
-        GoalIs(TwoDownOneRight) => hint::TWO_UP_ONE_LEFT_INDEX,
-        GoalIs(TwoDownTwoRight) => hint::TWO_UP_TWO_LEFT_INDEX,
+        TwoUpTwoLeft => hint::TWO_DOWN_TWO_RIGHT_INDEX,
+        TwoUpOneLeft => hint::TWO_DOWN_ONE_RIGHT_INDEX,
+        TwoUp => hint::TWO_DOWN_INDEX,
+        TwoUpOneRight => hint::TWO_DOWN_ONE_LEFT_INDEX,
+        TwoUpTwoRight => hint::TWO_DOWN_TWO_LEFT_INDEX,
+        OneUpTwoLeft => hint::DOWN_TWO_RIGHT_INDEX,
+        OneUpTwoRight => hint::DOWN_TWO_LEFT_INDEX,
+        TwoLeft => hint::TWO_RIGHT_INDEX,
+        TwoRight => hint::TWO_LEFT_INDEX,
+        OneDownTwoRight => hint::UP_TWO_LEFT_INDEX,
+        OneDownTwoLeft => hint::UP_TWO_RIGHT_INDEX,
+        TwoDownTwoLeft => hint::TWO_UP_TWO_RIGHT_INDEX,
+        TwoDownOneLeft => hint::TWO_UP_ONE_RIGHT_INDEX,
+        TwoDown => hint::TWO_UP_INDEX,
+        TwoDownOneRight => hint::TWO_UP_ONE_LEFT_INDEX,
+        TwoDownTwoRight => hint::TWO_UP_TWO_LEFT_INDEX,
     };
 
-    hint_sprites[target_index] = target_sprite;
+    hint_sprites[target_index] = target_sprite.map(|sprite|
+        HintSprite {
+            sprite,
+            overlay: None // FIXME add NotSymbol overlay conditionally
+        }
+    );
 
     (
         hint_string,
@@ -2418,14 +2483,23 @@ pub fn update(
                 y += state.sizes.tile_side_length;
 
                 for row in 0..hint::TILES_PER_ROW {
-                    if let Some(sprite) = hint_sprites[row + hint::TILES_PER_ROW * column] {
+                    if let Some(HintSprite{sprite, overlay}) = hint_sprites[row + hint::TILES_PER_ROW * column] {
+                        let xy = DrawXY {
+                            x: left_hint_tile_x + row as DrawX * state.sizes.tile_side_length,
+                            y
+                        };
+
                         commands.push(Sprite(SpriteSpec{
                             sprite,
-                            xy: DrawXY {
-                                x: left_hint_tile_x + row as DrawX * state.sizes.tile_side_length,
-                                y
-                            },
+                            xy,
                         }));
+
+                        if let Some(overlay_sprite) = overlay {
+                            commands.push(Sprite(SpriteSpec{
+                                sprite: overlay_sprite,
+                                xy,
+                            }));
+                        }
                     }
                 }
             }

@@ -14,7 +14,12 @@ fn goal_is_one_down_one_right_produces_the_expected_hints() {
         <_>::default(),
     );
 
-    assert_eq!(EdgeDownRight, sprites[hint::UP_LEFT_INDEX].expect("UP_LEFT_INDEX"));
+    assert_eq!(
+        EdgeDownRight,
+        SpriteKind::from(
+            sprites[hint::UP_LEFT_INDEX].expect("UP_LEFT_INDEX")
+        )
+    );
 }
 
 #[test]
@@ -35,7 +40,12 @@ fn goal_is_one_down_one_left_produces_the_expected_hint_spec() {
         goal_xy,
     );
 
-    assert_eq!(EdgeDownLeft, sprites[hint::UP_RIGHT_INDEX].expect("UP_RIGHT_INDEX"));
+    assert_eq!(
+        EdgeDownLeft,
+        SpriteKind::from(
+            sprites[hint::UP_RIGHT_INDEX].expect("UP_RIGHT_INDEX")
+        )
+    );
 }
 
 #[test]
@@ -56,7 +66,12 @@ fn goal_is_one_up_one_left_produces_the_expected_hint_spec_in_the_max_corner() {
         goal_xy,
     );
 
-    assert_eq!(EdgeUpLeft, sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX"));
+    assert_eq!(
+        EdgeUpLeft,
+        SpriteKind::from(
+            sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX")
+        )
+    );
 }
 
 #[test]
@@ -77,7 +92,12 @@ fn goal_is_one_up_one_left_produces_the_expected_hint_spec_on_the_x_max_edge() {
         goal_xy,
     );
 
-    assert_eq!(EdgeUpLeft, sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX"));
+    assert_eq!(
+        EdgeUpLeft,
+        SpriteKind::from(
+            sprites[hint::DOWN_RIGHT_INDEX].expect("DOWN_RIGHT_INDEX")
+        )
+    );
 }
 
 #[test]
@@ -98,7 +118,12 @@ fn goal_is_two_up_one_left_produces_the_expected_hint_spec() {
         goal_xy,
     );
 
-    assert_eq!(EdgeUpLeft, sprites[hint::TWO_DOWN_ONE_RIGHT_INDEX].expect("TWO_DOWN_ONE_RIGHT_INDEX"));
+    assert_eq!(
+        EdgeUpLeft,
+        SpriteKind::from(
+            sprites[hint::TWO_DOWN_ONE_RIGHT_INDEX].expect("TWO_DOWN_ONE_RIGHT_INDEX")
+        )
+    );
 }
 
 #[test]
@@ -119,5 +144,10 @@ fn goal_is_one_down_two_left_produces_the_expected_hint_spec() {
         goal_xy,
     );
 
-    assert_eq!(EdgeDownLeft, sprites[hint::UP_TWO_RIGHT_INDEX].expect("UP_TWO_RIGHT_INDEX"));
+    assert_eq!(
+        EdgeDownLeft,
+        SpriteKind::from(
+            sprites[hint::UP_TWO_RIGHT_INDEX].expect("UP_TWO_RIGHT_INDEX")
+        )
+    );
 }
