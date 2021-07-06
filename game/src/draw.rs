@@ -181,6 +181,7 @@ pub enum SpriteKind {
     EdgeUpRight,
     EdgeDownLeft,
     EdgeDownRight,
+    NotSymbol,
 }
 
 impl Default for SpriteKind {

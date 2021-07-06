@@ -45,7 +45,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         Hint | GoalDistanceHint => 9.0,
         EdgeUp | EdgeDown | EdgeLeft | EdgeRight
         | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 10.,
-        QuestionMark => 11.,
+        QuestionMark | NotSymbol => 11.,
         RedGreen => 12.,
         GreenBlue => 13.,
         BlueRed => 14.,
@@ -71,7 +71,8 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | BlueRed
         | EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 0.,
         GoalDistanceHint
-        | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 1.,
+        | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight
+        | NotSymbol => 1.,
     };
 
     let rotation = match sprite {
@@ -93,7 +94,8 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | BlueRed
         | GoalDistanceHint
         | EdgeDown
-        | EdgeDownRight => 0.,
+        | EdgeDownRight
+        | NotSymbol => 0.,
         EdgeLeft | EdgeDownLeft => 90.,
         EdgeUp | EdgeUpLeft => 180.,
         EdgeRight | EdgeUpRight => 270.,
@@ -290,7 +292,8 @@ mod raylib_rs_platform {
                 | EdgeUpLeft
                 | EdgeUpRight
                 | EdgeDownLeft
-                | EdgeDownRight => NO_TINT,
+                | EdgeDownRight
+                | NotSymbol => NO_TINT,
                 RulerEnd => RULER_TINT
             }
         }
