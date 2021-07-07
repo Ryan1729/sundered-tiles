@@ -31,6 +31,15 @@ fn xs_u32(xs: &mut Xs, min: u32, one_past_max: u32) -> u32 {
     (xorshift(xs) % (one_past_max - min)) + min
 }
 
+fn xs_shuffle<A>(rng: &mut Xs, slice: &mut [A]) {
+    for i in 1..slice.len() as u32 {
+        // This only shuffles the first u32::MAX_VALUE - 1 elements.
+        let r = xs_u32(rng, 0, i + 1) as usize;
+        let i = i as usize;
+        slice.swap(i, r);
+    }
+}
+
 #[allow(unused)]
 fn new_seed(rng: &mut Xs) -> Seed {
     let s0 = xorshift(rng).to_le_bytes();
@@ -947,8 +956,42 @@ mod tile {
         const MAX: Coord = Coord::ALL[Coord::ALL.len() - 1];
     }
 
-    #[derive(Clone, Copy, Debug)]
-    pub(crate) enum RelativeDelta {
+    macro_rules! relative_delta_def {
+        ($( $variants: ident ),+ $(,)?) => {
+            #[derive(Clone, Copy, Debug)]
+            pub(crate) enum RelativeDelta {
+                $($variants,)+
+            }
+
+            impl RelativeDelta {
+                pub const COUNT: usize = {
+                    let mut count = 0;
+
+                    $(
+                        // I think some reference to the vars is needed to use
+                        // the repetitions.
+                        let _ = Self::$variants;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT] = [
+                    $(Self::$variants,)+
+                ];
+            }
+
+            impl Default for RelativeDelta {
+                fn default() -> Self {
+                    Self::ALL[0]
+                }
+            }
+        }
+    }
+
+    relative_delta_def!{
         // Inner ring
         OneUpOneLeft,
         OneUp,
@@ -986,12 +1029,11 @@ mod tile {
     /// * It seems like it would be more mentally taxing to integrate more 
     ///   `GoalIsNot` hints. So it might be best if the player is encouraged to do 
     ///   this less.
-    const HINTS_PER_GOAL_IS_NOT: usize = 3;
+    pub(crate) const HINTS_PER_GOAL_IS_NOT: usize = 3;
 
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
-        #[allow(unused)] // FIXME actually use this
         GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT])
     }
 
@@ -1270,7 +1312,7 @@ impl Tiles {
             Kind::*,
             Visibility::*,
             HintSpec::*,
-            RelativeDelta::*,
+            RelativeDelta::{self, *},
             DistanceIntel::{self, *},
             GoalDistanceIntel
         };
@@ -1417,6 +1459,25 @@ impl Tiles {
         set_hint!(GoalIs(TwoDown));
         set_hint!(GoalIs(TwoDownOneRight));
         set_hint!(GoalIs(TwoDownTwoRight));
+
+        {
+            use tile::HINTS_PER_GOAL_IS_NOT;
+
+            let mut deck = RelativeDelta::ALL.clone();
+            xs_shuffle(rng, &mut deck);
+
+            let mut deck_unused_i = 0;
+            while RelativeDelta::ALL.len() - deck_unused_i >= HINTS_PER_GOAL_IS_NOT {
+                let mut deltas = [RelativeDelta::default(); HINTS_PER_GOAL_IS_NOT];
+
+                for i in 0..HINTS_PER_GOAL_IS_NOT {
+                    deltas[i] = deck[deck_unused_i];
+                    deck_unused_i += 1;
+                }
+
+                set_hint!(GoalIsNot(deltas));
+            }
+        }
 
         Self {
             tiles,
