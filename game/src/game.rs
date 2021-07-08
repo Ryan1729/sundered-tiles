@@ -1031,10 +1031,14 @@ mod tile {
     ///   this less.
     pub(crate) const HINTS_PER_GOAL_IS_NOT: usize = 3;
 
+    // Should always be in the range 1 to Kind::COUNT - 1
+    // type KindOffset = u8;
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
-        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT])
+        // FIXME add KindOffset, and actually use it
+        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT]/*, KindOffset*/)
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -2055,29 +2059,7 @@ fn render_hint_spec(
     use tile::{HintSpec::*, RelativeDelta::*};
     use WentOff::*;
 
-    // FIXME implement `GoalIsNot` case properly, by looping over the array and 
-    // updating the descrption and hint sprites accordingly
-    let relative_delta = match hint_spec {
-        GoalIs(relative_delta) => relative_delta,
-        GoalIsNot(relative_deltas) => relative_deltas[0],
-    };
-
-    let HintTarget{ direction, xy: target_xy } = render_hint_target(
-        relative_delta,
-        goal_xy,
-    );
-
-    let description = if let Ok(target_xy) = target_xy {
-        tile::kind_description(get_tile_from_array(tile_array, target_xy).data.kind)
-    } else {
-        "the edge of the grid"
-    };
-
-    let hint_string = format!(
-        "The goal is {} from {}.",
-        direction,
-        description
-    );
+    let mut hint_string = String::new();
 
     let mut hint_sprites = [
         Some(HintSprite { 
@@ -2087,71 +2069,197 @@ fn render_hint_spec(
         hint::TILES_COUNT
     ];
 
-    hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
-        sprite: goal_sprite,
-        overlay: None
-    });
+    fn target_index_from_relative_delta(
+        relative_delta: tile::RelativeDelta
+    ) -> usize {
+        match relative_delta {
+            OneUpOneLeft => hint::DOWN_RIGHT_INDEX,
+            OneUp => hint::DOWN_INDEX,
+            OneUpOneRight => hint::DOWN_LEFT_INDEX,
+            OneLeft => hint::RIGHT_INDEX,
+            OneRight => hint::LEFT_INDEX,
+            OneDownOneLeft => hint::UP_RIGHT_INDEX,
+            OneDown => hint::UP_INDEX,
+            OneDownOneRight => hint::UP_LEFT_INDEX,
+    
+            TwoUpTwoLeft => hint::TWO_DOWN_TWO_RIGHT_INDEX,
+            TwoUpOneLeft => hint::TWO_DOWN_ONE_RIGHT_INDEX,
+            TwoUp => hint::TWO_DOWN_INDEX,
+            TwoUpOneRight => hint::TWO_DOWN_ONE_LEFT_INDEX,
+            TwoUpTwoRight => hint::TWO_DOWN_TWO_LEFT_INDEX,
+            OneUpTwoLeft => hint::DOWN_TWO_RIGHT_INDEX,
+            OneUpTwoRight => hint::DOWN_TWO_LEFT_INDEX,
+            TwoLeft => hint::TWO_RIGHT_INDEX,
+            TwoRight => hint::TWO_LEFT_INDEX,
+            OneDownTwoRight => hint::UP_TWO_LEFT_INDEX,
+            OneDownTwoLeft => hint::UP_TWO_RIGHT_INDEX,
+            TwoDownTwoLeft => hint::TWO_UP_TWO_RIGHT_INDEX,
+            TwoDownOneLeft => hint::TWO_UP_ONE_RIGHT_INDEX,
+            TwoDown => hint::TWO_UP_INDEX,
+            TwoDownOneRight => hint::TWO_UP_ONE_LEFT_INDEX,
+            TwoDownTwoRight => hint::TWO_UP_TWO_LEFT_INDEX,
+        }
+    }
 
-    let target_sprite: Option<SpriteKind> = match target_xy {
-        Ok(target_xy) => {
-            draw::shown_sprite_kind_from_tile_kind(
-                get_tile_from_array(tile_array, target_xy).data.kind,
-                goal_sprite,
-            )
-        },
-        Err(went_off) => {
-            // When talking about which edges were went off of, it's most
-            // natural to talk about the edge from the perspective of the
-            // tile. When talking about the sprite it is most natural to
-            // talk about the direction the arrow is pointing.
-            let sprite = match went_off {
-                UpAndLeftEdges => EdgeDownRight,
-                UpEdge => EdgeDown,
-                UpAndRightEdges => EdgeDownLeft,
-                LeftEdge => EdgeRight,
-                RightEdge => EdgeLeft,
-                DownAndLeftEdges => EdgeUpRight,
-                DownEdge => EdgeUp,
-                DownAndRightEdges => EdgeUpLeft,
+    match hint_spec {
+        GoalIs(relative_delta) => {
+            let HintTarget{ direction, xy: target_xy } = render_hint_target(
+                relative_delta,
+                goal_xy,
+            );
+        
+            let description = if let Ok(target_xy) = target_xy {
+                tile::kind_description(get_tile_from_array(tile_array, target_xy).data.kind)
+            } else {
+                "the edge of the grid"
             };
-            Some(sprite)
-        }
+        
+            hint_string.push_str(&format!(
+                "The goal is {} from {}.",
+                direction,
+                description
+            ));
+        
+            hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
+                sprite: goal_sprite,
+                overlay: None
+            });
+        
+            let target_sprite: Option<SpriteKind> = match target_xy {
+                Ok(target_xy) => {
+                    draw::shown_sprite_kind_from_tile_kind(
+                        get_tile_from_array(tile_array, target_xy).data.kind,
+                        goal_sprite,
+                    )
+                },
+                Err(went_off) => {
+                    // When talking about which edges were went off of, it's most
+                    // natural to talk about the edge from the perspective of the
+                    // tile. When talking about the sprite it is most natural to
+                    // talk about the direction the arrow is pointing.
+                    let sprite = match went_off {
+                        UpAndLeftEdges => EdgeDownRight,
+                        UpEdge => EdgeDown,
+                        UpAndRightEdges => EdgeDownLeft,
+                        LeftEdge => EdgeRight,
+                        RightEdge => EdgeLeft,
+                        DownAndLeftEdges => EdgeUpRight,
+                        DownEdge => EdgeUp,
+                        DownAndRightEdges => EdgeUpLeft,
+                    };
+                    Some(sprite)
+                }
+            };
+        
+            let target_index = target_index_from_relative_delta(
+                relative_delta
+            );
+        
+            hint_sprites[target_index] = target_sprite.map(|sprite|
+                HintSprite {
+                    sprite,
+                    overlay: None
+                }
+            );
+        },
+        GoalIsNot(relative_deltas) => {
+            use tile::HINTS_PER_GOAL_IS_NOT;
+
+            hint_string.push_str("The goal is not ");
+
+            for i in 0..HINTS_PER_GOAL_IS_NOT {
+                let relative_delta = relative_deltas[i];
+
+                let HintTarget{ direction, xy: target_xy } = render_hint_target(
+                    relative_delta,
+                    goal_xy,
+                );
+
+                let different_kind = match target_xy {
+                    Ok(target_xy) => {
+                        let actual_kind = get_tile_from_array(
+                            tile_array,
+                            target_xy
+                        ).data.kind;
+    
+                        // FIXME use a kind offset to choose different tile kind,
+                        // and even return Err here sometimes.
+                        Ok(actual_kind)
+                    },
+                    Err(went_off) => {
+                        // FIXME use a kind offset to choose different tile kind,
+                        // and even return Ok here most of the time.
+                        Err(went_off)
+                    }
+                };
+            
+                let description = if let Ok(different_kind) = different_kind {
+                    tile::kind_description(
+                        different_kind
+                    )
+                } else {
+                    "the edge of the grid"
+                };
+            
+                hint_string.push_str(&format!(
+                    "{} from {}{}",
+                    direction,
+                    description,
+                    if i == HINTS_PER_GOAL_IS_NOT - 1 {
+                        "."
+                    } else if i == HINTS_PER_GOAL_IS_NOT - 2 {
+                        ", or "
+                    } else {
+                        ", "
+                    }
+                ));
+            
+                hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
+                    sprite: goal_sprite,
+                    overlay: None
+                });
+            
+                let target_sprite: Option<SpriteKind> = match different_kind {
+                    Ok(different_kind) => {
+                        draw::shown_sprite_kind_from_tile_kind(
+                            different_kind,
+                            goal_sprite,
+                        )
+                    },
+                    Err(went_off) => {
+                        // FIXME reduce duplication with the similar match above
+
+                        // When talking about which edges were went off of, it's most
+                        // natural to talk about the edge from the perspective of the
+                        // tile. When talking about the sprite it is most natural to
+                        // talk about the direction the arrow is pointing.
+                        let sprite = match went_off {
+                            UpAndLeftEdges => EdgeDownRight,
+                            UpEdge => EdgeDown,
+                            UpAndRightEdges => EdgeDownLeft,
+                            LeftEdge => EdgeRight,
+                            RightEdge => EdgeLeft,
+                            DownAndLeftEdges => EdgeUpRight,
+                            DownEdge => EdgeUp,
+                            DownAndRightEdges => EdgeUpLeft,
+                        };
+                        Some(sprite)
+                    }
+                };
+            
+                let target_index = target_index_from_relative_delta(
+                    relative_delta
+                );
+            
+                hint_sprites[target_index] = target_sprite.map(|sprite|
+                    HintSprite {
+                        sprite,
+                        overlay: Some(NotSymbol)
+                    }
+                );
+            }
+        },
     };
-
-    let target_index = match relative_delta {
-        OneUpOneLeft => hint::DOWN_RIGHT_INDEX,
-        OneUp => hint::DOWN_INDEX,
-        OneUpOneRight => hint::DOWN_LEFT_INDEX,
-        OneLeft => hint::RIGHT_INDEX,
-        OneRight => hint::LEFT_INDEX,
-        OneDownOneLeft => hint::UP_RIGHT_INDEX,
-        OneDown => hint::UP_INDEX,
-        OneDownOneRight => hint::UP_LEFT_INDEX,
-
-        TwoUpTwoLeft => hint::TWO_DOWN_TWO_RIGHT_INDEX,
-        TwoUpOneLeft => hint::TWO_DOWN_ONE_RIGHT_INDEX,
-        TwoUp => hint::TWO_DOWN_INDEX,
-        TwoUpOneRight => hint::TWO_DOWN_ONE_LEFT_INDEX,
-        TwoUpTwoRight => hint::TWO_DOWN_TWO_LEFT_INDEX,
-        OneUpTwoLeft => hint::DOWN_TWO_RIGHT_INDEX,
-        OneUpTwoRight => hint::DOWN_TWO_LEFT_INDEX,
-        TwoLeft => hint::TWO_RIGHT_INDEX,
-        TwoRight => hint::TWO_LEFT_INDEX,
-        OneDownTwoRight => hint::UP_TWO_LEFT_INDEX,
-        OneDownTwoLeft => hint::UP_TWO_RIGHT_INDEX,
-        TwoDownTwoLeft => hint::TWO_UP_TWO_RIGHT_INDEX,
-        TwoDownOneLeft => hint::TWO_UP_ONE_RIGHT_INDEX,
-        TwoDown => hint::TWO_UP_INDEX,
-        TwoDownOneRight => hint::TWO_UP_ONE_LEFT_INDEX,
-        TwoDownTwoRight => hint::TWO_UP_TWO_LEFT_INDEX,
-    };
-
-    hint_sprites[target_index] = target_sprite.map(|sprite|
-        HintSprite {
-            sprite,
-            overlay: None // FIXME add NotSymbol overlay conditionally
-        }
-    );
 
     (
         hint_string,
