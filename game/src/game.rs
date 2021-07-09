@@ -1031,9 +1031,6 @@ mod tile {
     ///   this less.
     pub(crate) const HINTS_PER_GOAL_IS_NOT: usize = 3;
 
-    // Should always be in the range 1 to Kind::COUNT - 1
-    // type KindOffset = u8;
-
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
@@ -1058,6 +1055,85 @@ mod tile {
     impl Default for Kind {
         fn default() -> Self {
             Self::Empty
+        }
+    }
+
+    // Should always be lower than HintTile::COUNT
+    pub type HintTileIndex = usize;
+
+    macro_rules! hint_tile_def {
+        (
+            Kind { $( $kind_variants: ident ),+ $(,)? }
+            WentOff{ $( $went_off_variants: ident ),+ $(,)? }
+        ) => {
+            #[derive(Copy, Clone, Debug)]
+            pub(crate) enum WentOff {
+                $($went_off_variants,)+
+            }
+
+            #[derive(Clone, Copy, Debug)]
+            pub(crate) enum HintTile {
+                $( $kind_variants,)*
+                $( $went_off_variants,)*
+            }
+
+            impl HintTile {
+                pub const COUNT: usize = {
+                    let mut count = 0;
+
+                    $(
+                        // I think some reference to the vars is needed to use
+                        // the repetitions.
+                        let _ = Self::$kind_variants;
+
+                        count += 1;
+                    )+
+
+                    $(
+                        // Otherwise how would this tell the difference?
+                        let _ = Self::$went_off_variants;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT] = [
+                    $(Self::$kind_variants,)+
+                    $(Self::$went_off_variants,)+
+                ];
+            }
+        }
+    }
+
+    // TODO Is there a reasonable way to use some macro trickery to avoid needing to
+    // keep this list and Kind's defintion in sync manually?
+    hint_tile_def!{
+        Kind {
+            Empty,
+            Red,
+            RedStar,
+            RedGreen,
+            Green,
+            GreenStar,
+            GreenBlue,
+            Blue,
+            BlueStar,
+            BlueRed,
+            Goal,
+            Hint,
+            GoalDistance,
+        }
+        WentOff {
+            UpAndLeftEdges,
+            UpEdge,
+            UpAndRightEdges,
+            LeftEdge,
+            RightEdge,
+            DownAndLeftEdges,
+            DownEdge,
+            DownAndRightEdges,
         }
     }
 
@@ -1773,30 +1849,17 @@ impl From<HintSprite> for SpriteKind {
 
 type HintInfo = (String, [Option<HintSprite>; hint::TILES_COUNT]);
 
-#[derive(Copy, Clone, Debug)]
-enum WentOff {
-    UpAndLeftEdges,
-    UpEdge,
-    UpAndRightEdges,
-    LeftEdge,
-    RightEdge,
-    DownAndLeftEdges,
-    DownEdge,
-    DownAndRightEdges,
-}
-
 struct HintTarget {
     direction: &'static str,
-    xy: Result<tile::XY, WentOff>,
+    xy: Result<tile::XY, tile::WentOff>,
 }
 
 fn render_hint_target(
     relative_delta: tile::RelativeDelta,
     goal_xy: tile::XY,
 ) -> HintTarget {
-    use tile::{RelativeDelta::*};
+    use tile::{RelativeDelta::*, WentOff::{self, *}};
 
-    use WentOff::*;
     fn merge(a: WentOff, b: WentOff) -> WentOff {
         match (a, b) {
             (UpEdge, LeftEdge)
@@ -2056,8 +2119,7 @@ fn render_hint_spec(
     goal_xy: tile::XY,
 ) -> HintInfo {
     use SpriteKind::*;
-    use tile::{HintSpec::*, RelativeDelta::*};
-    use WentOff::*;
+    use tile::{HintSpec::*, RelativeDelta::*, WentOff::*};
 
     let mut hint_string = String::new();
 
@@ -2162,7 +2224,7 @@ fn render_hint_spec(
                 }
             );
         },
-        GoalIsNot(relative_deltas) => {
+        GoalIsNot(relative_deltas/*, hint_tile_offset*/) => {
             use tile::HINTS_PER_GOAL_IS_NOT;
 
             hint_string.push_str("The goal is not ");
@@ -2175,22 +2237,35 @@ fn render_hint_spec(
                     goal_xy,
                 );
 
-                let different_kind = match target_xy {
-                    Ok(target_xy) => {
-                        let actual_kind = get_tile_from_array(
-                            tile_array,
-                            target_xy
-                        ).data.kind;
+                let different_kind = {
+                    let hint_tile_index: tile::HintTileIndex = match target_xy {
+                        Ok(target_xy) => {
+                            #[allow(unused)]
+                            let actual_kind = get_tile_from_array(
+                                tile_array,
+                                target_xy
+                            ).data.kind;
     
-                        // FIXME use a kind offset to choose different tile kind,
-                        // and even return Err here sometimes.
-                        Ok(actual_kind)
-                    },
-                    Err(went_off) => {
-                        // FIXME use a kind offset to choose different tile kind,
-                        // and even return Ok here most of the time.
-                        Err(went_off)
-                    }
+                            // See FIXME below
+                            //tile::HintTile::index_from_kind(actual_kind)
+                            0
+                        },
+                        Err(_went_off) => {
+                            // See FIXME below
+                            //tile::HintTile::index_from_went_off(went_off)
+                            1
+                        }
+                    };
+
+                    #[allow(unused)]
+                    let hint_tile_kind = tile::HintTile::ALL[
+                        (hint_tile_index/* + hint_tile_offset*/)
+                        % tile::HintTile::ALL.len()
+                    ];
+
+                    // FIXME implement tile::Kind -> tile::HintTile instead,
+                    // and implement descriptions etc. in terms of tile::HintTile.
+                    Err(UpAndLeftEdges)
                 };
             
                 let description = if let Ok(different_kind) = different_kind {
