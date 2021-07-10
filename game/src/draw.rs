@@ -226,28 +226,33 @@ pub(crate) fn sprite_kind_from_tile_kind(
     Some(sprite_kind)
 }
 
-pub(crate) fn shown_sprite_kind_from_tile_kind(
-    kind: tile::Kind,
+pub(crate) fn sprite_kind_from_hint_tile(
+    hint_tile: tile::HintTile,
     goal_sprite: SpriteKind,
 ) -> Option<SpriteKind> {
-    use tile::{Kind::*, DistanceIntel::*, PrevNext::*};
-    let sprite_kind = match kind {
+    use tile::{HintTile::*};
+    let sprite_kind = match hint_tile {
         Empty => return None,
-        Red(_, PartialColour(Prev)) => SpriteKind::BlueRed,
-        Red(_, PartialColour(Next)) => SpriteKind::RedGreen,
-        Red(_, _) => SpriteKind::Red,
-        RedStar(_) => SpriteKind::RedStar,
-        Green(_, PartialColour(Prev)) => SpriteKind::RedGreen,
-        Green(_, PartialColour(Next)) => SpriteKind::GreenBlue,
-        Green(_, _) => SpriteKind::Green,
-        GreenStar(_) => SpriteKind::GreenStar,
-        Blue(_, PartialColour(Prev)) => SpriteKind::GreenBlue,
-        Blue(_, PartialColour(Next)) => SpriteKind::BlueRed,
-        Blue(_, _) => SpriteKind::Blue,
-        BlueStar(_) => SpriteKind::BlueStar,
-        Goal(_) => goal_sprite,
-        Hint(_, _) => SpriteKind::Hint,
-        GoalDistance(_, _) => SpriteKind::GoalDistanceHint,
+        Red => SpriteKind::Red,
+        RedStar => SpriteKind::RedStar,
+        RedGreen => SpriteKind::RedGreen,
+        Green => SpriteKind::Green,
+        GreenStar => SpriteKind::GreenStar,
+        GreenBlue => SpriteKind::GreenBlue,
+        Blue => SpriteKind::Blue,
+        BlueStar => SpriteKind::BlueStar,
+        BlueRed => SpriteKind::BlueRed,
+        Goal => goal_sprite,
+        Hint => SpriteKind::Hint,
+        GoalDistance => SpriteKind::GoalDistanceHint,
+        UpAndLeftEdges => SpriteKind::EdgeDownRight,
+        UpEdge => SpriteKind::EdgeDown,
+        UpAndRightEdges => SpriteKind::EdgeDownLeft,
+        LeftEdge => SpriteKind::EdgeRight,
+        RightEdge => SpriteKind::EdgeLeft,
+        DownAndLeftEdges => SpriteKind::EdgeUpRight,
+        DownEdge => SpriteKind::EdgeUp,
+        DownAndRightEdges => SpriteKind::EdgeUpLeft,
     };
 
     Some(sprite_kind)

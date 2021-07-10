@@ -1071,7 +1071,7 @@ mod tile {
                 $($went_off_variants,)+
             }
 
-            #[derive(Clone, Copy, Debug)]
+            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
             pub(crate) enum HintTile {
                 $( $kind_variants,)*
                 $( $went_off_variants,)*
@@ -1134,6 +1134,53 @@ mod tile {
             DownAndLeftEdges,
             DownEdge,
             DownAndRightEdges,
+        }
+    }
+
+    pub(crate) fn hint_tile_from_kind(kind: Kind) -> HintTile {
+        use HintTile::*;
+        use DistanceIntel::*;
+        use PrevNext::*;
+        match kind {
+            Kind::Empty => Empty,
+            Kind::Red(_, PartialColour(Prev)) => BlueRed,
+            Kind::Red(_, PartialColour(Next)) => RedGreen,
+            Kind::Red(_, _) => Red,
+            Kind::RedStar(_) => RedStar,
+            Kind::Green(_, PartialColour(Prev)) => RedGreen,
+            Kind::Green(_, PartialColour(Next)) => GreenBlue,
+            Kind::Green(_, _) => Green,
+            Kind::GreenStar(_) => GreenStar,
+            Kind::Blue(_, PartialColour(Prev)) => GreenBlue,
+            Kind::Blue(_, PartialColour(Next)) => BlueRed,
+            Kind::Blue(_, _) => Blue,
+            Kind::BlueStar(_) => BlueStar,
+            Kind::Goal(_) => Goal,
+            Kind::Hint(_, _) => Hint,
+            Kind::GoalDistance(_, _) => GoalDistance,
+        }
+    }
+
+    pub(crate) fn hint_tile_from_went_off(went_off: WentOff) -> HintTile {
+        use HintTile::*;
+        match went_off {
+            WentOff::UpAndLeftEdges => UpAndLeftEdges,
+            WentOff::UpEdge => UpEdge,
+            WentOff::UpAndRightEdges => UpAndRightEdges,
+            WentOff::LeftEdge => LeftEdge,
+            WentOff::RightEdge => RightEdge,
+            WentOff::DownAndLeftEdges => DownAndLeftEdges,
+            WentOff::DownEdge => DownEdge,
+            WentOff::DownAndRightEdges => DownAndRightEdges,
+        }
+    }
+
+    pub(crate) fn hint_tile_from_kind_went_off_result(
+        result: Result<Kind, WentOff>
+    ) -> HintTile {
+        match result {
+            Ok(kind) => hint_tile_from_kind(kind),
+            Err(went_off) => hint_tile_from_went_off(went_off),
         }
     }
 
@@ -1201,6 +1248,34 @@ mod tile {
             Goal(..) => "the goal tile",
             Hint(..) => "a hint tile",
             GoalDistance(_, _) => "a goal distance hint tile",
+        }
+    }
+
+    pub(crate) fn hint_tile_description(hint_tile: HintTile) -> &'static str {
+        use HintTile::*;
+        match hint_tile {
+            Empty => "an empty space",
+            RedGreen => "a red/green tile",
+            Red => "a red tile",
+            RedStar => "the red star tile",
+            GreenBlue => "a green/blue tile",
+            Green => "a green tile",
+            GreenStar => "the green star tile",
+            BlueRed => "a blue/red tile",
+            Blue => "a blue tile",
+            BlueStar => "the blue star tile",
+            Goal => "the goal tile",
+            Hint => "a hint tile",
+            GoalDistance => "a goal distance hint tile",
+            // TODO distinct descriptions for these?
+            UpAndLeftEdges
+            | UpEdge
+            | UpAndRightEdges
+            | LeftEdge
+            | RightEdge
+            | DownAndLeftEdges
+            | DownEdge
+            | DownAndRightEdges => "the edge of the grid",
         }
     }
 
@@ -2189,8 +2264,10 @@ fn render_hint_spec(
         
             let target_sprite: Option<SpriteKind> = match target_xy {
                 Ok(target_xy) => {
-                    draw::shown_sprite_kind_from_tile_kind(
-                        get_tile_from_array(tile_array, target_xy).data.kind,
+                    draw::sprite_kind_from_hint_tile(
+                        tile::hint_tile_from_kind(
+                            get_tile_from_array(tile_array, target_xy).data.kind
+                        ),
                         goal_sprite,
                     )
                 },
@@ -2237,44 +2314,33 @@ fn render_hint_spec(
                     goal_xy,
                 );
 
-                let different_kind = {
-                    let hint_tile_index: tile::HintTileIndex = match target_xy {
-                        Ok(target_xy) => {
-                            #[allow(unused)]
-                            let actual_kind = get_tile_from_array(
+                let different_hint_tile = {
+                    let actual_hint_tile = tile::hint_tile_from_kind_went_off_result(
+                        target_xy.map(|target_xy| 
+                            get_tile_from_array(
                                 tile_array,
                                 target_xy
-                            ).data.kind;
-    
-                            // See FIXME below
-                            //tile::HintTile::index_from_kind(actual_kind)
-                            0
-                        },
-                        Err(_went_off) => {
-                            // See FIXME below
-                            //tile::HintTile::index_from_went_off(went_off)
-                            1
+                            ).data.kind
+                        )
+                    );
+                    let mut hint_tile_index: tile::HintTileIndex = 0;
+                    for &hint_tile in tile::HintTile::ALL.iter() {
+                        if actual_hint_tile == hint_tile {
+                            break;
                         }
-                    };
 
-                    #[allow(unused)]
-                    let hint_tile_kind = tile::HintTile::ALL[
+                        hint_tile_index += 1;
+                    }
+
+                    tile::HintTile::ALL[
                         (hint_tile_index/* + hint_tile_offset*/)
                         % tile::HintTile::ALL.len()
-                    ];
-
-                    // FIXME implement tile::Kind -> tile::HintTile instead,
-                    // and implement descriptions etc. in terms of tile::HintTile.
-                    Err(UpAndLeftEdges)
+                    ]
                 };
             
-                let description = if let Ok(different_kind) = different_kind {
-                    tile::kind_description(
-                        different_kind
-                    )
-                } else {
-                    "the edge of the grid"
-                };
+                let description = tile::hint_tile_description(
+                    different_hint_tile
+                );
             
                 hint_string.push_str(&format!(
                     "{} from {}{}",
@@ -2294,33 +2360,11 @@ fn render_hint_spec(
                     overlay: None
                 });
             
-                let target_sprite: Option<SpriteKind> = match different_kind {
-                    Ok(different_kind) => {
-                        draw::shown_sprite_kind_from_tile_kind(
-                            different_kind,
-                            goal_sprite,
-                        )
-                    },
-                    Err(went_off) => {
-                        // FIXME reduce duplication with the similar match above
-
-                        // When talking about which edges were went off of, it's most
-                        // natural to talk about the edge from the perspective of the
-                        // tile. When talking about the sprite it is most natural to
-                        // talk about the direction the arrow is pointing.
-                        let sprite = match went_off {
-                            UpAndLeftEdges => EdgeDownRight,
-                            UpEdge => EdgeDown,
-                            UpAndRightEdges => EdgeDownLeft,
-                            LeftEdge => EdgeRight,
-                            RightEdge => EdgeLeft,
-                            DownAndLeftEdges => EdgeUpRight,
-                            DownEdge => EdgeUp,
-                            DownAndRightEdges => EdgeUpLeft,
-                        };
-                        Some(sprite)
-                    }
-                };
+                let target_sprite: Option<SpriteKind> = 
+                    draw::sprite_kind_from_hint_tile(
+                        different_hint_tile,
+                        goal_sprite,
+                    );
             
                 let target_index = target_index_from_relative_delta(
                     relative_delta
