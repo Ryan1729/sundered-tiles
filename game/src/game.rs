@@ -1034,8 +1034,7 @@ mod tile {
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
-        // FIXME add KindOffset, and actually use it
-        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT]/*, KindOffset*/)
+        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT], NonZeroHintTileIndex)
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -1058,8 +1057,10 @@ mod tile {
         }
     }
 
-    // Should always be lower than HintTile::COUNT
+    /// Should always be lower than HintTile::COUNT.
     pub type HintTileIndex = usize;
+    /// Should always be lower than HintTile::COUNT.
+    pub type NonZeroHintTileIndex = core::num::NonZeroUsize;
 
     macro_rules! hint_tile_def {
         (
@@ -1103,6 +1104,12 @@ mod tile {
                     $(Self::$kind_variants,)+
                     $(Self::$went_off_variants,)+
                 ];
+
+                // SAFTEY: The `+` instead of `*` in the macro definition should prevent this 
+                // from being zero.
+                pub const NON_ZERO_MAX_INDEX: NonZeroHintTileIndex = unsafe {
+                    NonZeroHintTileIndex::new_unchecked(Self::COUNT - 1)
+                };
             }
         }
     }
@@ -1616,7 +1623,12 @@ impl Tiles {
         set_hint!(GoalIs(TwoDownTwoRight));
 
         {
-            use tile::HINTS_PER_GOAL_IS_NOT;
+            use tile::{
+                HintTileIndex,
+                NonZeroHintTileIndex,
+                HintTile,
+                HINTS_PER_GOAL_IS_NOT
+            };
 
             let mut deck = RelativeDelta::ALL.clone();
             xs_shuffle(rng, &mut deck);
@@ -1630,7 +1642,11 @@ impl Tiles {
                     deck_unused_i += 1;
                 }
 
-                set_hint!(GoalIsNot(deltas));
+                let offset = xs_u32(rng, 1, HintTile::COUNT as u32);
+                let offset = NonZeroHintTileIndex::new(offset as HintTileIndex)
+                    .unwrap_or(HintTile::NON_ZERO_MAX_INDEX);
+
+                set_hint!(GoalIsNot(deltas, offset));
             }
         }
 
@@ -2301,7 +2317,7 @@ fn render_hint_spec(
                 }
             );
         },
-        GoalIsNot(relative_deltas/*, hint_tile_offset*/) => {
+        GoalIsNot(relative_deltas, hint_tile_offset) => {
             use tile::HINTS_PER_GOAL_IS_NOT;
 
             hint_string.push_str("The goal is not ");
@@ -2333,7 +2349,7 @@ fn render_hint_spec(
                     }
 
                     tile::HintTile::ALL[
-                        (hint_tile_index/* + hint_tile_offset*/)
+                        (hint_tile_index + hint_tile_offset.get())
                         % tile::HintTile::ALL.len()
                     ]
                 };
