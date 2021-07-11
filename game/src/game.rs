@@ -1642,6 +1642,16 @@ impl Tiles {
                     deck_unused_i += 1;
                 }
 
+                // FIXME Since there is only one offset, if there are multiple tiles 
+                // of the same type in a given hint, then they are all the same 
+                // different type which leaks the fact that they are all the same.
+                // Suggested fix: HINTS_PER_GOAL_IS_NOT offsets.
+
+                // FIXME off-the-edge tiles can currently offset into other 
+                // off-the-edge which is misleading.
+                // Suggested fix: extra backup index offset for when this happens.
+                // (Does using the same one for each tile leak infomration?)
+
                 let offset = xs_u32(rng, 1, HintTile::COUNT as u32);
                 let offset = NonZeroHintTileIndex::new(offset as HintTileIndex)
                     .unwrap_or(HintTile::NON_ZERO_MAX_INDEX);
