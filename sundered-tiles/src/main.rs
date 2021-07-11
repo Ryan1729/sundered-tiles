@@ -584,6 +584,23 @@ mod raylib_rs_platform {
                                         TEXT
                                     );
                                 },
+                                TextKind::HintString => {
+                                    shader_d.draw_text_rec(
+                                        &font,
+                                        &t.text,
+                                        Rectangle {
+                                            x: t.xy.x,
+                                            y: t.xy.y,
+                                            width: t.wh.w,
+                                            height: t.wh.h,
+                                        },
+                                        // Constant arrived at through trial and error.
+                                        sizes.draw_wh.w * (1./60.),
+                                        1.,
+                                        true, // word_wrap
+                                        TEXT
+                                    );
+                                },
                                 _ => {
                                     shader_d.draw_text_rec(
                                         &font,

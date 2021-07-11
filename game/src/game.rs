@@ -2732,7 +2732,7 @@ pub fn update(
     const MARGIN: f32 = 16.;
 
     let small_section_h = state.sizes.draw_wh.h / 8. - MARGIN;
-    let large_section_h = small_section_h * 4.;
+
     {
         let mut y = MARGIN;
 
@@ -2769,18 +2769,6 @@ pub fn update(
         // TODO handle the case where there is less than enough room for 
         // tiles at the regular size, better.
         if let Some((hint_string, hint_sprites)) = hint_info {
-            commands.push(Text(TextSpec{
-                text: hint_string,
-                xy: DrawXY { x: left_text_x, y },
-                wh: DrawWH {
-                    w: board_xywh.x - left_text_x,
-                    h: large_section_h
-                },
-                kind: TextKind::HintString,
-            }));
-
-            y += large_section_h;
-
             let left_hint_tile_x = left_text_x + state.sizes.tile_side_length;
 
             for column in 0..hint::TILES_PER_COLUMN {
@@ -2807,6 +2795,18 @@ pub fn update(
                     }
                 }
             }
+
+            y += state.sizes.tile_side_length * 2.;
+
+            commands.push(Text(TextSpec{
+                text: hint_string,
+                xy: DrawXY { x: left_text_x, y },
+                wh: DrawWH {
+                    w: board_xywh.x - left_text_x,
+                    h: board_xywh.h - y
+                },
+                kind: TextKind::HintString,
+            }));
         }
     }
 
