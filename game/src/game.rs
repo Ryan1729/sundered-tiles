@@ -1034,7 +1034,10 @@ mod tile {
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
-        GoalIsNot([RelativeDelta; HINTS_PER_GOAL_IS_NOT], NonZeroHintTileIndex)
+        GoalIsNot(
+            [RelativeDelta; HINTS_PER_GOAL_IS_NOT],
+            [NonZeroHintTileIndex; HINTS_PER_GOAL_IS_NOT]
+        )
     }
 
     #[derive(Clone, Copy, Debug)]
@@ -1642,21 +1645,28 @@ impl Tiles {
                     deck_unused_i += 1;
                 }
 
-                // FIXME Since there is only one offset, if there are multiple tiles 
-                // of the same type in a given hint, then they are all the same 
-                // different type which leaks the fact that they are all the same.
-                // Suggested fix: HINTS_PER_GOAL_IS_NOT offsets.
-
                 // FIXME off-the-edge tiles can currently offset into other 
                 // off-the-edge which is misleading.
                 // Suggested fix: extra backup index offset for when this happens.
                 // (Does using the same one for each tile leak infomration?)
 
-                let offset = xs_u32(rng, 1, HintTile::COUNT as u32);
-                let offset = NonZeroHintTileIndex::new(offset as HintTileIndex)
-                    .unwrap_or(HintTile::NON_ZERO_MAX_INDEX);
+                macro_rules! gen_offset {
+                    () => {{
+                        let offset = xs_u32(rng, 1, HintTile::COUNT as u32);
+                        let offset = NonZeroHintTileIndex::new(offset as HintTileIndex)
+                            .unwrap_or(HintTile::NON_ZERO_MAX_INDEX);
 
-                set_hint!(GoalIsNot(deltas, offset));
+                        offset
+                    }}
+                }
+
+                let offsets = [
+                    gen_offset!(),
+                    gen_offset!(),
+                    gen_offset!(),
+                ];
+
+                set_hint!(GoalIsNot(deltas, offsets));
             }
         }
 
@@ -2327,13 +2337,14 @@ fn render_hint_spec(
                 }
             );
         },
-        GoalIsNot(relative_deltas, hint_tile_offset) => {
+        GoalIsNot(relative_deltas, hint_tile_offsets) => {
             use tile::HINTS_PER_GOAL_IS_NOT;
 
             hint_string.push_str("The goal is not ");
 
             for i in 0..HINTS_PER_GOAL_IS_NOT {
                 let relative_delta = relative_deltas[i];
+                let hint_tile_offset = hint_tile_offsets[i];
 
                 let HintTarget{ direction, xy: target_xy } = render_hint_target(
                     relative_delta,
