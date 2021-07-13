@@ -249,7 +249,8 @@ mod raylib_rs_platform {
                 Err(err) => err.duration(),
             };
     
-            duration.as_nanos()
+            //duration.as_nanos()
+            1625950165047725891
         };
         println!("{}", seed);
 
@@ -506,82 +507,125 @@ mod raylib_rs_platform {
                             );
                         }
                         Text(t) => {
-                            use game::draw::TextKind;
-                            match t.kind {
-                                TextKind::DistanceMarker => {
+                            macro_rules! draw_to_fill_rect {
+                                ($rect: expr, $text: expr) => {{
                                     let mut size = i32::MAX;
                                     let mut low = 0;
                                     let mut high = i32::MAX;
-
+    
                                     let mut width;
                                     let mut next_width;
                                     let mut height;
                                     let mut next_height;
 
+                                    let text = $text;
+    
                                     macro_rules! set_wh {
                                         () => {
-                                            width = measure_text(&t.text, size);
+                                            width = measure_text(text, size);
                                             if width == i32::MIN {
                                                 width = i32::MAX;
                                             }
-                                            next_width = measure_text(&t.text, size.saturating_add(1));
+                                            next_width = measure_text(text, size.saturating_add(1));
                                             if next_width == i32::MIN {
                                                 next_width = i32::MAX;
                                             }
-
+    
                                             // TODO Include line count in height approximation
                                             // TODO really measure height. (9/5 arrived at through trial and error)
                                             height = measure_text("m", size).saturating_mul(9) / 5;
                                             next_height = measure_text("m", size.saturating_add(1)).saturating_mul(9) / 5;
                                         }
                                     }
-
+    
                                     {
                                         #![allow(unused_assignments)]
                                         set_wh!();
                                     }
-
+    
                                     while low <= high {
                                         set_wh!();
-
-                                        let width_does_not_fit = width as f32 > t.wh.w;
-                                        let height_does_not_fit = height as f32 > t.wh.h;
-                                        let next_width_fits = t.wh.w > next_width as f32;
-                                        let next_height_fits = t.wh.h > next_height as f32;
-
+    
+                                        let width_does_not_fit = width as f32 > $rect.width;
+                                        let height_does_not_fit = height as f32 > $rect.height;
+                                        let next_width_fits = $rect.width > next_width as f32;
+                                        let next_height_fits = $rect.height > next_height as f32;
+    
                                         if width_does_not_fit
                                         || height_does_not_fit
                                         || next_width_fits
                                         || next_height_fits {
                                             size = low.saturating_add(high) / 2;
                                         }
-
+    
                                         if width_does_not_fit || height_does_not_fit {
                                             high = size - 1;
                                         }
-
+    
                                         if next_width_fits || next_height_fits {
                                             low = size + 1;
                                         }
                                     }
-
+    
                                     {
                                         #![allow(unused_assignments)]
                                         set_wh!();
                                     }
-
-                                    let desired_center_x = t.xy.x + (t.wh.w / 2.);
-                                    let desired_center_y = t.xy.y + (t.wh.h / 2.);
-
+    
+                                    let desired_center_x = $rect.x + ($rect.width / 2.);
+                                    let desired_center_y = $rect.y + ($rect.height / 2.);
+    
                                     let centered_x = desired_center_x - (width as f32 / 2.);
                                     let centered_y = desired_center_y - (height as f32 / 2.);
-
+    
                                     shader_d.draw_text(
-                                        &t.text,
+                                        $text,
                                         centered_x as i32,
                                         centered_y as i32,
                                         size,
                                         TEXT
+                                    );
+                                }}
+                            }
+
+                            use game::draw::TextKind;
+                            match t.kind {
+                                TextKind::DistanceMarker => {
+                                    let rect = Rectangle {
+                                        x: t.xy.x,
+                                        y: t.xy.y,
+                                        width: t.wh.w,
+                                        height: t.wh.h,
+                                    };
+                                    draw_to_fill_rect!(rect, &t.text);
+                                },
+                                TextKind::ModMarker(modulus) => {
+                                    let width = t.wh.w / 2.;
+                                    let height = t.wh.h * 2. / 3.;
+                                    let top_left_rect = Rectangle {
+                                        x: t.xy.x,
+                                        y: t.xy.y,
+                                        width,
+                                        height,
+                                    };
+                                    draw_to_fill_rect!(top_left_rect, &t.text);
+
+                                    let top_right_rect = Rectangle {
+                                        x: t.xy.x + width,
+                                        y: t.xy.y,
+                                        width,
+                                        height: t.wh.h / 3.,
+                                    };
+                                    draw_to_fill_rect!(top_right_rect, "%");
+                                    let bottom_rect = Rectangle {
+                                        x: t.xy.x + width,
+                                        y: t.xy.y + (t.wh.h - height),
+                                        width,
+                                        height,
+                                    };
+                                    draw_to_fill_rect!(
+                                        bottom_rect,
+                                        &format!("{}", modulus)
                                     );
                                 },
                                 TextKind::HintString => {
@@ -601,7 +645,10 @@ mod raylib_rs_platform {
                                         TEXT
                                     );
                                 },
-                                _ => {
+                                TextKind::Level 
+                                | TextKind::Digs 
+                                | TextKind::Fast 
+                                | TextKind::Ruler => {
                                     shader_d.draw_text_rec(
                                         &font,
                                         &t.text,

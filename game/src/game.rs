@@ -1358,11 +1358,14 @@ mod tile {
         Next
     }
 
+    pub(crate) type DistanceModulus = u8;
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum DistanceIntel {
         Full,
         PartialAmount(IntelDigit),
-        PartialColour(PrevNext),
+        NModM(DistanceModulus),
+        PartialColour(PrevNext), // TODO move PartialColour to Kind variant?
     }
 
     impl Default for DistanceIntel {
@@ -1378,6 +1381,7 @@ mod tile {
             match xs_u32(rng, 0, 3) {
                 0 => Full,
                 1 => PartialAmount(IntelDigit::from_rng(rng)),
+                2 => NModM(xs_u32(rng, 2, 5) as DistanceModulus),
                 _ => if xs_u32(rng, 0, 2) == 1 {
                     PartialColour(Prev)
                 } else {
@@ -1391,6 +1395,7 @@ mod tile {
     pub(crate) enum GoalDistanceIntel {
         Full,
         PartialAmount(IntelDigit),
+        NModM(DistanceModulus)
     }
 
     impl Default for GoalDistanceIntel {
@@ -1405,6 +1410,7 @@ mod tile {
             match intel {
                 Full | PartialColour(..) => Self::Full,
                 PartialAmount(digit) => Self::PartialAmount(digit),
+                NModM(modulus) => Self::NModM(modulus)
             }
         }
     }
@@ -1415,6 +1421,7 @@ mod tile {
             match goal_intel {
                 Full => Self::Full,
                 PartialAmount(digit) => Self::PartialAmount(digit),
+                NModM(modulus) => Self::NModM(modulus)
             }
         }
     }
@@ -2697,9 +2704,12 @@ pub fn update(
 
                     let distance = tile::manhattan_distance(txy, target_xy);
 
+                    let mut text_kind = TextKind::DistanceMarker;
+
                     // We could technically avoid this allocation since there 
                     // are only finitely many needed strings here.
                     let text = match intel {
+                        Full | PartialColour(_) => format!("{}{}", distance / 10, distance % 10),
                         PartialAmount(digit) => {
                             let digit_distance = Distance::from(digit);
                             if distance == digit_distance {
@@ -2710,7 +2720,13 @@ pub fn update(
                                 format!("<{}", digit_distance)
                             }
                         },
-                        _ => format!("{}{}", distance / 10, distance % 10),
+                        NModM(modulus) => {
+                            let modded = distance % (modulus as Distance);
+
+                            text_kind = TextKind::ModMarker(modulus);
+
+                            format!("{}", modded)
+                        }
                     };
 
                     commands.push(Text(TextSpec {
@@ -2720,7 +2736,7 @@ pub fn update(
                             w: state.sizes.tile_side_length,
                             h: state.sizes.tile_side_length,
                         },
-                        kind: TextKind::DistanceMarker,
+                        kind: text_kind,
                     }));
                 }
             }

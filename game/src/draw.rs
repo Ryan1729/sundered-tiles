@@ -279,6 +279,7 @@ pub enum TextKind {
     HintString,
     Fast,
     Ruler,
+    ModMarker(u8),
 }
 
 #[derive(Debug)]
