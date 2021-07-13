@@ -249,8 +249,7 @@ mod raylib_rs_platform {
                 Err(err) => err.duration(),
             };
     
-            //duration.as_nanos()
-            1625950165047725891
+            duration.as_nanos()
         };
         println!("{}", seed);
 
