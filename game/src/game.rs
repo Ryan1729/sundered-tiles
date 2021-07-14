@@ -993,7 +993,9 @@ mod tile {
 
     relative_delta_def!{
         // Ordered left to right top to bottom, so that the descriptions can easily
-        // be put into that order.
+        // be put into that order. We want the descriptions to be the opposite order
+        // but this order is nicer for coding, IMO, so we currently reverse the 
+        // ordering for the descriptions.
         TwoUpTwoLeft,
         TwoUpOneLeft,
         TwoUp,
@@ -1651,7 +1653,8 @@ impl Tiles {
                     deltas[i] = deck[deck_unused_i];
                     deck_unused_i += 1;
                 }
-                deltas.sort();
+                // Reverse order so hints are read top left to bottom right.
+                deltas.sort_by(|a, b| a.cmp(b).reverse());
 
                 // FIXME off-the-edge tiles can currently offset into other 
                 // off-the-edge which is misleading.
