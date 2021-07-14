@@ -958,7 +958,7 @@ mod tile {
 
     macro_rules! relative_delta_def {
         ($( $variants: ident ),+ $(,)?) => {
-            #[derive(Clone, Copy, Debug)]
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
             pub(crate) enum RelativeDelta {
                 $($variants,)+
             }
@@ -992,27 +992,27 @@ mod tile {
     }
 
     relative_delta_def!{
-        // Inner ring
-        OneUpOneLeft,
-        OneUp,
-        OneUpOneRight,
-        OneLeft,
-        OneRight,
-        OneDownOneLeft,
-        OneDown,
-        OneDownOneRight,
-        // Outer ring
+        // Ordered left to right top to bottom, so that the descriptions can easily
+        // be put into that order.
         TwoUpTwoLeft,
         TwoUpOneLeft,
         TwoUp,
         TwoUpOneRight,
         TwoUpTwoRight,
         OneUpTwoLeft,
+        OneUpOneLeft,
+        OneUp,
+        OneUpOneRight,
         OneUpTwoRight,
         TwoLeft,
+        OneLeft,
+        OneRight,
         TwoRight,
-        OneDownTwoRight,
         OneDownTwoLeft,
+        OneDownOneLeft,
+        OneDown,
+        OneDownOneRight,
+        OneDownTwoRight,
         TwoDownTwoLeft,
         TwoDownOneLeft,
         TwoDown,
@@ -1651,6 +1651,7 @@ impl Tiles {
                     deltas[i] = deck[deck_unused_i];
                     deck_unused_i += 1;
                 }
+                deltas.sort();
 
                 // FIXME off-the-edge tiles can currently offset into other 
                 // off-the-edge which is misleading.
