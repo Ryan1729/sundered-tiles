@@ -1032,13 +1032,19 @@ mod tile {
     ///   `GoalIsNot` hints. So it might be best if the player is encouraged to do 
     ///   this less.
     pub(crate) const HINTS_PER_GOAL_IS_NOT: usize = 3;
+    // The last index in an HINTS_PER_GOAL_IS_NOT + 1 array.
+    // AKA (HINTS_PER_GOAL_IS_NOT + 1) - 1;
+    pub(crate) const EXTRA_OFFSET_INDEX: usize = HINTS_PER_GOAL_IS_NOT;
 
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum HintSpec {
         GoalIs(RelativeDelta),
         GoalIsNot(
             [RelativeDelta; HINTS_PER_GOAL_IS_NOT],
-            [NonZeroHintTileIndex; HINTS_PER_GOAL_IS_NOT]
+            // Plus one as a backup offset in case the current offset is bad. For
+            // example if we offset from an off-the-edge tile to another 
+            // off-the-edge tile.
+            [NonZeroHintTileIndex; HINTS_PER_GOAL_IS_NOT + 1]
         )
     }
 
@@ -1195,6 +1201,40 @@ mod tile {
             Err(went_off) => hint_tile_from_went_off(went_off),
         }
     }
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub(crate) enum Category {
+        OffTheEdge,
+        Misc,
+    }
+
+    pub(crate) fn hint_tile_category(hint_tile: HintTile) -> Category {
+        use HintTile::*;
+        match hint_tile {
+            UpAndLeftEdges
+            | UpEdge
+            | UpAndRightEdges
+            | LeftEdge
+            | RightEdge
+            | DownAndLeftEdges
+            | DownEdge
+            | DownAndRightEdges => Category::OffTheEdge,
+            Empty 
+            | Red 
+            | RedStar 
+            | RedGreen 
+            | Green 
+            | GreenStar 
+            | GreenBlue 
+            | Blue 
+            | BlueStar 
+            | BlueRed 
+            | Goal 
+            | Hint 
+            | GoalDistance => Category::Misc,
+        }
+    }
+
 
     pub(crate) fn get_visibility(kind: Kind) -> Option<Visibility> {
         use Kind::*;
@@ -1656,11 +1696,6 @@ impl Tiles {
                 // Reverse order so hints are read top left to bottom right.
                 deltas.sort_by(|a, b| a.cmp(b).reverse());
 
-                // FIXME off-the-edge tiles can currently offset into other 
-                // off-the-edge which is misleading.
-                // Suggested fix: extra backup index offset for when this happens.
-                // (Does using the same one for each tile leak infomration?)
-
                 macro_rules! gen_offset {
                     () => {{
                         let offset = xs_u32(rng, 1, HintTile::COUNT as u32);
@@ -1675,6 +1710,8 @@ impl Tiles {
                     gen_offset!(),
                     gen_offset!(),
                     gen_offset!(),
+                    // Extra in case of bad offsets.
+                    gen_offset!(), 
                 ];
 
                 set_hint!(GoalIsNot(deltas, offsets));
@@ -2349,7 +2386,12 @@ fn render_hint_spec(
             );
         },
         GoalIsNot(relative_deltas, hint_tile_offsets) => {
-            use tile::HINTS_PER_GOAL_IS_NOT;
+            use tile::{
+                Category,
+                hint_tile_category,
+                EXTRA_OFFSET_INDEX,
+                HINTS_PER_GOAL_IS_NOT
+            };
 
             hint_string.push_str("The goal is not ");
 
@@ -2380,10 +2422,55 @@ fn render_hint_spec(
                         hint_tile_index += 1;
                     }
 
-                    tile::HintTile::ALL[
+                    let different_hint_tile_index = 
                         (hint_tile_index + hint_tile_offset.get())
                         % tile::HintTile::ALL.len()
-                    ]
+                    ;
+
+                    let different_hint_tile = tile::HintTile::ALL[
+                        different_hint_tile_index
+                    ];
+
+                    match (
+                        hint_tile_category(actual_hint_tile),
+                        hint_tile_category(different_hint_tile),
+                    ) {
+                        (Category::OffTheEdge, Category::OffTheEdge) => {
+                            let mut corrected_offset = different_hint_tile_index;
+                            while 
+                                hint_tile_category(
+                                    tile::HintTile::ALL[corrected_offset]
+                                ) == Category::OffTheEdge {
+                                corrected_offset += 1;
+                                corrected_offset %= tile::HintTile::COUNT;
+                            }
+
+                            let mut extra_offset_counter = hint_tile_offsets[
+                                EXTRA_OFFSET_INDEX
+                            ].get();
+
+                            while extra_offset_counter > 0 {
+                                corrected_offset += 1;
+                                corrected_offset %= tile::HintTile::COUNT;
+
+                                if hint_tile_category(
+                                    tile::HintTile::ALL[corrected_offset]
+                                ) != Category::OffTheEdge {
+                                    extra_offset_counter -= 1;
+                                }
+                            }
+
+                            tile::HintTile::ALL[corrected_offset]
+                        }
+                        (Category::OffTheEdge, Category::Misc)
+                        | (Category::Misc, Category::OffTheEdge)
+                        // Might make sense to handle (Misc, Misc) differently 
+                        // when/if a third category is added.
+                        | (Category::Misc, Category::Misc) => {
+                            // All good.
+                            different_hint_tile
+                        }
+                    }
                 };
             
                 let description = tile::hint_tile_description(
