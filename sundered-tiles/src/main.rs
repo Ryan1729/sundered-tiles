@@ -249,8 +249,7 @@ mod raylib_rs_platform {
                 Err(err) => err.duration(),
             };
     
-            //duration.as_nanos()
-            1626035911587054475
+            duration.as_nanos()
         };
         println!("{}", seed);
 
@@ -639,7 +638,7 @@ mod raylib_rs_platform {
                                             height: t.wh.h,
                                         },
                                         // Constant arrived at through trial and error.
-                                        sizes.draw_wh.w * (1./60.),
+                                        sizes.draw_wh.w * (1./72.),
                                         1.,
                                         true, // word_wrap
                                         TEXT
