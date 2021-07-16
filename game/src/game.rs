@@ -1048,18 +1048,23 @@ mod tile {
         )
     }
 
+    // TODO move RedGreen, GreenBlue, and BlueRed to another field on Red, Green,
+    // and Blue. Add that to GoalDistance too.
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum Kind {
         Empty,
         Red(Visibility, DistanceIntel),
         RedStar(Visibility),
+        RedGreen(Visibility, DistanceIntel),
         Green(Visibility, DistanceIntel),
         GreenStar(Visibility),
+        GreenBlue(Visibility, DistanceIntel),
         Blue(Visibility, DistanceIntel),
         BlueStar(Visibility),
+        BlueRed(Visibility, DistanceIntel),
         Goal(Visibility),
         Hint(Visibility, HintSpec),
-        GoalDistance(Visibility, GoalDistanceIntel)
+        GoalDistance(Visibility, DistanceIntel)
     }
 
     impl Default for Kind {
@@ -1157,22 +1162,17 @@ mod tile {
 
     pub(crate) fn hint_tile_from_kind(kind: Kind) -> HintTile {
         use HintTile::*;
-        use DistanceIntel::*;
-        use PrevNext::*;
         match kind {
             Kind::Empty => Empty,
-            Kind::Red(_, PartialColour(Prev)) => BlueRed,
-            Kind::Red(_, PartialColour(Next)) => RedGreen,
             Kind::Red(_, _) => Red,
             Kind::RedStar(_) => RedStar,
-            Kind::Green(_, PartialColour(Prev)) => RedGreen,
-            Kind::Green(_, PartialColour(Next)) => GreenBlue,
+            Kind::RedGreen(_, _) => RedGreen,
             Kind::Green(_, _) => Green,
             Kind::GreenStar(_) => GreenStar,
-            Kind::Blue(_, PartialColour(Prev)) => GreenBlue,
-            Kind::Blue(_, PartialColour(Next)) => BlueRed,
+            Kind::GreenBlue(_, _) => GreenBlue,
             Kind::Blue(_, _) => Blue,
             Kind::BlueStar(_) => BlueStar,
+            Kind::BlueRed(_, _) => BlueRed,
             Kind::Goal(_) => Goal,
             Kind::Hint(_, _) => Hint,
             Kind::GoalDistance(_, _) => GoalDistance,
@@ -1242,10 +1242,13 @@ mod tile {
             Empty => None,
             Red(vis, _)
             | RedStar(vis)
+            | RedGreen(vis, _)
             | Green(vis, _)
             | GreenStar(vis)
+            | GreenBlue(vis, _)
             | Blue(vis, _)
             | BlueStar(vis)
+            | BlueRed(vis, _)
             | Goal(vis)
             | Hint(vis, _)
             | GoalDistance(vis, _) => Some(vis),
@@ -1258,10 +1261,13 @@ mod tile {
             Empty => Empty,
             Red(_, intel) => Red(vis, intel),
             RedStar(_) => RedStar(vis),
+            RedGreen(_, intel) => RedGreen(vis, intel),
             Green(_, intel) => Green(vis, intel),
             GreenStar(_) => GreenStar(vis),
+            GreenBlue(_, intel) => GreenBlue(vis, intel),
             Blue(_, intel) => Blue(vis, intel),
             BlueStar(_) => BlueStar(vis),
+            BlueRed(_, intel) => BlueRed(vis, intel),
             Goal(_) => Goal(vis),
             Hint(_, hint_spec) => Hint(vis, hint_spec),
             GoalDistance(_, intel) => GoalDistance(vis, intel),
@@ -1280,27 +1286,7 @@ mod tile {
     }
 
     pub(crate) fn kind_description(kind: Kind) -> &'static str {
-        use Kind::*;
-        use DistanceIntel::*;
-        use PrevNext::*;
-        match kind {
-            Empty => "an empty space",
-            Red(_, PartialColour(Prev)) => "a blue/red tile",
-            Red(_, PartialColour(Next)) => "a red/green tile",
-            Red(..) => "a red tile",
-            RedStar(..) => "the red star tile",
-            Green(_, PartialColour(Prev)) => "a red/green tile",
-            Green(_, PartialColour(Next)) => "a green/blue tile",
-            Green(..) => "a green tile",
-            GreenStar(..) => "the green star tile",
-            Blue(_, PartialColour(Prev)) => "a green/blue tile",
-            Blue(_, PartialColour(Next)) => "a blue/red tile",
-            Blue(..) => "a blue tile",
-            BlueStar(..) => "the blue star tile",
-            Goal(..) => "the goal tile",
-            Hint(..) => "a hint tile",
-            GoalDistance(_, _) => "a goal distance hint tile",
-        }
+        hint_tile_description(hint_tile_from_kind(kind))
     }
 
     pub(crate) fn hint_tile_description(hint_tile: HintTile) -> &'static str {
@@ -1394,12 +1380,6 @@ mod tile {
         }
     }
 
-    #[derive(Clone, Copy, Debug)]
-    pub(crate) enum PrevNext {
-        Prev,
-        Next
-    }
-
     pub(crate) type DistanceModulus = u8;
 
     #[derive(Clone, Copy, Debug)]
@@ -1407,7 +1387,6 @@ mod tile {
         Full,
         PartialAmount(IntelDigit),
         NModM(DistanceModulus),
-        PartialColour(PrevNext), // TODO move PartialColour to Kind variant?
     }
 
     impl Default for DistanceIntel {
@@ -1419,51 +1398,10 @@ mod tile {
     impl DistanceIntel {
         pub(crate) fn from_rng(rng: &mut Xs) -> Self {
             use DistanceIntel::*;
-            use PrevNext::*;
             match xs_u32(rng, 0, 3) {
                 0 => Full,
                 1 => PartialAmount(IntelDigit::from_rng(rng)),
-                2 => NModM(xs_u32(rng, 2, 5) as DistanceModulus),
-                _ => if xs_u32(rng, 0, 2) == 1 {
-                    PartialColour(Prev)
-                } else {
-                    PartialColour(Next)
-                },
-            }
-        }
-    }
-
-    #[derive(Clone, Copy, Debug)]
-    pub(crate) enum GoalDistanceIntel {
-        Full,
-        PartialAmount(IntelDigit),
-        NModM(DistanceModulus)
-    }
-
-    impl Default for GoalDistanceIntel {
-        fn default() -> Self {
-            Self::Full
-        }
-    }
-
-    impl GoalDistanceIntel {
-        pub fn or_full_from_distance_intel(intel: DistanceIntel) -> Self {
-            use DistanceIntel::*;
-            match intel {
-                Full | PartialColour(..) => Self::Full,
-                PartialAmount(digit) => Self::PartialAmount(digit),
-                NModM(modulus) => Self::NModM(modulus)
-            }
-        }
-    }
-
-    impl From<GoalDistanceIntel> for DistanceIntel {
-        fn from(goal_intel: GoalDistanceIntel) -> Self {
-            use GoalDistanceIntel::*;
-            match goal_intel {
-                Full => Self::Full,
-                PartialAmount(digit) => Self::PartialAmount(digit),
-                NModM(modulus) => Self::NModM(modulus)
+                _ => NModM(xs_u32(rng, 2, 5) as DistanceModulus),
             }
         }
     }
@@ -1528,7 +1466,6 @@ impl Tiles {
             HintSpec::*,
             RelativeDelta::{self, *},
             DistanceIntel::{self, *},
-            GoalDistanceIntel
         };
         use Level::*;
 
@@ -1556,9 +1493,15 @@ impl Tiles {
                 1 => Red(Hidden, Full),
                 2 => Green(Hidden, Full),
                 3 => Blue(Hidden, Full),
-                4|7|10 => Red(Hidden, DistanceIntel::from_rng(rng)),
-                5|8|11 => Green(Hidden, DistanceIntel::from_rng(rng)),
-                6|9|12 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
+                4 => RedGreen(Hidden, Full),
+                5 => GreenBlue(Hidden, Full),
+                6 => BlueRed(Hidden, Full),
+                7 => Red(Hidden, DistanceIntel::from_rng(rng)),
+                8 => Green(Hidden, DistanceIntel::from_rng(rng)),
+                9 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
+                10 => RedGreen(Hidden, DistanceIntel::from_rng(rng)),
+                11 => GreenBlue(Hidden, DistanceIntel::from_rng(rng)),
+                12 => BlueRed(Hidden, DistanceIntel::from_rng(rng)),
                 _ => Empty,
             };
 
@@ -1618,7 +1561,7 @@ impl Tiles {
             vis,
             Red(vis, intel) => GoalDistance(
                 vis,
-                GoalDistanceIntel::or_full_from_distance_intel(intel)
+                intel
             )
         );
 
@@ -1626,7 +1569,7 @@ impl Tiles {
             vis,
             Green(vis, intel) => GoalDistance(
                 vis,
-                GoalDistanceIntel::or_full_from_distance_intel(intel)
+                intel
             )
         );
 
@@ -1634,7 +1577,7 @@ impl Tiles {
             vis,
             Blue(vis, intel) => GoalDistance(
                 vis,
-                GoalDistanceIntel::or_full_from_distance_intel(intel)
+                intel
             )
         );
 
@@ -2779,7 +2722,14 @@ pub fn update(
                     tiles.goal_xy,
                     tile::DistanceIntel::from(goal_intel),
                 )),
-                _ => None,
+                Empty 
+                | RedStar(_) | GreenStar(_) | BlueStar(_)
+                | RedGreen(..) | GreenBlue(..) | BlueRed(..)
+                | Goal(_) | Hint(_, _)
+                | Red(Hidden, _)
+                | Green(Hidden, _)
+                | Blue(Hidden, _)
+                | GoalDistance(Hidden, _) => None,
             };
 
             if let Some((target_xy, intel)) = distance_info {
@@ -2800,7 +2750,7 @@ pub fn update(
                     // We could technically avoid this allocation since there 
                     // are only finitely many needed strings here.
                     let text = match intel {
-                        Full | PartialColour(_) => format!("{}{}", distance / 10, distance % 10),
+                        Full => format!("{}{}", distance / 10, distance % 10),
                         PartialAmount(digit) => {
                             let digit_distance = Distance::from(digit);
                             if distance == digit_distance {

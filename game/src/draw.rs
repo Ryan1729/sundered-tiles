@@ -194,30 +194,30 @@ pub(crate) fn sprite_kind_from_tile_kind(
     kind: tile::Kind,
     goal_sprite: SpriteKind,
 ) -> Option<SpriteKind> {
-    use tile::{Kind::*, Visibility::*, DistanceIntel::*, PrevNext::*};
+    use tile::{Kind::*, Visibility::*};
     let sprite_kind = match kind {
         Empty => return None,
         Red(Hidden, _)
         | RedStar(Hidden)
+        | RedGreen(Hidden, _)
         | Green(Hidden, _)
         | GreenStar(Hidden)
+        | GreenBlue(Hidden, _)
         | Blue(Hidden, _)
         | BlueStar(Hidden)
+        | BlueRed(Hidden, _)
         | Goal(Hidden)
         | Hint(Hidden, _)
         | GoalDistance(Hidden, _) => SpriteKind::Hidden,
-        Red(Shown, PartialColour(Prev)) => SpriteKind::BlueRed,
-        Red(Shown, PartialColour(Next)) => SpriteKind::RedGreen,
         Red(Shown, _) => SpriteKind::Red,
         RedStar(Shown) => SpriteKind::RedStar,
-        Green(Shown, PartialColour(Prev)) => SpriteKind::RedGreen,
-        Green(Shown, PartialColour(Next)) => SpriteKind::GreenBlue,
+        RedGreen(Shown, _) => SpriteKind::RedGreen,
         Green(Shown, _) => SpriteKind::Green,
         GreenStar(Shown) => SpriteKind::GreenStar,
-        Blue(Shown, PartialColour(Prev)) => SpriteKind::GreenBlue,
-        Blue(Shown, PartialColour(Next)) => SpriteKind::BlueRed,
+        GreenBlue(Shown, _) => SpriteKind::GreenBlue,
         Blue(Shown, _) => SpriteKind::Blue,
         BlueStar(Shown) => SpriteKind::BlueStar,
+        BlueRed(Shown, _) => SpriteKind::BlueRed,
         Goal(Shown) => goal_sprite,
         Hint(Shown, _) => SpriteKind::Hint,
         GoalDistance(Shown, _) => SpriteKind::GoalDistanceHint,
