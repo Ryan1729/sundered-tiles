@@ -1048,23 +1048,69 @@ mod tile {
         )
     }
 
-    // TODO move RedGreen, GreenBlue, and BlueRed to another field on Red, Green,
-    // and Blue. Add that to GoalDistance too.
+    macro_rules! hybrid_offset_def {
+        ($($variants: ident),+ $(,)?) => {
+            /// `Red(HybridOffset::Zero, ..)` is plain `Red`, Red(HybridOffset::One, ..)
+            /// is rendered as RedGreen, but is fundamentally a Red tile.
+            /// `Zero` means not a hybrid.
+            #[derive(Clone, Copy, Debug)]
+            pub(crate) enum HybridOffset {
+                $($variants),+
+            }
+
+            impl HybridOffset {
+                pub const COUNT: Count = {
+                    let mut count = 0;
+                    
+                    $(
+                        // I think some reference to the vars is needed to use 
+                        // the repetitions.
+                        let _ = HybridOffset::$variants;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT as usize] = [
+                    $(Self::$variants,)+
+                ];
+            }
+
+            impl HybridOffset {
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
+            }
+
+            impl Default for HybridOffset {
+                fn default() -> Self {
+                    Self::ALL[0]
+                }
+            }
+        }
+    }
+
+    hybrid_offset_def! {
+        Zero,
+        One,
+        Two,
+        Three,
+    }
+
     #[derive(Clone, Copy, Debug)]
     pub(crate) enum Kind {
         Empty,
-        Red(Visibility, DistanceIntel),
+        Red(HybridOffset, Visibility, DistanceIntel),
         RedStar(Visibility),
-        RedGreen(Visibility, DistanceIntel),
-        Green(Visibility, DistanceIntel),
+        Green(HybridOffset, Visibility, DistanceIntel),
         GreenStar(Visibility),
-        GreenBlue(Visibility, DistanceIntel),
-        Blue(Visibility, DistanceIntel),
+        Blue(HybridOffset, Visibility, DistanceIntel),
         BlueStar(Visibility),
-        BlueRed(Visibility, DistanceIntel),
         Goal(Visibility),
         Hint(Visibility, HintSpec),
-        GoalDistance(Visibility, DistanceIntel)
+        GoalDistance(HybridOffset, Visibility, DistanceIntel)
     }
 
     impl Default for Kind {
@@ -1132,6 +1178,8 @@ mod tile {
 
     // TODO Is there a reasonable way to use some macro trickery to avoid needing to
     // keep this list and Kind's defintion in sync manually?
+    // TODO Well now this s diverging from Kind. Maybe SpriteKinbd should be defined
+    // here instead?
     hint_tile_def!{
         Kind {
             Empty,
@@ -1147,6 +1195,9 @@ mod tile {
             Goal,
             Hint,
             GoalDistance,
+            RedGoal,
+            GreenGoal,
+            BlueGoal,
         }
         WentOff {
             UpAndLeftEdges,
@@ -1162,20 +1213,30 @@ mod tile {
 
     pub(crate) fn hint_tile_from_kind(kind: Kind) -> HintTile {
         use HintTile::*;
+        use HybridOffset::*;
         match kind {
             Kind::Empty => Empty,
-            Kind::Red(_, _) => Red,
+            Kind::Red(Zero, _, _) => Red,
+            Kind::Red(One, _, _) => RedGreen,
+            Kind::Red(Two, _, _) => BlueRed,
+            Kind::Red(Three, _, _) => RedGoal,
             Kind::RedStar(_) => RedStar,
-            Kind::RedGreen(_, _) => RedGreen,
-            Kind::Green(_, _) => Green,
+            Kind::Green(Zero, _, _) => Green,
+            Kind::Green(One, _, _) => GreenBlue,
+            Kind::Green(Two, _, _) => GreenGoal,
+            Kind::Green(Three, _, _) => RedGreen,
             Kind::GreenStar(_) => GreenStar,
-            Kind::GreenBlue(_, _) => GreenBlue,
-            Kind::Blue(_, _) => Blue,
+            Kind::Blue(Zero, _, _) => Blue,
+            Kind::Blue(One, _, _) => BlueGoal,
+            Kind::Blue(Two, _, _) => BlueRed,
+            Kind::Blue(Three, _, _) => GreenBlue,
             Kind::BlueStar(_) => BlueStar,
-            Kind::BlueRed(_, _) => BlueRed,
             Kind::Goal(_) => Goal,
             Kind::Hint(_, _) => Hint,
-            Kind::GoalDistance(_, _) => GoalDistance,
+            Kind::GoalDistance(Zero, _, _) => GoalDistance,
+            Kind::GoalDistance(One, _, _) => RedGoal,
+            Kind::GoalDistance(Two, _, _) => GreenGoal,
+            Kind::GoalDistance(Three, _, _) => BlueGoal,
         }
     }
 
@@ -1220,18 +1281,21 @@ mod tile {
             | DownEdge
             | DownAndRightEdges => Category::OffTheEdge,
             Empty 
-            | Red 
-            | RedStar 
-            | RedGreen 
-            | Green 
-            | GreenStar 
-            | GreenBlue 
-            | Blue 
-            | BlueStar 
-            | BlueRed 
-            | Goal 
-            | Hint 
-            | GoalDistance => Category::Misc,
+            | Red
+            | RedStar
+            | RedGreen
+            | Green
+            | GreenStar
+            | GreenBlue
+            | Blue
+            | BlueStar
+            | BlueRed
+            | Goal
+            | Hint
+            | GoalDistance
+            | RedGoal
+            | GreenGoal
+            | BlueGoal => Category::Misc,
         }
     }
 
@@ -1240,18 +1304,15 @@ mod tile {
         use Kind::*;
         match kind {
             Empty => None,
-            Red(vis, _)
+            Red(_, vis, _)
             | RedStar(vis)
-            | RedGreen(vis, _)
-            | Green(vis, _)
+            | Green(_, vis, _)
             | GreenStar(vis)
-            | GreenBlue(vis, _)
-            | Blue(vis, _)
+            | Blue(_, vis, _)
             | BlueStar(vis)
-            | BlueRed(vis, _)
             | Goal(vis)
             | Hint(vis, _)
-            | GoalDistance(vis, _) => Some(vis),
+            | GoalDistance(_, vis, _) => Some(vis),
         }
     }
 
@@ -1259,18 +1320,15 @@ mod tile {
         use Kind::*;
         match kind {
             Empty => Empty,
-            Red(_, intel) => Red(vis, intel),
+            Red(offset, _, intel) => Red(offset, vis, intel),
             RedStar(_) => RedStar(vis),
-            RedGreen(_, intel) => RedGreen(vis, intel),
-            Green(_, intel) => Green(vis, intel),
+            Green(offset, _, intel) => Green(offset, vis, intel),
             GreenStar(_) => GreenStar(vis),
-            GreenBlue(_, intel) => GreenBlue(vis, intel),
-            Blue(_, intel) => Blue(vis, intel),
+            Blue(offset, _, intel) => Blue(offset, vis, intel),
             BlueStar(_) => BlueStar(vis),
-            BlueRed(_, intel) => BlueRed(vis, intel),
             Goal(_) => Goal(vis),
             Hint(_, hint_spec) => Hint(vis, hint_spec),
-            GoalDistance(_, intel) => GoalDistance(vis, intel),
+            GoalDistance(offset, _, intel) => GoalDistance(offset, vis, intel),
         }
     }
 
@@ -1305,6 +1363,9 @@ mod tile {
             Goal => "the goal tile",
             Hint => "a hint tile",
             GoalDistance => "a goal distance hint tile",
+            RedGoal => "a red/goal distance hint tile",
+            GreenGoal => "a green/goal distance hint tile",
+            BlueGoal => "a blue/goal distance hint tile",
             // TODO distinct descriptions for these?
             UpAndLeftEdges
             | UpEdge
@@ -1329,55 +1390,65 @@ mod tile {
         }
     }
 
-    #[derive(Clone, Copy, Debug)]
-    pub(crate) enum IntelDigit {
+    macro_rules! intel_digit_def {
+        ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
+            #[derive(Clone, Copy, Debug)]
+            pub(crate) enum IntelDigit {
+                $($variants),+
+            }
+
+            impl IntelDigit {
+                pub const COUNT: Count = {
+                    let mut count = 0;
+                    
+                    $(
+                        // I think some reference to the vars is needed to use 
+                        // the repetitions.
+                        let _ = $number;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT as usize] = [
+                    $(Self::$variants,)+
+                ];
+            }
+
+            impl From<IntelDigit> for Distance {
+                fn from(digit: IntelDigit) -> Self {
+                    match digit {
+                        $(IntelDigit::$variants => $number,)+
+                    }
+                }
+            }
+
+            impl IntelDigit {
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
+            }
+
+            impl Default for IntelDigit {
+                fn default() -> Self {
+                    Self::ALL[0]
+                }
+            }
+        }
+    }
+
+    intel_digit_def!{
         // One would only ever tell you almost nothing (>1) or exactly how far (=1)
-        Two,
-        Three,
-        Four,
-        Five,
-        Six,
-        Seven,
-        Eight,
-        Nine,
-    }
-
-    impl Default for IntelDigit {
-        fn default() -> Self {
-            Self::Two
-        }
-    }
-
-    impl From<IntelDigit> for Distance {
-        fn from(digit: IntelDigit) -> Self {
-            use IntelDigit::*;
-            match digit {
-                Two => 2,
-                Three => 3,
-                Four => 4,
-                Five => 5,
-                Six => 6,
-                Seven => 7,
-                Eight => 8,
-                Nine => 9,
-            }
-        }
-    }
-
-    impl IntelDigit {
-        pub(crate) fn from_rng(rng: &mut Xs) -> Self {
-            use IntelDigit::*;
-            match xs_u32(rng, 0, 8) {
-                0 => Two,
-                1 => Three,
-                2 => Four,
-                3 => Five,
-                4 => Six,
-                5 => Seven,
-                6 => Eight,
-                _ => Nine,
-            }
-        }
+        (Two => 2),
+        (Three => 3),
+        (Four => 4),
+        (Five => 5),
+        (Six => 6),
+        (Seven => 7),
+        (Eight => 8),
+        (Nine => 9),
     }
 
     pub(crate) type DistanceModulus = u8;
@@ -1466,15 +1537,15 @@ impl Tiles {
             HintSpec::*,
             RelativeDelta::{self, *},
             DistanceIntel::{self, *},
+            HybridOffset::{self, *},
         };
-        use Level::*;
 
         const SCALE_FACTOR: usize = 512;
 
         let mut tiles_remaining = match level {
-            One => 49 * 4,//SCALE_FACTOR * 1,
-            Two => SCALE_FACTOR * 2,
-            Three => SCALE_FACTOR * 3,
+            Level::One => 49 * 4,//SCALE_FACTOR * 1,
+            Level::Two => SCALE_FACTOR * 2,
+            Level::Three => SCALE_FACTOR * 3,
         };
 
 
@@ -1490,18 +1561,12 @@ impl Tiles {
         };
         for xy in &mut xy_iter {
             let kind = match xs_u32(rng, 0, 15) {
-                1 => Red(Hidden, Full),
-                2 => Green(Hidden, Full),
-                3 => Blue(Hidden, Full),
-                4 => RedGreen(Hidden, Full),
-                5 => GreenBlue(Hidden, Full),
-                6 => BlueRed(Hidden, Full),
-                7 => Red(Hidden, DistanceIntel::from_rng(rng)),
-                8 => Green(Hidden, DistanceIntel::from_rng(rng)),
-                9 => Blue(Hidden,  DistanceIntel::from_rng(rng)),
-                10 => RedGreen(Hidden, DistanceIntel::from_rng(rng)),
-                11 => GreenBlue(Hidden, DistanceIntel::from_rng(rng)),
-                12 => BlueRed(Hidden, DistanceIntel::from_rng(rng)),
+                1 => Red(HybridOffset::from_rng(rng), Hidden, Full),
+                2 => Green(HybridOffset::from_rng(rng), Hidden, Full),
+                3 => Blue(HybridOffset::from_rng(rng), Hidden, Full),
+                4|7|10 => Red(HybridOffset::from_rng(rng), Hidden, DistanceIntel::from_rng(rng)),
+                5|8|11 => Green(HybridOffset::from_rng(rng), Hidden, DistanceIntel::from_rng(rng)),
+                6|9|12 => Blue(HybridOffset::from_rng(rng), Hidden,  DistanceIntel::from_rng(rng)),
                 _ => Empty,
             };
 
@@ -1548,18 +1613,19 @@ impl Tiles {
             }}
         }
 
-        let red_star_xy = set_random_tile!(vis, Red(vis, _) => RedStar(vis));
-        let green_star_xy = set_random_tile!(vis, Green(vis, _) => GreenStar(vis));
-        let blue_star_xy = set_random_tile!(vis, Blue(vis, _) => BlueStar(vis));
+        let red_star_xy = set_random_tile!(vis, Red(Zero, vis, _) => RedStar(vis));
+        let green_star_xy = set_random_tile!(vis, Green(Zero, vis, _) => GreenStar(vis));
+        let blue_star_xy = set_random_tile!(vis, Blue(Zero, vis, _) => BlueStar(vis));
 
         let goal_xy = set_random_tile!(
             vis,
-            Red(vis, _)|Green(vis, _)|Blue(vis, _) => Goal(vis)
+            Red(Zero, vis, _)|Green(Zero, vis, _)|Blue(Zero, vis, _) => Goal(vis)
         );
 
         set_random_tile!(
             vis,
-            Red(vis, intel) => GoalDistance(
+            Red(offset, vis, intel) => GoalDistance(
+                offset,
                 vis,
                 intel
             )
@@ -1567,7 +1633,8 @@ impl Tiles {
 
         set_random_tile!(
             vis,
-            Green(vis, intel) => GoalDistance(
+            Green(offset, vis, intel) => GoalDistance(
+                offset,
                 vis,
                 intel
             )
@@ -1575,7 +1642,8 @@ impl Tiles {
 
         set_random_tile!(
             vis,
-            Blue(vis, intel) => GoalDistance(
+            Blue(offset, vis, intel) => GoalDistance(
+                offset,
                 vis,
                 intel
             )
@@ -1585,7 +1653,9 @@ impl Tiles {
             ($hint_spec: expr) => {
                 let _ = set_random_tile!(
                     vis,
-                    Red(vis, _)|Green(vis, _)|Blue(vis, _) => Hint(vis, $hint_spec)
+                    Red(Zero, vis, _)
+                    |Green(Zero, vis, _)
+                    |Blue(Zero, vis, _) => Hint(vis, $hint_spec)
                 );
             }
         }
@@ -2617,8 +2687,8 @@ pub fn update(
                                 state.board.digs = state.board.digs.saturating_add(1);
 
                                 for index in 0..TILES_LENGTH as usize {
-                                    if let $variant(Hidden, intel) = state.board.tiles.tiles[index].kind {
-                                        state.board.tiles.tiles[index].kind = $variant(Shown, intel);
+                                    if let $variant(offset, Hidden, intel) = state.board.tiles.tiles[index].kind {
+                                        state.board.tiles.tiles[index].kind = $variant(offset, Shown, intel);
                                     }
                                 }
                             }}
@@ -2706,30 +2776,29 @@ pub fn update(
 
         if matches!(state.view_mode, ShowAllDistances|Clean) {
             let distance_info = match tile.data.kind {
-                Red(Shown, intel) => Some((
+                Red(_, Shown, intel) => Some((
                     get_star_xy(tiles, tile::Colour::Red),
                     intel,
                 )),
-                Green(Shown, intel) => Some((
+                Green(_, Shown, intel) => Some((
                     get_star_xy(tiles, tile::Colour::Green),
                     intel,
                 )),
-                Blue(Shown, intel) => Some((
+                Blue(_, Shown, intel) => Some((
                     get_star_xy(tiles, tile::Colour::Blue),
                     intel,
                 )),
-                GoalDistance(Shown, goal_intel) => Some((
+                GoalDistance(_, Shown, goal_intel) => Some((
                     tiles.goal_xy,
                     tile::DistanceIntel::from(goal_intel),
                 )),
                 Empty 
                 | RedStar(_) | GreenStar(_) | BlueStar(_)
-                | RedGreen(..) | GreenBlue(..) | BlueRed(..)
                 | Goal(_) | Hint(_, _)
-                | Red(Hidden, _)
-                | Green(Hidden, _)
-                | Blue(Hidden, _)
-                | GoalDistance(Hidden, _) => None,
+                | Red(_, Hidden, _)
+                | Green(_, Hidden, _)
+                | Blue(_, Hidden, _)
+                | GoalDistance(_, Hidden, _) => None,
             };
 
             if let Some((target_xy, intel)) = distance_info {

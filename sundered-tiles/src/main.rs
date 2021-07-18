@@ -46,9 +46,9 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         EdgeUp | EdgeDown | EdgeLeft | EdgeRight
         | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight => 10.,
         QuestionMark | NotSymbol => 11.,
-        RedGreen => 12.,
-        GreenBlue => 13.,
-        BlueRed => 14.,
+        RedGreen | RedGoal => 12.,
+        GreenBlue | GreenGoal => 13.,
+        BlueRed | BlueGoal => 14.,
         Selectrum | RulerEnd => 15.0,
     };
 
@@ -72,6 +72,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 0.,
         GoalDistanceHint
         | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight
+        | RedGoal | GreenGoal | BlueGoal
         | NotSymbol => 1.,
     };
 
@@ -93,6 +94,9 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | GreenBlue
         | BlueRed
         | GoalDistanceHint
+        | RedGoal
+        | GreenGoal
+        | BlueGoal
         | EdgeDown
         | EdgeDownRight
         | NotSymbol => 0.,
@@ -290,6 +294,9 @@ mod raylib_rs_platform {
                 | BlueRed
                 | QuestionMark
                 | GoalDistanceHint
+                | RedGoal
+                | GreenGoal
+                | BlueGoal
                 | EdgeUpLeft
                 | EdgeUpRight
                 | EdgeDownLeft

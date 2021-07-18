@@ -177,6 +177,9 @@ pub enum SpriteKind {
     GreenBlue,
     BlueRed,
     GoalDistanceHint,
+    RedGoal,
+    GreenGoal,
+    BlueGoal,
     EdgeUpLeft,
     EdgeUpRight,
     EdgeDownLeft,
@@ -194,36 +197,16 @@ pub(crate) fn sprite_kind_from_tile_kind(
     kind: tile::Kind,
     goal_sprite: SpriteKind,
 ) -> Option<SpriteKind> {
-    use tile::{Kind::*, Visibility::*};
-    let sprite_kind = match kind {
-        Empty => return None,
-        Red(Hidden, _)
-        | RedStar(Hidden)
-        | RedGreen(Hidden, _)
-        | Green(Hidden, _)
-        | GreenStar(Hidden)
-        | GreenBlue(Hidden, _)
-        | Blue(Hidden, _)
-        | BlueStar(Hidden)
-        | BlueRed(Hidden, _)
-        | Goal(Hidden)
-        | Hint(Hidden, _)
-        | GoalDistance(Hidden, _) => SpriteKind::Hidden,
-        Red(Shown, _) => SpriteKind::Red,
-        RedStar(Shown) => SpriteKind::RedStar,
-        RedGreen(Shown, _) => SpriteKind::RedGreen,
-        Green(Shown, _) => SpriteKind::Green,
-        GreenStar(Shown) => SpriteKind::GreenStar,
-        GreenBlue(Shown, _) => SpriteKind::GreenBlue,
-        Blue(Shown, _) => SpriteKind::Blue,
-        BlueStar(Shown) => SpriteKind::BlueStar,
-        BlueRed(Shown, _) => SpriteKind::BlueRed,
-        Goal(Shown) => goal_sprite,
-        Hint(Shown, _) => SpriteKind::Hint,
-        GoalDistance(Shown, _) => SpriteKind::GoalDistanceHint,
-    };
+    use tile::{get_visibility, Visibility};
 
-    Some(sprite_kind)
+    match get_visibility(kind) {
+        None => return None,
+        Some(Visibility::Hidden) => Some(SpriteKind::Hidden),
+        Some(Visibility::Shown) => sprite_kind_from_hint_tile(
+            tile::hint_tile_from_kind(kind),
+            goal_sprite,
+        ),
+    }
 }
 
 pub(crate) fn sprite_kind_from_hint_tile(
@@ -245,6 +228,9 @@ pub(crate) fn sprite_kind_from_hint_tile(
         Goal => goal_sprite,
         Hint => SpriteKind::Hint,
         GoalDistance => SpriteKind::GoalDistanceHint,
+        RedGoal => SpriteKind::RedGoal,
+        GreenGoal => SpriteKind::GreenGoal,
+        BlueGoal => SpriteKind::BlueGoal,
         UpAndLeftEdges => SpriteKind::EdgeDownRight,
         UpEdge => SpriteKind::EdgeDown,
         UpAndRightEdges => SpriteKind::EdgeDownLeft,
