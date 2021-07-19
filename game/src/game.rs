@@ -1590,6 +1590,9 @@ impl Tiles {
 
         macro_rules! set_random_tile {
             ($vis: ident, $($from: pat)|+ => $to: expr) => {{
+                set_random_tile!(_offset, $vis, _intel, $($from)|+ => $to)
+            }};
+            ($offset: ident, $vis: ident, $intel: ident, $($from: pat)|+ => $to: expr) => {{
                 let mut selected_xy = None;
                 let start_xy = tile::random_xy_in_rect(rng, bounding_rect);
                 let mut index = tile::xy_to_i(start_xy);
@@ -1603,6 +1606,50 @@ impl Tiles {
 
                     index += 1;
                     index %= TILES_LENGTH as usize;
+                }
+
+                // To avoid not having a selected xy, if we don't have one yet,
+                // it seems reasonable to fallback to a less restrictive pattern
+                // TODO: Maybe allow disabling this?
+                if selected_xy.is_none() {
+                    index = tile::xy_to_i(start_xy);
+                    for _ in 0..TILES_LENGTH as usize {
+                        match tiles[index].kind {
+                            RedStar(..)
+                            | GreenStar(..)
+                            | BlueStar(..)
+                            | Goal(..)
+                            | Empty => {
+                                // Don't overwrite these,  even if you can't find
+                                // any room!
+                            },
+                            Red(offset, vis, intel)
+                            | Green(offset, vis, intel)
+                            | Blue(offset, vis, intel)
+                            | GoalDistance(offset, vis, intel) => {
+                                let $offset = offset;
+                                let $vis = vis;
+                                let $intel = intel;
+                                tiles[index].kind = $to;
+                                selected_xy = Some(tile::i_to_xy(index));
+                                break
+                            },
+                            Hint(vis, _) => {
+                                // This _very_ slightly tips the prevalence of
+                                // these offsets and intels but what would a
+                                // player do with this information?
+                                let $offset = Zero;
+                                let $intel = Full;
+                                let $vis = vis;
+                                tiles[index].kind = $to;
+                                selected_xy = Some(tile::i_to_xy(index));
+                                break
+                            }
+                        }
+
+                        index += 1;
+                        index %= TILES_LENGTH as usize;
+                    }
                 }
 
                 if cfg!(debug_assertions) {
@@ -1623,7 +1670,9 @@ impl Tiles {
         );
 
         set_random_tile!(
+            offset,
             vis,
+            intel,
             Red(offset, vis, intel) => GoalDistance(
                 offset,
                 vis,
@@ -1632,7 +1681,9 @@ impl Tiles {
         );
 
         set_random_tile!(
+            offset,
             vis,
+            intel,
             Green(offset, vis, intel) => GoalDistance(
                 offset,
                 vis,
@@ -1641,7 +1692,9 @@ impl Tiles {
         );
 
         set_random_tile!(
+            offset,
             vis,
+            intel,
             Blue(offset, vis, intel) => GoalDistance(
                 offset,
                 vis,
