@@ -800,11 +800,18 @@ mod tile {
         core::convert::TryFrom::try_from(n).unwrap_or_default()
     }
 
+    /// We assume that Distance can only be at most 99, since that is part of
+    // `Coord`'s design. If this ever becomes a problem we can enforce this.
     pub type Distance = u8;
     pub(crate) fn manhattan_distance(a: XY, b: XY) -> Distance {
         ((u8::from(a.x.0) as i8 - u8::from(b.x.0) as i8).abs() 
         + (u8::from(a.y.0) as i8 - u8::from(b.y.0) as i8).abs()) as Distance
     }
+
+    pub const PRIMES_BELOW_100: [Distance; 25] = [
+        2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+        73, 79, 83, 89, 97
+    ];
 
     macro_rules! coord_def {
         ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
@@ -1458,6 +1465,7 @@ mod tile {
         Full,
         PartialAmount(IntelDigit),
         NModM(DistanceModulus),
+        PrimeOrNot,
     }
 
     impl Default for DistanceIntel {
@@ -1469,10 +1477,11 @@ mod tile {
     impl DistanceIntel {
         pub(crate) fn from_rng(rng: &mut Xs) -> Self {
             use DistanceIntel::*;
-            match xs_u32(rng, 0, 3) {
+            match xs_u32(rng, 0, 4) {
                 0 => Full,
                 1 => PartialAmount(IntelDigit::from_rng(rng)),
-                _ => NModM(xs_u32(rng, 2, 5) as DistanceModulus),
+                2 => NModM(xs_u32(rng, 2, 5) as DistanceModulus),
+                _ => PrimeOrNot
             }
         }
     }
@@ -2865,7 +2874,7 @@ pub fn update(
                 if should_draw_distance {
                     use tile::{Distance, DistanceIntel::*};
 
-                    let distance = tile::manhattan_distance(txy, target_xy);
+                    let distance: Distance = tile::manhattan_distance(txy, target_xy);
 
                     let mut text_kind = TextKind::DistanceMarker;
 
@@ -2889,6 +2898,15 @@ pub fn update(
                             text_kind = TextKind::ModMarker(modulus);
 
                             format!("{}", modded)
+                        },
+                        PrimeOrNot => {
+                            // If we decide to add a font that supports it, this
+                            // could be "element of blackboard bold P" instead.
+                            if tile::PRIMES_BELOW_100.contains(&distance) {
+                                " p"
+                            } else {
+                                "!p"
+                            }.to_owned()
                         }
                     };
 
