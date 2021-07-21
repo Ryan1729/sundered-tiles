@@ -1814,6 +1814,10 @@ fn get_tile(tiles: &Tiles, xy: tile::XY) -> Tile {
     get_tile_from_array(&tiles.tiles, xy)
 }
 
+fn get_tile_kind_from_array(tile_array: &TileDataArray, xy: tile::XY) -> tile::Kind {
+    tile_array[tile::xy_to_i(xy)].kind
+}
+
 fn set_tile(tiles: &mut Tiles, tile: Tile) {
     tiles.tiles[tile::xy_to_i(tile.xy)] = tile.data;
 }
@@ -2405,7 +2409,7 @@ fn render_hint_spec(
             );
         
             let description = if let Ok(target_xy) = target_xy {
-                tile::kind_description(get_tile_from_array(tile_array, target_xy).data.kind)
+                tile::kind_description(get_tile_kind_from_array(tile_array, target_xy))
             } else {
                 "the edge of the grid"
             };
@@ -2425,7 +2429,7 @@ fn render_hint_spec(
                 Ok(target_xy) => {
                     draw::sprite_kind_from_hint_tile(
                         tile::hint_tile_from_kind(
-                            get_tile_from_array(tile_array, target_xy).data.kind
+                            get_tile_kind_from_array(tile_array, target_xy)
                         ),
                         goal_sprite,
                     )
@@ -2482,10 +2486,10 @@ fn render_hint_spec(
                 let different_hint_tile = {
                     let actual_hint_tile = tile::hint_tile_from_kind_went_off_result(
                         target_xy.map(|target_xy| 
-                            get_tile_from_array(
+                            get_tile_kind_from_array(
                                 tile_array,
                                 target_xy
-                            ).data.kind
+                            )
                         )
                     );
                     let mut hint_tile_index: tile::HintTileIndex = 0;
@@ -2865,7 +2869,7 @@ pub fn update(
 
             if let Some((target_xy, intel)) = distance_info {
                 let should_draw_distance = if matches!(state.view_mode, Clean) {
-                    tile::is_hidden(get_tile(tiles, target_xy).data.kind)
+                    tile::is_hidden(get_tile_kind_from_array(&tiles.tiles, target_xy))
                 } else {
                     // We already checked for HideRevealed above
                     true
@@ -3053,7 +3057,21 @@ pub fn update(
         match state.tool {
             Selectrum => {},
             Ruler(pos) => {
-                let y = (state.sizes.draw_wh.h) / 2.;
+                let mut y = (state.sizes.draw_wh.h) / 2.;
+
+                if let Some(sprite) = draw::sprite_kind_from_tile_kind(
+                    get_tile_kind_from_array(&state.board.tiles.tiles, pos),
+                    goal_sprite
+                ) {
+                    commands.push(Sprite(SpriteSpec{
+                        sprite,
+                        xy: DrawXY { x: right_text_x, y },
+                    }));
+                }
+
+                y += state.sizes.tile_side_length;
+                y += MARGIN;
+
                 commands.push(Text(TextSpec{
                     text: format!("Ruler: {}", match state.board.ui_pos {
                         Tile(xy) => {
