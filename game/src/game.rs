@@ -1831,6 +1831,38 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
     }
 }
 
+type DistanceInfo = (tile::XY, tile::DistanceIntel);
+
+fn distance_info_from_kind(tiles: &Tiles, kind: tile::Kind) -> Option<DistanceInfo> {
+    use tile::{Kind::*, Visibility::*};
+
+    match kind {
+        Red(_, Shown, intel) => Some((
+            get_star_xy(tiles, tile::Colour::Red),
+            intel,
+        )),
+        Green(_, Shown, intel) => Some((
+            get_star_xy(tiles, tile::Colour::Green),
+            intel,
+        )),
+        Blue(_, Shown, intel) => Some((
+            get_star_xy(tiles, tile::Colour::Blue),
+            intel,
+        )),
+        GoalDistance(_, Shown, goal_intel) => Some((
+            tiles.goal_xy,
+            tile::DistanceIntel::from(goal_intel),
+        )),
+        Empty 
+        | RedStar(_) | GreenStar(_) | BlueStar(_)
+        | Goal(_) | Hint(_, _)
+        | Red(_, Hidden, _)
+        | Green(_, Hidden, _)
+        | Blue(_, Hidden, _)
+        | GoalDistance(_, Hidden, _) => None,
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Level {
     One,
@@ -2630,6 +2662,47 @@ fn render_hint_info(board: &Board) -> Option<HintInfo> {
     }
 }
 
+fn distance_label(intel: tile::DistanceIntel, distance: tile::Distance) -> (String, draw::TextKind) {
+    use tile::{Distance, DistanceIntel::*};
+    use draw::{TextKind};
+
+    let mut text_kind = TextKind::DistanceMarker;
+
+    // We could technically avoid this allocation since there 
+    // are only finitely many needed strings here.
+    let text = match intel {
+        Full => format!("{}{}", distance / 10, distance % 10),
+        PartialAmount(digit) => {
+            let digit_distance = Distance::from(digit);
+            if distance == digit_distance {
+                format!("{}{}", distance / 10, distance % 10)
+            } else if distance > digit_distance {
+                format!(">{}", digit_distance)
+            } else /* distance < digit_distance */{
+                format!("<{}", digit_distance)
+            }
+        },
+        NModM(modulus) => {
+            let modded = distance % (modulus as Distance);
+
+            text_kind = TextKind::ModMarker(modulus);
+
+            format!("{}", modded)
+        },
+        PrimeOrNot => {
+            // If we decide to add a font that supports it, this
+            // could be "element of blackboard bold P" instead.
+            if tile::PRIMES_BELOW_100.contains(&distance) {
+                " p"
+            } else {
+                "!p"
+            }.to_owned()
+        }
+    };
+
+    (text, text_kind)
+}
+
 pub fn update(
     state: &mut State,
     commands: &mut dyn ClearableStorage<draw::Command>,
@@ -2817,8 +2890,6 @@ pub fn update(
 
         let xy = draw::tile_xy_to_draw(&state.sizes, txy);
 
-        use tile::{Kind::*, Visibility::*};
-
         let sprite = if let Some(sprite) = draw::sprite_kind_from_tile_kind(
             tile.data.kind,
             goal_sprite
@@ -2841,31 +2912,7 @@ pub fn update(
         }
 
         if matches!(state.view_mode, ShowAllDistances|Clean) {
-            let distance_info = match tile.data.kind {
-                Red(_, Shown, intel) => Some((
-                    get_star_xy(tiles, tile::Colour::Red),
-                    intel,
-                )),
-                Green(_, Shown, intel) => Some((
-                    get_star_xy(tiles, tile::Colour::Green),
-                    intel,
-                )),
-                Blue(_, Shown, intel) => Some((
-                    get_star_xy(tiles, tile::Colour::Blue),
-                    intel,
-                )),
-                GoalDistance(_, Shown, goal_intel) => Some((
-                    tiles.goal_xy,
-                    tile::DistanceIntel::from(goal_intel),
-                )),
-                Empty 
-                | RedStar(_) | GreenStar(_) | BlueStar(_)
-                | Goal(_) | Hint(_, _)
-                | Red(_, Hidden, _)
-                | Green(_, Hidden, _)
-                | Blue(_, Hidden, _)
-                | GoalDistance(_, Hidden, _) => None,
-            };
+            let distance_info = distance_info_from_kind(tiles, tile.data.kind);
 
             if let Some((target_xy, intel)) = distance_info {
                 let should_draw_distance = if matches!(state.view_mode, Clean) {
@@ -2876,43 +2923,15 @@ pub fn update(
                 };
 
                 if should_draw_distance {
-                    use tile::{Distance, DistanceIntel::*};
+                    let distance: tile::Distance = tile::manhattan_distance(
+                        txy,
+                        target_xy,
+                    );
 
-                    let distance: Distance = tile::manhattan_distance(txy, target_xy);
-
-                    let mut text_kind = TextKind::DistanceMarker;
-
-                    // We could technically avoid this allocation since there 
-                    // are only finitely many needed strings here.
-                    let text = match intel {
-                        Full => format!("{}{}", distance / 10, distance % 10),
-                        PartialAmount(digit) => {
-                            let digit_distance = Distance::from(digit);
-                            if distance == digit_distance {
-                                format!("{}{}", distance / 10, distance % 10)
-                            } else if distance > digit_distance {
-                                format!(">{}", digit_distance)
-                            } else /* distance < digit_distance */{
-                                format!("<{}", digit_distance)
-                            }
-                        },
-                        NModM(modulus) => {
-                            let modded = distance % (modulus as Distance);
-
-                            text_kind = TextKind::ModMarker(modulus);
-
-                            format!("{}", modded)
-                        },
-                        PrimeOrNot => {
-                            // If we decide to add a font that supports it, this
-                            // could be "element of blackboard bold P" instead.
-                            if tile::PRIMES_BELOW_100.contains(&distance) {
-                                " p"
-                            } else {
-                                "!p"
-                            }.to_owned()
-                        }
-                    };
+                    let (text, kind) = distance_label(
+                        intel,
+                        distance,
+                    );
 
                     commands.push(Text(TextSpec {
                         text,
@@ -2921,7 +2940,7 @@ pub fn update(
                             w: state.sizes.tile_side_length,
                             h: state.sizes.tile_side_length,
                         },
-                        kind: text_kind,
+                        kind,
                     }));
                 }
             }
@@ -3059,13 +3078,44 @@ pub fn update(
             Ruler(pos) => {
                 let mut y = (state.sizes.draw_wh.h) / 2.;
 
+                let tiles = &state.board.tiles;
+
+                let tile_kind = get_tile_kind_from_array(
+                    &tiles.tiles,
+                    pos
+                );
+
+                let draw_xy = DrawXY { x: right_text_x, y };
+
                 if let Some(sprite) = draw::sprite_kind_from_tile_kind(
-                    get_tile_kind_from_array(&state.board.tiles.tiles, pos),
+                    tile_kind,
                     goal_sprite
                 ) {
                     commands.push(Sprite(SpriteSpec{
                         sprite,
-                        xy: DrawXY { x: right_text_x, y },
+                        xy: draw_xy,
+                    }));
+                }
+
+                if let Some((target_xy, intel)) = distance_info_from_kind(
+                    tiles,
+                    tile_kind
+                ) {
+                    let (text, kind) = distance_label(
+                        intel,
+                        // This needs to be the distance to the tile's target, so we
+                        // always show the same thing as on the grid.
+                        tile::manhattan_distance(pos, target_xy),
+                    );
+    
+                    commands.push(Text(TextSpec {
+                        text,
+                        xy: draw_xy,
+                        wh: DrawWH {
+                            w: state.sizes.tile_side_length,
+                            h: state.sizes.tile_side_length,
+                        },
+                        kind,
                     }));
                 }
 
