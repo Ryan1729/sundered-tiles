@@ -1943,10 +1943,27 @@ impl Default for InputSpeed {
     }
 }
 
+const MAX_RULER_COUNT: usize = 8;
+
+type Rulers = [Option<tile::XY>; MAX_RULER_COUNT];
+
+fn push_ruler_saturating(rulers: &mut Rulers, element: tile::XY) {
+    for i in 0..MAX_RULER_COUNT {
+        if rulers[i].is_none() {
+            rulers[i] = Some(element);
+            break;
+        }
+    }
+}
+
+fn ruler_pos_iter(rulers: &Rulers) -> impl Iterator<Item = tile::XY> + '_ {
+    rulers.iter().scan((), |(), item: &Option<tile::XY>| *item)
+}
+
 #[derive(Copy, Clone, Debug, PartialEq)]
 enum Tool {
     Selectrum,
-    Ruler(tile::XY)
+    Ruler(Rulers)
 }
 
 impl Default for Tool {
@@ -2732,7 +2749,13 @@ pub fn update(
     if INPUT_TOOL_LEFT_PRESSED & input_flags != 0 {
         state.tool = match state.tool {
             Selectrum => match state.board.ui_pos {
-                Tile(xy) => Ruler(xy)
+                Tile(xy) => {
+                    let mut rulers = [None; MAX_RULER_COUNT];
+
+                    push_ruler_saturating(&mut rulers, xy);
+
+                    Ruler(rulers)
+                }
             },
             Ruler(_) => Selectrum,
         };
@@ -2741,7 +2764,11 @@ pub fn update(
     if INPUT_TOOL_RIGHT_PRESSED & input_flags != 0 {
         state.tool = match state.tool {
             Selectrum => match state.board.ui_pos {
-                Tile(xy) => Ruler(xy)
+                Tile(xy) => {
+                    let mut rulers = [None; MAX_RULER_COUNT];
+                    rulers[0] = Some(xy);
+                    Ruler(rulers)
+                }
             },
             Ruler(_) => Selectrum,
         };
@@ -2867,15 +2894,30 @@ pub fn update(
                     
                     interacted = true;
                 },
-                Ruler(ref mut pos) => {
-                    if *pos == *xy {
+                Ruler(ref mut rulers) => {
+                    let mut saw_match = false;
+                    for i in 0..MAX_RULER_COUNT {
+                        if let Some(ref mut pos) = rulers[i] {
+                            if *pos == *xy {
+                                saw_match = true;
+                            }
+                        } else {
+                            break;
+                        }
+                    }
+
+                    if saw_match {
                         // We find that we want to be able to press `Interact` after
                         // measuring with the ruler, and have a dig happen. But we
                         // don't want to make mistakes easy to make, so we make it
                         // require multiple presses to do that.
                         do_ui_reset!();
+                        // We considered making the reset happen if there are no rulers
+                        // left as well, but if all the rulers are used, accidentally
+                        // removing all of them because there aren't any left seems worse
+                        // than needing to switch tool modes manually.
                     } else {
-                        *pos = *xy;
+                        push_ruler_saturating(rulers, *xy);
                     }
                 }
             }
@@ -2949,11 +2991,13 @@ pub fn update(
 
     match state.tool {
         Selectrum => {},
-        Ruler(pos) => {
-            commands.push(Sprite(SpriteSpec{
-                sprite: SpriteKind::RulerEnd,
-                xy: draw::tile_xy_to_draw(&state.sizes, pos),
-            }));
+        Ruler(ref rulers) => {
+            for pos in ruler_pos_iter(rulers) {
+                commands.push(Sprite(SpriteSpec{
+                    sprite: SpriteKind::RulerEnd,
+                    xy: draw::tile_xy_to_draw(&state.sizes, pos),
+                }));
+            }
         }
     }
 
@@ -3075,66 +3119,73 @@ pub fn update(
     {
         match state.tool {
             Selectrum => {},
-            Ruler(pos) => {
-                let mut y = (state.sizes.draw_wh.h) / 2.;
+            Ruler(ref rulers) => {
+                let ruler_section_h = state.sizes.draw_wh.h / 12. - MARGIN;
+                let mut y = state.sizes.board_xywh.y + MARGIN + ruler_section_h;
 
                 let tiles = &state.board.tiles;
 
-                let tile_kind = get_tile_kind_from_array(
-                    &tiles.tiles,
-                    pos
-                );
-
-                let draw_xy = DrawXY { x: right_text_x, y };
-
-                if let Some(sprite) = draw::sprite_kind_from_tile_kind(
-                    tile_kind,
-                    goal_sprite
-                ) {
-                    commands.push(Sprite(SpriteSpec{
-                        sprite,
-                        xy: draw_xy,
-                    }));
-                }
-
-                if let Some((target_xy, intel)) = distance_info_from_kind(
-                    tiles,
-                    tile_kind
-                ) {
-                    let (text, kind) = distance_label(
-                        intel,
-                        // This needs to be the distance to the tile's target, so we
-                        // always show the same thing as on the grid.
-                        tile::manhattan_distance(pos, target_xy),
+                for pos in ruler_pos_iter(rulers) {
+                    let tile_kind = get_tile_kind_from_array(
+                        &tiles.tiles,
+                        pos
                     );
     
-                    commands.push(Text(TextSpec {
-                        text,
-                        xy: draw_xy,
+                    let draw_xy = DrawXY { x: right_text_x, y };
+
+                    if let Some(sprite) = draw::sprite_kind_from_tile_kind(
+                        tile_kind,
+                        goal_sprite
+                    ) {
+                        commands.push(Sprite(SpriteSpec{
+                            sprite,
+                            xy: draw_xy,
+                        }));
+                    }
+
+                    if let Some((target_xy, intel)) = distance_info_from_kind(
+                        tiles,
+                        tile_kind
+                    ) {
+                        let (text, kind) = distance_label(
+                            intel,
+                            // This needs to be the distance to the tile's target, so we
+                            // always show the same thing as on the grid.
+                            tile::manhattan_distance(pos, target_xy),
+                        );
+
+                        commands.push(Text(TextSpec {
+                            text,
+                            xy: draw_xy,
+                            wh: DrawWH {
+                                w: state.sizes.tile_side_length,
+                                h: state.sizes.tile_side_length,
+                            },
+                            kind,
+                        }));
+                    }
+
+                    y += state.sizes.tile_side_length;
+                    y += MARGIN;
+
+                    commands.push(Text(TextSpec{
+                        text: format!("Ruler: {}", match state.board.ui_pos {
+                            Tile(xy) => {
+                                tile::manhattan_distance(pos, xy)
+                            }
+                        }),
+                        xy: DrawXY { x: right_text_x, y },
                         wh: DrawWH {
-                            w: state.sizes.tile_side_length,
-                            h: state.sizes.tile_side_length,
+                            w: board_xywh.x - left_text_x,
+                            h: ruler_section_h - (
+                                state.sizes.tile_side_length
+                            ),
                         },
-                        kind,
+                        kind: TextKind::Ruler,
                     }));
+
+                    y += ruler_section_h;
                 }
-
-                y += state.sizes.tile_side_length;
-                y += MARGIN;
-
-                commands.push(Text(TextSpec{
-                    text: format!("Ruler: {}", match state.board.ui_pos {
-                        Tile(xy) => {
-                            tile::manhattan_distance(pos, xy)
-                        }
-                    }),
-                    xy: DrawXY { x: right_text_x, y },
-                    wh: DrawWH {
-                        w: board_xywh.x - left_text_x,
-                        h: small_section_h,
-                    },
-                    kind: TextKind::Ruler,
-                }));
             }
         }
     }
