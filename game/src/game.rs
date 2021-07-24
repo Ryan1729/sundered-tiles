@@ -1345,7 +1345,6 @@ mod tile {
         }
     }
 
-
     pub(crate) fn get_visibility(kind: Kind) -> Option<Visibility> {
         use Kind::*;
         match kind {
@@ -2717,27 +2716,6 @@ fn render_hint_spec(
 #[cfg(test)]
 mod hint_tests;
 
-fn render_hint_info(board: &Board) -> Option<HintInfo> {
-    use UiPos::*;
-    match board.ui_pos {
-        Tile(txy) => {
-            let tiles = &board.tiles;
-            let tile = get_tile(tiles, txy);
-
-            use tile::{Kind::*, Visibility::*};
-            match tile.data.kind {
-                Hint(Shown, hint_spec) => Some(render_hint_spec(
-                    &board.tiles.tiles,
-                    hint_spec,
-                    render_goal_sprite(board),
-                    tiles.goal_xy,
-                )),
-                _ => None
-            }
-        }
-    }
-}
-
 fn distance_label(intel: tile::DistanceIntel, distance: tile::Distance) -> (String, draw::TextKind) {
     use tile::{Distance, DistanceIntel::*};
     use draw::{TextKind};
@@ -3067,7 +3045,38 @@ pub fn update(
         }));
     }
 
-    let hint_info = render_hint_info(&state.board);
+    let hint_info = match state.board.ui_pos {
+        Tile(txy) => {
+            let board = &state.board;
+            let tiles = &board.tiles;
+            let tile = get_tile(tiles, txy);
+
+            use tile::{Kind::*, Visibility::*};
+            match tile.data.kind {
+                Hint(Shown, hint_spec) => Some(render_hint_spec(
+                    &board.tiles.tiles,
+                    hint_spec,
+                    render_goal_sprite(board),
+                    tiles.goal_xy,
+                )),
+                Between(Shown, _) => Some((
+                    format!("TODO"),
+                    [None; hint::TILES_COUNT]
+                )),
+                Empty
+                | Red(_, _, _)
+                | RedStar(_)
+                | Green(_, _, _)
+                | GreenStar(_)
+                | Blue(_, _, _)
+                | BlueStar(_)
+                | Goal(_)
+                | GoalDistance(_, _, _)
+                | Hint(Hidden, _)
+                | Between(Hidden, _) => None
+            }
+        }
+    };
 
     let board_xywh = &state.sizes.board_xywh;
     let left_text_x = state.sizes.play_xywh.x + MARGIN;
@@ -3110,9 +3119,9 @@ pub fn update(
 
         y += small_section_h;
 
-        // TODO handle the case where there is less than enough room for 
-        // tiles at the regular size, better.
         if let Some((hint_string, hint_sprites)) = hint_info {
+            // TODO handle the case where there is less than enough room for
+            // tiles at the regular size, better.
             let left_hint_tile_x = left_text_x + state.sizes.tile_side_length;
 
             for column in 0..hint::TILES_PER_COLUMN {
