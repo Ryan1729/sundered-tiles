@@ -185,6 +185,7 @@ pub enum SpriteKind {
     EdgeDownLeft,
     EdgeDownRight,
     NotSymbol,
+    Between,
 }
 
 impl Default for SpriteKind {
@@ -227,6 +228,7 @@ pub(crate) fn sprite_kind_from_hint_tile(
         BlueRed => SpriteKind::BlueRed,
         Goal => goal_sprite,
         Hint => SpriteKind::Hint,
+        Between => SpriteKind::Between,
         GoalDistance => SpriteKind::GoalDistanceHint,
         RedGoal => SpriteKind::RedGoal,
         GreenGoal => SpriteKind::GreenGoal,

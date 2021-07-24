@@ -37,7 +37,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         Red => 1.0,
         Green => 2.0,
         Blue => 3.0,
-        RedStar => 4.0,
+        RedStar | Between => 4.0,
         GreenStar => 5.0,
         BlueStar => 6.0,
         InstrumentalGoal => 7.0,
@@ -70,7 +70,8 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | GreenBlue
         | BlueRed
         | EdgeUp | EdgeDown | EdgeLeft | EdgeRight => 0.,
-        GoalDistanceHint
+        Between
+        | GoalDistanceHint
         | EdgeUpLeft | EdgeUpRight | EdgeDownLeft | EdgeDownRight
         | RedGoal | GreenGoal | BlueGoal
         | NotSymbol => 1.,
@@ -87,6 +88,7 @@ fn source_spec(sprite: SpriteKind) -> SourceSpec {
         | InstrumentalGoal
         | TerminalGoal
         | Hint
+        | Between
         | Selectrum
         | RulerEnd
         | QuestionMark
@@ -284,6 +286,7 @@ mod raylib_rs_platform {
                 | TerminalGoal
                 | Selectrum
                 | Hint
+                | Between
                 | EdgeUp
                 | EdgeDown
                 | EdgeLeft

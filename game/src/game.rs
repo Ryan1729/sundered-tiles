@@ -1029,6 +1029,20 @@ mod tile {
         TwoDownTwoRight,
     }
 
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) enum BetweenSpec {
+        /// The minumum number of tiles matching the visual kind that must be
+        /// traversed between this tile and the target tile.
+        Minimum(VisualKind),
+        // TODO
+        // Maximum(VisualKind),
+        // Less sure about these ones. They seem too computationally intensive 
+        // for the player.
+        // Mean(VisualKind),
+        // Median(VisualKind),
+        // Mode(VisualKind),
+    }
+
     /// By default, `GoalIsNot` hints are much less powerful than GoalIs hints. 
     /// This can be demonstrated by counting how many possibilties each eliminates.
     /// As of this writing, while we include multiple `GoalIsNot` hints per tile
@@ -1052,7 +1066,7 @@ mod tile {
             // example if we offset from an off-the-edge tile to another 
             // off-the-edge tile.
             [NonZeroHintTileIndex; HINTS_PER_GOAL_IS_NOT + 1]
-        )
+        ),
     }
 
     macro_rules! hybrid_offset_def {
@@ -1117,7 +1131,8 @@ mod tile {
         BlueStar(Visibility),
         Goal(Visibility),
         Hint(Visibility, HintSpec),
-        GoalDistance(HybridOffset, Visibility, DistanceIntel)
+        GoalDistance(HybridOffset, Visibility, DistanceIntel),
+        Between(Visibility, BetweenSpec),
     }
 
     impl Default for Kind {
@@ -1133,9 +1148,34 @@ mod tile {
 
     macro_rules! hint_tile_def {
         (
-            Kind { $( $kind_variants: ident ),+ $(,)? }
+            VisualKind { $( $kind_variants: ident ),+ $(,)? }
             WentOff{ $( $went_off_variants: ident ),+ $(,)? }
         ) => {
+            #[derive(Copy, Clone, Debug)]
+            pub(crate) enum VisualKind {
+                $( $kind_variants,)*
+            }
+
+            impl VisualKind {
+                pub const COUNT: usize = {
+                    let mut count = 0;
+
+                    $(
+                        // I think some reference to the vars is needed to use
+                        // the repetitions.
+                        let _ = Self::$kind_variants;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT] = [
+                    $(Self::$kind_variants,)+
+                ];
+            }
+
             #[derive(Copy, Clone, Debug)]
             pub(crate) enum WentOff {
                 $($went_off_variants,)+
@@ -1183,12 +1223,8 @@ mod tile {
         }
     }
 
-    // TODO Is there a reasonable way to use some macro trickery to avoid needing to
-    // keep this list and Kind's defintion in sync manually?
-    // TODO Well now this s diverging from Kind. Maybe SpriteKinbd should be defined
-    // here instead?
     hint_tile_def!{
-        Kind {
+        VisualKind {
             Empty,
             Red,
             RedStar,
@@ -1205,6 +1241,7 @@ mod tile {
             RedGoal,
             GreenGoal,
             BlueGoal,
+            Between,
         }
         WentOff {
             UpAndLeftEdges,
@@ -1244,6 +1281,7 @@ mod tile {
             Kind::GoalDistance(One, _, _) => RedGoal,
             Kind::GoalDistance(Two, _, _) => GreenGoal,
             Kind::GoalDistance(Three, _, _) => BlueGoal,
+            Kind::Between(_, _) => Between,
         }
     }
 
@@ -1302,7 +1340,8 @@ mod tile {
             | GoalDistance
             | RedGoal
             | GreenGoal
-            | BlueGoal => Category::Misc,
+            | BlueGoal
+            | Between => Category::Misc,
         }
     }
 
@@ -1319,7 +1358,8 @@ mod tile {
             | BlueStar(vis)
             | Goal(vis)
             | Hint(vis, _)
-            | GoalDistance(_, vis, _) => Some(vis),
+            | GoalDistance(_, vis, _)
+            | Between(vis, _) => Some(vis),
         }
     }
 
@@ -1336,6 +1376,7 @@ mod tile {
             Goal(_) => Goal(vis),
             Hint(_, hint_spec) => Hint(vis, hint_spec),
             GoalDistance(offset, _, intel) => GoalDistance(offset, vis, intel),
+            Between(_, between_spec) => Between(vis, between_spec),
         }
     }
 
@@ -1382,6 +1423,7 @@ mod tile {
             | DownAndLeftEdges
             | DownEdge
             | DownAndRightEdges => "the edge of the grid",
+            Between => "a between hint tile",
         }
     }
 
@@ -1643,7 +1685,8 @@ impl Tiles {
                                 selected_xy = Some(tile::i_to_xy(index));
                                 break
                             },
-                            Hint(vis, _) => {
+                            Hint(vis, _)
+                            | Between(vis, _) => {
                                 // This _very_ slightly tips the prevalence of
                                 // these offsets and intels but what would a
                                 // player do with this information?
@@ -1749,6 +1792,7 @@ impl Tiles {
         set_hint!(GoalIs(TwoDownOneRight));
         set_hint!(GoalIs(TwoDownTwoRight));
 
+        // GoalIsNot section
         {
             use tile::{
                 HintTileIndex,
@@ -1790,6 +1834,27 @@ impl Tiles {
                 ];
 
                 set_hint!(GoalIsNot(deltas, offsets));
+            }
+        }
+
+        {
+            use tile::{
+                BetweenSpec::*,
+                VisualKind,
+            };
+            macro_rules! set_between_hint {
+                ($between_spec: expr) => {
+                    let _ = set_random_tile!(
+                        vis,
+                        Red(Zero, vis, _)
+                        |Green(Zero, vis, _)
+                        |Blue(Zero, vis, _) => Between(vis, $between_spec)
+                    );
+                }
+            }
+    
+            for visual_kind in VisualKind::ALL {
+                set_between_hint!(Minimum(visual_kind));
             }
         }
 
@@ -1855,7 +1920,7 @@ fn distance_info_from_kind(tiles: &Tiles, kind: tile::Kind) -> Option<DistanceIn
         )),
         Empty 
         | RedStar(_) | GreenStar(_) | BlueStar(_)
-        | Goal(_) | Hint(_, _)
+        | Goal(_) | Hint(_, _) | Between(_, _)
         | Red(_, Hidden, _)
         | Green(_, Hidden, _)
         | Blue(_, Hidden, _)
