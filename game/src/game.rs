@@ -2719,28 +2719,22 @@ mod hint_tests;
 
 fn render_hint_info(board: &Board) -> Option<HintInfo> {
     use UiPos::*;
-    let tiles = &board.tiles;
-    let hint_spec = match board.ui_pos {
+    match board.ui_pos {
         Tile(txy) => {
+            let tiles = &board.tiles;
             let tile = get_tile(tiles, txy);
 
             use tile::{Kind::*, Visibility::*};
             match tile.data.kind {
-                Hint(Shown, hint_spec) => Some(hint_spec),
+                Hint(Shown, hint_spec) => Some(render_hint_spec(
+                    &board.tiles.tiles,
+                    hint_spec,
+                    render_goal_sprite(board),
+                    tiles.goal_xy,
+                )),
                 _ => None
             }
         }
-    };
-
-    if let Some(hint_spec) = hint_spec {
-        Some(render_hint_spec(
-            &tiles.tiles,
-            hint_spec,
-            render_goal_sprite(board),
-            tiles.goal_xy,
-        ))
-    } else {
-        None
     }
 }
 
