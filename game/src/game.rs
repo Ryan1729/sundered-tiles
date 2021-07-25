@@ -1220,6 +1220,15 @@ mod tile {
                     NonZeroHintTileIndex::new_unchecked(Self::COUNT - 1)
                 };
             }
+
+            impl From<VisualKind> for HintTile {
+                fn from(visual_kind: VisualKind) -> Self {
+                    match visual_kind {
+                        $(VisualKind::$kind_variants => Self::$kind_variants,)+
+                    }
+                }
+            }
+
         }
     }
 
@@ -2049,6 +2058,12 @@ impl Default for ViewMode {
     }
 }
 
+/// 64k animation frames ought to be enough for anybody!
+type AnimationTimer = u16;
+
+/// We use this because it has a lot more varied factors than 65536.
+const ANIMATION_TIMER_LENGTH: AnimationTimer = 60 * 60 * 18;
+
 #[derive(Debug, Default)]
 pub struct State {
     sizes: draw::Sizes,
@@ -2056,6 +2071,7 @@ pub struct State {
     input_speed: InputSpeed,
     tool: Tool,
     view_mode: ViewMode,
+    animation_timer: AnimationTimer
 }
 
 impl State {
@@ -2190,6 +2206,15 @@ mod hint {
 struct HintSprite {
     sprite: SpriteKind,
     overlay: Option<SpriteKind>,
+}
+
+impl HintSprite {
+    fn no_overlay(sprite: SpriteKind) -> Self {
+        HintSprite {
+            sprite,
+            overlay: None,
+        }
+    }
 }
 
 impl From<HintSprite> for SpriteKind {
@@ -2475,10 +2500,7 @@ fn render_hint_spec(
     let mut hint_string = String::new();
 
     let mut hint_sprites = [
-        Some(HintSprite { 
-            sprite: SpriteKind::QuestionMark,
-            overlay: None
-        });
+        Some(HintSprite::no_overlay(SpriteKind::QuestionMark));
         hint::TILES_COUNT
     ];
 
@@ -2533,10 +2555,9 @@ fn render_hint_spec(
                 description
             ));
         
-            hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
-                sprite: goal_sprite,
-                overlay: None
-            });
+            hint_sprites[hint::CENTER_INDEX] = Some(
+                HintSprite::no_overlay(goal_sprite)
+            );
         
             let target_sprite: Option<SpriteKind> = match target_xy {
                 Ok(target_xy) => {
@@ -3059,10 +3080,59 @@ pub fn update(
                     render_goal_sprite(board),
                     tiles.goal_xy,
                 )),
-                Between(Shown, _) => Some((
-                    format!("TODO"),
-                    [None; hint::TILES_COUNT]
-                )),
+                Between(Shown, spec) => {
+                    use tile::{HintTile, BetweenSpec::*};
+                    let (description, target_hint_tile) = match spec {
+                        Minimum(visual_kind) => {
+                            (
+                                format!("TODO {:?}", visual_kind),
+                                HintTile::from(visual_kind),
+                            )
+                        }
+                    };
+
+                    const HOLD_FRAMES: AnimationTimer = 8;
+                    let frame_number = (
+                        state.animation_timer % (16 * HOLD_FRAMES)
+                    ) / HOLD_FRAMES;
+
+                    // These indexes rely on the value of hint::TILES_COUNT being 25.
+                    {
+                        #[allow(unknown_lints, eq_op)]
+                        // The const_assert macro from static_assertions inlined
+                        const _: [(); 0 - !{hint::TILES_COUNT == 25} as usize] = [];
+                    }
+                    let (mut hint_index, mut target_index) = match frame_number {
+                         0 | 8 => (        0, 4 * 5 + 4),
+                        1 |  9 => (        1, 4 * 5 + 3),
+                        2 | 10 => (        2, 4 * 5 + 2),
+                        3 | 11 => (        3, 4 * 5 + 1),
+                        4 | 12 => (        4, 4 * 5),
+                        5 | 13 => (    5 + 4, 3 * 5),
+                        6 | 14 => (2 * 5 + 4, 2 * 5),
+                             _ => (3 * 5 + 4, 5),
+                    };
+                    if frame_number >= 8 {
+                        core::mem::swap(&mut hint_index, &mut target_index);
+                    }
+
+                    let mut sprites = [
+                        Some(HintSprite::no_overlay(SpriteKind::QuestionMark));
+                        hint::TILES_COUNT
+                    ];
+                    sprites[hint_index] = Some(HintSprite::no_overlay(
+                        SpriteKind::Between
+                    ));
+                    sprites[target_index] = draw::sprite_kind_from_hint_tile(
+                        target_hint_tile,
+                        goal_sprite
+                    ).map(HintSprite::no_overlay);
+
+                    Some((
+                        description,
+                        sprites
+                    ))
+                },
                 Empty
                 | Red(_, _, _)
                 | RedStar(_)
@@ -3269,5 +3339,10 @@ pub fn update(
             },
             kind: TextKind::Fast,
         }));
+    }
+
+    state.animation_timer += 1;
+    if state.animation_timer >= ANIMATION_TIMER_LENGTH {
+        state.animation_timer = 0;
     }
 }
