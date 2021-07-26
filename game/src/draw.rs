@@ -270,6 +270,15 @@ pub enum TextKind {
     ModMarker(u8),
 }
 
+impl From<tile::LabelKind> for TextKind {
+    fn from(label_kind: tile::LabelKind) -> Self {
+        match label_kind {
+            tile::LabelKind::Amount => Self::DistanceMarker,
+            tile::LabelKind::Modulus(modulus) => Self::ModMarker(modulus),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct TextSpec {
     pub text: StrBuf,

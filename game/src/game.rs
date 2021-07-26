@@ -145,8 +145,18 @@ mod checked {
 }
 use checked::{AddOne, SubOne};
 
+mod char_utils {
+    /// A char from a base 10 digit: that is, a u8 in the range [0, 9]. The result 
+    /// for input outside that range will be some other char.
+    pub fn from_digit(digit: u8) -> char {
+        debug_assert!(digit <= 9);
+        ('0' as u8 + digit) as char
+    }
+}
+
 mod tile {
     use crate::{
+        char_utils,
         proportion,
         Proportion,
         unit,
@@ -267,6 +277,96 @@ mod tile {
 
         const ZERO: XY = XY { x: X::ZERO, y: Y::ZERO };
         const MAX: XY = XY { x: X::MAX, y: Y::MAX };
+    }
+
+    pub type LabelChars = [char; 2];
+
+    #[derive(Copy, Clone, Debug)]
+    pub enum LabelKind {
+        Amount,
+        Modulus(DistanceModulus),
+    }
+
+    impl Default for LabelKind {
+        fn default() -> Self {
+            DEFAULT_LABEL.kind
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub struct Label {
+        pub chars: LabelChars,
+        pub kind: LabelKind,
+    }
+
+    const DEFAULT_LABEL_CHARS: LabelChars = ['?', '?'];
+    const DEFAULT_LABEL: Label = Label {
+        chars: DEFAULT_LABEL_CHARS,
+        kind: LabelKind::Amount,
+    };
+
+    impl Label {
+        pub fn chars_string(&self) -> String {
+            self.chars.iter().filter(|&c| *c != '\0').collect()
+        }
+    }
+
+    pub(crate) fn label_from_amount_or_default(amount: u8) -> Label {
+        match (amount / 10, amount % 10) {
+            (tens, ones) if tens <= 9 && ones <= 9 => Label {
+                chars: [
+                    char_utils::from_digit(tens),
+                    char_utils::from_digit(ones),
+                ],
+                kind: LabelKind::Amount,
+            },
+            _ => DEFAULT_LABEL,
+        }
+    }
+
+    pub(crate) fn distance_label(intel: DistanceIntel, distance: Distance) -> Label {
+        use DistanceIntel::*;
+    
+        let mut kind = LabelKind::Amount;
+    
+        // We could technically avoid this allocation since there 
+        // are only finitely many needed strings here.
+        let chars = match intel {
+            Full => return label_from_amount_or_default(distance),
+            PartialAmount(digit) => {
+                let digit_distance = Distance::from(digit);
+                if distance == digit_distance {
+                    return label_from_amount_or_default(distance)
+                } else if distance > digit_distance {
+                    ['>', char_utils::from_digit(digit_distance)]
+                } else /* distance < digit_distance */{
+                    ['<', char_utils::from_digit(digit_distance)]
+                }
+            },
+            NModM(modulus) => {
+                let modded = distance % (modulus as Distance);
+    
+                kind = LabelKind::Modulus(modulus);
+    
+                // The null char is not meant to be used.
+                // TODO tighter types?
+                [char_utils::from_digit(modded), '\0']
+            },
+            PrimeOrNot => {
+                // If we decide to add a font that supports it, this
+                // could be "element of blackboard bold P" instead.
+                if PRIMES_BELOW_100.contains(&distance) {
+                    [' ', 'p']
+                } else {
+                    ['!', 'p']
+                }.to_owned()
+            }
+        };
+    
+        Label {
+            chars,
+            kind,
+        }
     }
 
     mod sprialish {
@@ -2203,16 +2303,37 @@ mod hint {
 }
 
 #[derive(Clone, Copy, Debug)]
+enum HintOverlay {
+    NoOverlay,
+    Sprite(SpriteKind),
+    Label(tile::Label),
+}
+
+#[derive(Clone, Copy, Debug)]
 struct HintSprite {
     sprite: SpriteKind,
-    overlay: Option<SpriteKind>,
+    overlay: HintOverlay,
 }
 
 impl HintSprite {
     fn no_overlay(sprite: SpriteKind) -> Self {
         HintSprite {
             sprite,
-            overlay: None,
+            overlay: HintOverlay::NoOverlay,
+        }
+    }
+
+    fn not_symbol_overlay(sprite: SpriteKind) -> Self {
+        HintSprite {
+            sprite,
+            overlay: HintOverlay::Sprite(SpriteKind::NotSymbol),
+        }
+    }
+
+    fn label_overlay(sprite: SpriteKind, label: tile::Label) -> Self {
+        HintSprite {
+            sprite,
+            overlay: HintOverlay::Label(label),
         }
     }
 }
@@ -2591,11 +2712,8 @@ fn render_hint_spec(
                 relative_delta
             );
         
-            hint_sprites[target_index] = target_sprite.map(|sprite|
-                HintSprite {
-                    sprite,
-                    overlay: None
-                }
+            hint_sprites[target_index] = target_sprite.map(
+                HintSprite::no_overlay
             );
         },
         GoalIsNot(relative_deltas, hint_tile_offsets) => {
@@ -2703,10 +2821,9 @@ fn render_hint_spec(
                     }
                 ));
             
-                hint_sprites[hint::CENTER_INDEX] = Some(HintSprite { 
-                    sprite: goal_sprite,
-                    overlay: None
-                });
+                hint_sprites[hint::CENTER_INDEX] = Some(
+                    HintSprite::no_overlay(goal_sprite)
+                );
             
                 let target_sprite: Option<SpriteKind> = 
                     draw::sprite_kind_from_hint_tile(
@@ -2718,11 +2835,8 @@ fn render_hint_spec(
                     relative_delta
                 );
             
-                hint_sprites[target_index] = target_sprite.map(|sprite|
-                    HintSprite {
-                        sprite,
-                        overlay: Some(NotSymbol)
-                    }
+                hint_sprites[target_index] = target_sprite.map(
+                    HintSprite::not_symbol_overlay
                 );
             }
         },
@@ -2736,47 +2850,6 @@ fn render_hint_spec(
 
 #[cfg(test)]
 mod hint_tests;
-
-fn distance_label(intel: tile::DistanceIntel, distance: tile::Distance) -> (String, draw::TextKind) {
-    use tile::{Distance, DistanceIntel::*};
-    use draw::{TextKind};
-
-    let mut text_kind = TextKind::DistanceMarker;
-
-    // We could technically avoid this allocation since there 
-    // are only finitely many needed strings here.
-    let text = match intel {
-        Full => format!("{}{}", distance / 10, distance % 10),
-        PartialAmount(digit) => {
-            let digit_distance = Distance::from(digit);
-            if distance == digit_distance {
-                format!("{}{}", distance / 10, distance % 10)
-            } else if distance > digit_distance {
-                format!(">{}", digit_distance)
-            } else /* distance < digit_distance */{
-                format!("<{}", digit_distance)
-            }
-        },
-        NModM(modulus) => {
-            let modded = distance % (modulus as Distance);
-
-            text_kind = TextKind::ModMarker(modulus);
-
-            format!("{}", modded)
-        },
-        PrimeOrNot => {
-            // If we decide to add a font that supports it, this
-            // could be "element of blackboard bold P" instead.
-            if tile::PRIMES_BELOW_100.contains(&distance) {
-                " p"
-            } else {
-                "!p"
-            }.to_owned()
-        }
-    };
-
-    (text, text_kind)
-}
 
 pub fn update(
     state: &mut State,
@@ -2984,6 +3057,22 @@ pub fn update(
 
     let goal_sprite = render_goal_sprite(&state.board);
 
+    macro_rules! push_tile_label {
+        ($label: expr, $draw_xy: expr) => {{
+            let label: tile::Label = $label;
+            let text: String = label.chars_string();
+            commands.push(Text(TextSpec {
+                text,
+                xy: $draw_xy,
+                wh: DrawWH {
+                    w: state.sizes.tile_side_length,
+                    h: state.sizes.tile_side_length,
+                },
+                kind: TextKind::from(label.kind),
+            }));
+        }}
+    }
+
     for txy in tile::XY::all() {
         let tiles = &state.board.tiles;
         let tile = get_tile(tiles, txy);
@@ -3028,20 +3117,12 @@ pub fn update(
                         target_xy,
                     );
 
-                    let (text, kind) = distance_label(
+                    let label = tile::distance_label(
                         intel,
                         distance,
                     );
 
-                    commands.push(Text(TextSpec {
-                        text,
-                        xy,
-                        wh: DrawWH {
-                            w: state.sizes.tile_side_length,
-                            h: state.sizes.tile_side_length,
-                        },
-                        kind,
-                    }));
+                    push_tile_label!(label, xy);
                 }
             }
         }
@@ -3082,9 +3163,10 @@ pub fn update(
                 )),
                 Between(Shown, spec) => {
                     use tile::{HintTile, BetweenSpec::*};
-                    let (description, target_hint_tile) = match spec {
+                    let (between_count, description, target_hint_tile) = match spec {
                         Minimum(visual_kind) => {
                             (
+                                99, // TODO
                                 format!("TODO {:?}", visual_kind),
                                 HintTile::from(visual_kind),
                             )
@@ -3127,6 +3209,11 @@ pub fn update(
                         target_hint_tile,
                         goal_sprite
                     ).map(HintSprite::no_overlay);
+
+                    sprites[hint::CENTER_INDEX] = Some(HintSprite::label_overlay(
+                        SpriteKind::Hidden,
+                        tile::label_from_amount_or_default(between_count),
+                    ));
 
                     Some((
                         description,
@@ -3209,11 +3296,17 @@ pub fn update(
                             xy,
                         }));
 
-                        if let Some(overlay_sprite) = overlay {
-                            commands.push(Sprite(SpriteSpec{
-                                sprite: overlay_sprite,
-                                xy,
-                            }));
+                        match overlay {
+                            HintOverlay::NoOverlay => {},
+                            HintOverlay::Sprite(overlay_sprite) => {
+                                commands.push(Sprite(SpriteSpec{
+                                    sprite: overlay_sprite,
+                                    xy,
+                                }));
+                            },
+                            HintOverlay::Label(label) => {
+                                push_tile_label!(label, xy);
+                            },
                         }
                     }
                 }
@@ -3285,22 +3378,14 @@ pub fn update(
                         tiles,
                         tile_kind
                     ) {
-                        let (text, kind) = distance_label(
+                        let label = tile::distance_label(
                             intel,
                             // This needs to be the distance to the tile's target, so we
                             // always show the same thing as on the grid.
                             tile::manhattan_distance(pos, target_xy),
                         );
 
-                        commands.push(Text(TextSpec {
-                            text,
-                            xy: draw_xy,
-                            wh: DrawWH {
-                                w: state.sizes.tile_side_length,
-                                h: state.sizes.tile_side_length,
-                            },
-                            kind,
-                        }));
+                        push_tile_label!(label, draw_xy);
                     }
 
                     y += state.sizes.tile_side_length;
