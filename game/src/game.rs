@@ -1130,10 +1130,31 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
+    pub(crate) struct WrapAroundDelta {
+        // TODO
+    }
+
+    pub(crate) fn apply_wrap_around_delta(
+        _delta: WrapAroundDelta,
+        xy: XY
+    ) -> XY {
+        // TODO adjust by delta
+        xy
+    }
+
+    impl WrapAroundDelta {
+        pub(crate) fn from_rng(_rng: &mut Xs) -> Self {
+            Self {
+                // TODO
+            }
+        }
+    }
+
+    #[derive(Clone, Copy, Debug)]
     pub(crate) enum BetweenSpec {
         /// The minumum number of tiles matching the visual kind that must be
         /// traversed between this tile and the target tile.
-        Minimum(VisualKind),
+        Minimum(WrapAroundDelta, VisualKind),
         // TODO
         // Maximum(VisualKind),
         // Less sure about these ones. They seem too computationally intensive 
@@ -1532,6 +1553,38 @@ mod tile {
             | DownEdge
             | DownAndRightEdges => "the edge of the grid",
             Between => "a between hint tile",
+        }
+    }
+
+    pub(crate) fn hint_tile_adjective(hint_tile: HintTile) -> &'static str {
+        use HintTile::*;
+        match hint_tile {
+            Empty => "empty space",
+            RedGreen => "red/green",
+            Red => "red",
+            RedStar => "red star",
+            GreenBlue => "green/blue",
+            Green => "green",
+            GreenStar => "green star",
+            BlueRed => "blue/red",
+            Blue => "blue",
+            BlueStar => "blue star",
+            Goal => "goal",
+            Hint => "hint",
+            GoalDistance => "goal distance hint",
+            RedGoal => "red/goal distance hint",
+            GreenGoal => "green/goal distance hint",
+            BlueGoal => "blue/goal distance hint",
+            // TODO distinct descriptions for these?
+            UpAndLeftEdges
+            | UpEdge
+            | UpAndRightEdges
+            | LeftEdge
+            | RightEdge
+            | DownAndLeftEdges
+            | DownEdge
+            | DownAndRightEdges => "off of the grid",
+            Between => "between hint",
         }
     }
 
@@ -1962,7 +2015,10 @@ impl Tiles {
             }
     
             for visual_kind in VisualKind::ALL {
-                set_between_hint!(Minimum(visual_kind));
+                set_between_hint!(Minimum(
+                    tile::WrapAroundDelta::from_rng(rng),
+                    visual_kind
+                ));
             }
         }
 
@@ -2002,6 +2058,15 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
         Green => tiles.green_star_xy,
         Blue => tiles.blue_star_xy,
     }
+}
+
+fn minimum_between_of_visual_kind(
+    _tiles: &Tiles,
+    _xy_a: tile::XY,
+    _xy_b: tile::XY,
+    _visual_kind: tile::VisualKind
+) -> Option<tile::Count> {
+    None // TODO
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);
@@ -3164,10 +3229,27 @@ pub fn update(
                 Between(Shown, spec) => {
                     use tile::{HintTile, BetweenSpec::*};
                     let (between_count, description, target_hint_tile) = match spec {
-                        Minimum(visual_kind) => {
+                        Minimum(delta, visual_kind) => {
+                            let minimum = minimum_between_of_visual_kind(
+                                tiles,
+                                txy,
+                                tile::apply_wrap_around_delta(delta, txy),
+                                visual_kind
+                            );
+
                             (
-                                99, // TODO
-                                format!("TODO {:?}", visual_kind),
+                                minimum.unwrap_or_default(),
+                                match minimum {
+                                    Some(minimum) => format!(
+                                        "The miniumum number of tiles between here and the nearest {} tile is {}.",
+                                        tile::hint_tile_adjective(visual_kind.into()),
+                                        minimum
+                                    ),
+                                    None => format!(
+                                        "There are no {} tiles!",
+                                        tile::hint_tile_adjective(visual_kind.into())
+                                    )
+                                },
                                 HintTile::from(visual_kind),
                             )
                         }
