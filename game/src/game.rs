@@ -206,6 +206,24 @@ mod tile {
     tuple_new_type!{X}
     tuple_new_type!{Y}
 
+    macro_rules! wrapping_add_delta_def {
+        ($coord_name: ident, $delta_name: ident) => {
+            impl $coord_name {
+                fn wrapping_add_delta(&self, delta: $delta_name) -> Self {
+                    let result = core::convert::TryFrom::try_from(
+                        (Count::from(self.0) + Count::from(delta)) % Coord::COUNT
+                    );
+
+                    debug_assert!(result.is_ok(), "{:?}", result);
+
+                    $coord_name(result.unwrap_or_default())
+                }
+            }
+        }
+    }
+    wrapping_add_delta_def!{X, WrappingDeltaX}
+    wrapping_add_delta_def!{Y, WrappingDeltaY}
+
     #[derive(Copy, Clone, Default, Debug, PartialEq, Eq)]
     pub struct XY {
         pub x: X,
@@ -913,8 +931,36 @@ mod tile {
         73, 79, 83, 89, 97
     ];
 
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct WrappingDeltaXY {
+        x: WrappingDeltaX,
+        y: WrappingDeltaY,
+    }
+
+    impl WrappingDeltaXY {
+        pub fn from_rng(rng: &mut Xs) -> Self {
+            Self {
+                x: WrappingDeltaX::from_rng(rng),
+                y: WrappingDeltaY::from_rng(rng),
+            }
+        }
+    }
+
+    pub(crate) fn apply_wrap_around_delta(
+        delta: WrappingDeltaXY,
+        xy: XY
+    ) -> XY {
+        XY {
+            x: xy.x.wrapping_add_delta(delta.x),
+            y: xy.y.wrapping_add_delta(delta.y),
+        }
+    }
+
     macro_rules! coord_def {
-        ($( ($variants: ident => $number: literal) ),+ $(,)?) => {
+        (
+            ($zero_variant: ident => $zero_number: literal),
+            $( ($wrap_variants: ident => $wrap_number: literal) ),+ $(,)?
+        ) => {
             #[derive(Clone, Copy, Debug, PartialEq, Eq)]
             #[repr(u8)]
             /// We only want to handle displaying at most 2 decimal digits for any 
@@ -922,17 +968,19 @@ mod tile {
             /// distance, if we keep the value of any coordinate in the range 
             /// [0, 50), then that preseves the desired property.
             pub enum Coord {
-                $($variants,)+
+                $zero_variant,
+                $($wrap_variants,)+
             }
 
             impl Coord {
                 pub const COUNT: Count = {
                     let mut count = 0;
                     
+                    count += 1; // $zero_number
                     $(
-                        // I think some reference to the vars is needed to use 
+                        // Some reference to the vars is needed to use 
                         // the repetitions.
-                        let _ = $number;
+                        let _ = $wrap_number;
 
                         count += 1;
                     )+
@@ -941,16 +989,24 @@ mod tile {
                 };
 
                 pub const ALL: [Coord; Self::COUNT as usize] = [
-                    $(Coord::$variants,)+
+                    Coord::$zero_variant,
+                    $(Coord::$wrap_variants,)+
                 ];
 
                 pub const MAX_INDEX: Count = Self::COUNT - 1;
             }
 
+            impl Default for Coord {
+                fn default() -> Self {
+                    Self::$zero_variant
+                }
+            }
+
             impl From<Coord> for u8 {
                 fn from(coord: Coord) -> u8 {
                     match coord {
-                        $(Coord::$variants => $number,)+
+                        Coord::$zero_variant => $zero_number,
+                        $(Coord::$wrap_variants => $wrap_number,)+
                     }
                 }
             }
@@ -958,11 +1014,88 @@ mod tile {
             impl core::convert::TryFrom<u8> for Coord {
                 type Error = ();
 
-                fn try_from(byte :u8) -> Result<Self, Self::Error> {
+                fn try_from(byte: u8) -> Result<Self, Self::Error> {
                     match byte {
-                        $($number => Ok(Coord::$variants),)+
-                        _ => Err(()),
+                        $zero_number => Ok(Coord::$zero_variant),
+                        $($wrap_number => Ok(Coord::$wrap_variants),)+
+                        Self::COUNT..=u8::MAX => Err(()),
                     }
+                }
+            }
+
+            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+            #[repr(u8)]
+            pub enum WrappingDeltaX {
+                $($wrap_variants,)+
+            }
+
+            impl From<WrappingDeltaX> for u8 {
+                fn from(dx: WrappingDeltaX) -> u8 {
+                    match dx {
+                        $(WrappingDeltaX::$wrap_variants => $wrap_number,)+
+                    }
+                }
+            }
+
+            impl WrappingDeltaX {
+                pub const COUNT: Count = {
+                    let mut count = 0;
+                    
+                    $(
+                        // Some reference to the vars is needed to use 
+                        // the repetitions.
+                        let _ = $wrap_number;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT as usize] = [
+                    $(Self::$wrap_variants,)+
+                ];
+
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
+            }
+
+            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+            #[repr(u8)]
+            pub enum WrappingDeltaY {
+                $($wrap_variants,)+
+            }
+
+            impl From<WrappingDeltaY> for u8 {
+                fn from(dy: WrappingDeltaY) -> u8 {
+                    match dy {
+                        $(WrappingDeltaY::$wrap_variants => $wrap_number,)+
+                    }
+                }
+            }
+
+            impl WrappingDeltaY {
+                pub const COUNT: Count = {
+                    let mut count = 0;
+                    
+                    $(
+                        // Some reference to the vars is needed to use 
+                        // the repetitions.
+                        let _ = $wrap_number;
+
+                        count += 1;
+                    )+
+
+                    count
+                };
+
+                pub const ALL: [Self; Self::COUNT as usize] = [
+                    $(Self::$wrap_variants,)+
+                ];
+
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
                 }
             }
         }
@@ -1019,12 +1152,6 @@ mod tile {
         (C47 => 47),
         (C48 => 48),
         (C49 => 49),
-    }
-
-    impl Default for Coord {
-        fn default() -> Self {
-            Self::C0
-        }
     }
 
     impl AddOne for Coord {
@@ -1130,31 +1257,10 @@ mod tile {
     }
 
     #[derive(Clone, Copy, Debug)]
-    pub(crate) struct WrapAroundDelta {
-        // TODO
-    }
-
-    pub(crate) fn apply_wrap_around_delta(
-        _delta: WrapAroundDelta,
-        xy: XY
-    ) -> XY {
-        // TODO adjust by delta
-        xy
-    }
-
-    impl WrapAroundDelta {
-        pub(crate) fn from_rng(_rng: &mut Xs) -> Self {
-            Self {
-                // TODO
-            }
-        }
-    }
-
-    #[derive(Clone, Copy, Debug)]
     pub(crate) enum BetweenSpec {
         /// The minumum number of tiles matching the visual kind that must be
         /// traversed between this tile and the target tile.
-        Minimum(WrapAroundDelta, VisualKind),
+        Minimum(WrappingDeltaXY, VisualKind),
         // TODO
         // Maximum(VisualKind),
         // Less sure about these ones. They seem too computationally intensive 
@@ -2016,7 +2122,7 @@ impl Tiles {
     
             for visual_kind in VisualKind::ALL {
                 set_between_hint!(Minimum(
-                    tile::WrapAroundDelta::from_rng(rng),
+                    tile::WrappingDeltaXY::from_rng(rng),
                     visual_kind
                 ));
             }
@@ -2066,7 +2172,7 @@ fn minimum_between_of_visual_kind(
     _xy_b: tile::XY,
     _visual_kind: tile::VisualKind
 ) -> Option<tile::Count> {
-    None // TODO
+    None // FIXME
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);
