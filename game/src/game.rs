@@ -170,6 +170,7 @@ mod tile {
 
     // An amount of tiles, which are usually arranged in a line.
     pub type Count = u8;
+    pub type SignedCount = i8;
 
     use core::convert::TryInto;
 
@@ -384,6 +385,64 @@ mod tile {
         Label {
             chars,
             kind,
+        }
+    }
+
+    #[derive(Copy, Clone, Debug)]
+    pub enum Dir {
+        Up,
+        Down,
+        Left,
+        Right
+    }
+    
+    pub(crate) fn apply_dir(dir: Dir, xy: XY) -> Option<XY> {
+        match dir {
+            Dir::Up => xy.y.checked_sub_one().map(|y| XY {
+                y,
+                ..xy
+            }),
+            Dir::Down => xy.y.checked_add_one().map(|y| XY {
+                y,
+                ..xy
+            }),
+            Dir::Left => xy.x.checked_sub_one().map(|x| XY {
+                x,
+                ..xy
+            }),
+            Dir::Right => xy.x.checked_add_one().map(|x| XY {
+                x,
+                ..xy
+            }),
+        }
+    }
+    
+    pub(crate) fn get_long_and_short_dir(
+        from: XY,
+        to: XY,
+    ) -> (Dir, Dir) {
+        let from_x = Count::from(from.x.0);
+        let from_y = Count::from(from.y.0);
+        let to_x = Count::from(to.x.0);
+        let to_y = Count::from(to.y.0);
+    
+        let x_distance = ((from_x as SignedCount) - (to_x as SignedCount)).abs() as Count;
+        let y_distance = ((from_y as SignedCount) - (to_y as SignedCount)).abs() as Count;
+        let x_dir = if from_x > to_x {
+            Dir::Left
+        } else {
+            Dir::Right
+        };
+        let y_dir = if from_y > to_y {
+            Dir::Up
+        } else {
+            Dir::Down
+        };
+        
+        if x_distance > y_distance {
+            (x_dir, y_dir)
+        } else {
+            (y_dir, x_dir)
         }
     }
 
@@ -1378,7 +1437,7 @@ mod tile {
             VisualKind { $( $kind_variants: ident ),+ $(,)? }
             WentOff{ $( $went_off_variants: ident ),+ $(,)? }
         ) => {
-            #[derive(Copy, Clone, Debug)]
+            #[derive(Copy, Clone, Debug, PartialEq, Eq)]
             pub(crate) enum VisualKind {
                 $( $kind_variants,)*
             }
@@ -1488,6 +1547,38 @@ mod tile {
             DownAndLeftEdges,
             DownEdge,
             DownAndRightEdges,
+        }
+    }
+
+    impl From<Kind> for VisualKind {
+        fn from(kind: Kind) -> Self {
+            use VisualKind::*;
+            use HybridOffset::*;
+            match kind {
+                Kind::Empty => Empty,
+                Kind::Red(Zero, _, _) => Red,
+                Kind::Red(One, _, _) => RedGreen,
+                Kind::Red(Two, _, _) => BlueRed,
+                Kind::Red(Three, _, _) => RedGoal,
+                Kind::RedStar(_) => RedStar,
+                Kind::Green(Zero, _, _) => Green,
+                Kind::Green(One, _, _) => GreenBlue,
+                Kind::Green(Two, _, _) => GreenGoal,
+                Kind::Green(Three, _, _) => RedGreen,
+                Kind::GreenStar(_) => GreenStar,
+                Kind::Blue(Zero, _, _) => Blue,
+                Kind::Blue(One, _, _) => BlueGoal,
+                Kind::Blue(Two, _, _) => BlueRed,
+                Kind::Blue(Three, _, _) => GreenBlue,
+                Kind::BlueStar(_) => BlueStar,
+                Kind::Goal(_) => Goal,
+                Kind::Hint(_, _) => Hint,
+                Kind::GoalDistance(Zero, _, _) => GoalDistance,
+                Kind::GoalDistance(One, _, _) => RedGoal,
+                Kind::GoalDistance(Two, _, _) => GreenGoal,
+                Kind::GoalDistance(Three, _, _) => BlueGoal,
+                Kind::Between(_, _) => Between,
+            }
         }
     }
 
@@ -2153,6 +2244,10 @@ fn get_tile_kind_from_array(tile_array: &TileDataArray, xy: tile::XY) -> tile::K
     tile_array[tile::xy_to_i(xy)].kind
 }
 
+fn get_tile_visual_kind(tiles: &Tiles, xy: tile::XY) -> tile::VisualKind {
+    tile::VisualKind::from(get_tile_kind_from_array(&tiles.tiles, xy))
+}
+
 fn set_tile(tiles: &mut Tiles, tile: Tile) {
     tiles.tiles[tile::xy_to_i(tile.xy)] = tile.data;
 }
@@ -2166,13 +2261,108 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
     }
 }
 
+enum MinimumOutcome {
+    NoMatchingTiles,
+    Count(tile::Count)
+}
+
+impl MinimumOutcome {
+    fn unwrap_or_default(&self) -> tile::Count {
+        match self {
+            Self::NoMatchingTiles => <_>::default(),
+            Self::Count(count) => *count,
+        }
+    }
+}
+
+fn generate_all_paths(
+    from: tile::XY,
+    to: tile::XY,
+) -> Vec<Vec<tile::Dir>> {
+    let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to);
+
+    let distance = tile::manhattan_distance(from, to);
+    assert!(distance <= 10, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
+    let two_to_the_distance = 1 << (distance as u64);
+    // Yes this is O(2^n). Yes we will all but certainly need to replace this.
+    
+    let mut output = Vec::with_capacity(two_to_the_distance as usize);
+    'outer: for possibility in 0..two_to_the_distance {
+        let mut path = Vec::with_capacity(distance as usize);
+        let mut xy = from;
+        for bit_index in 0..distance {
+            let bit = (possibility >> bit_index) & 1;
+
+            let dir = match bit {
+                0 => long_dir,
+                _ => short_dir
+            };
+
+            match tile::apply_dir(dir, xy) {
+                Some(new_xy) => {
+                    xy = new_xy;
+                },
+                None => {
+                    continue 'outer;
+                }
+            }
+            path.push(dir);
+        }
+
+        if xy == to {
+            output.push(path);
+        }   
+    }
+
+    output
+}
+
 fn minimum_between_of_visual_kind(
-    _tiles: &Tiles,
-    _xy_a: tile::XY,
-    _xy_b: tile::XY,
-    _visual_kind: tile::VisualKind
-) -> Option<tile::Count> {
-    None // FIXME
+    tiles: &Tiles,
+    xy_a: tile::XY,
+    xy_b: tile::XY,
+    visual_kind: tile::VisualKind
+) -> MinimumOutcome {
+    // TODO: Make sure this whole function is not absurdly slow, as the first version
+    // almost certainly is.
+    if !&tiles.tiles.iter().map(|tile_data| {
+        tile::VisualKind::from(tile_data.kind)
+    }).any(|v_k| v_k == visual_kind) {
+        return MinimumOutcome::NoMatchingTiles;
+    }
+
+    let mut minimum = tile::Count::max_value();
+
+    let all_paths = generate_all_paths(
+        xy_a,
+        xy_b,
+    );
+
+    'outer: for path in all_paths {
+        let mut current_count = 0;
+        let mut xy = xy_a;
+        for dir in path {
+            let xy_opt = tile::apply_dir(dir, xy);
+            match xy_opt {
+                Some(new_xy) => {
+                    xy = new_xy
+                },
+                None => {
+                    continue 'outer;
+                }
+            }
+
+            if visual_kind == get_tile_visual_kind(tiles, xy) {
+                current_count += 1;
+            }
+        }
+
+        if current_count < minimum {
+            minimum = current_count;
+        }
+    }
+
+    MinimumOutcome::Count(minimum)
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);
@@ -3346,12 +3536,12 @@ pub fn update(
                             (
                                 minimum.unwrap_or_default(),
                                 match minimum {
-                                    Some(minimum) => format!(
+                                    MinimumOutcome::Count(minimum) => format!(
                                         "The miniumum number of tiles between here and the nearest {} tile is {}.",
                                         tile::hint_tile_adjective(visual_kind.into()),
                                         minimum
                                     ),
-                                    None => format!(
+                                    MinimumOutcome::NoMatchingTiles => format!(
                                         "There are no {} tiles!",
                                         tile::hint_tile_adjective(visual_kind.into())
                                     )
