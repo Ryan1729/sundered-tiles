@@ -200,6 +200,11 @@ mod tile {
                 #[allow(unused)] // Desired in the tests
                 pub(crate) const CENTER: $struct_name = $struct_name(Coord::CENTER);
                 pub(crate) const MAX: $struct_name = $struct_name(Coord::MAX);
+
+                #[allow(unused)] // desired in tests
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    $struct_name(Coord::from_rng(rng))
+                }
             }
         }
     }
@@ -296,6 +301,14 @@ mod tile {
 
         const ZERO: XY = XY { x: X::ZERO, y: Y::ZERO };
         const MAX: XY = XY { x: X::MAX, y: Y::MAX };
+
+        #[allow(unused)] // desired in tests
+        pub fn from_rng(rng: &mut Xs) -> Self {
+            Self {
+                x: X::from_rng(rng),
+                y: Y::from_rng(rng),
+            }
+        }
     }
 
     pub type LabelChars = [char; 2];
@@ -1053,6 +1066,11 @@ mod tile {
                 ];
 
                 pub const MAX_INDEX: Count = Self::COUNT - 1;
+
+                #[allow(unused)] // desired in tests
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
             }
 
             impl Default for Coord {
@@ -1460,6 +1478,11 @@ mod tile {
                 pub const ALL: [Self; Self::COUNT] = [
                     $(Self::$kind_variants,)+
                 ];
+
+                #[allow(unused)] // desired in tests
+                pub fn from_rng(rng: &mut Xs) -> Self {
+                    Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
+                }
             }
 
             #[derive(Copy, Clone, Debug)]
@@ -2261,6 +2284,7 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum MinimumOutcome {
     NoMatchingTiles,
     Count(tile::Count)
@@ -2275,6 +2299,9 @@ impl MinimumOutcome {
     }
 }
 
+#[cfg(test)]
+mod between_tests;
+
 fn generate_all_paths(
     from: tile::XY,
     to: tile::XY,
@@ -2282,7 +2309,7 @@ fn generate_all_paths(
     let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to);
 
     let distance = tile::manhattan_distance(from, to);
-    assert!(distance <= 10, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
+    // assert!(distance <= 10, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
     
