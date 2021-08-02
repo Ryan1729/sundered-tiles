@@ -2309,7 +2309,7 @@ fn generate_all_paths(
     let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to);
 
     let distance = tile::manhattan_distance(from, to);
-    // assert!(distance <= 10, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
+    assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
     
