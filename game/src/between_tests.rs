@@ -131,7 +131,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
                 fast_duration.as_nanos(),
                 slow_duration.as_nanos()
             );
-            
+
             assert_eq!(fast, slow);
         }}
     }
@@ -149,8 +149,8 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
         let from = tile::XY::from_rng(&mut rng);
         let to = tile::XY::from_rng(&mut rng);
-        let visual_kind = VisualKind::from_rng(&mut rng);
 
-        a!(&tiles, from, to, visual_kind);
+        a!(&tiles, from, to, VisualKind::Empty);
+        a!(&tiles, from, to, VisualKind::ALL[1]);
     }
 }
