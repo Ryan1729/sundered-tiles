@@ -170,7 +170,6 @@ mod tile {
 
     // An amount of tiles, which are usually arranged in a line.
     pub type Count = u8;
-    pub type SignedCount = i8;
 
     use core::convert::TryInto;
 
@@ -204,6 +203,12 @@ mod tile {
                 #[allow(unused)] // desired in tests
                 pub fn from_rng(rng: &mut Xs) -> Self {
                     $struct_name(Coord::from_rng(rng))
+                }
+            }
+
+            impl From<$struct_name> for usize {
+                fn from(thing: $struct_name) -> Self {
+                    Self::from(thing.0)
                 }
             }
         }
@@ -433,14 +438,17 @@ mod tile {
     pub(crate) fn get_long_and_short_dir(
         from: XY,
         to: XY,
+        _xs: &[bool; Coord::COUNT as usize],
+        _ys: &[bool; Coord::COUNT as usize],
     ) -> (Dir, Dir) {
-        let from_x = Count::from(from.x.0);
-        let from_y = Count::from(from.y.0);
-        let to_x = Count::from(to.x.0);
-        let to_y = Count::from(to.y.0);
+        //FIXME account for xs and ys.
+        let from_x = usize::from(from.x.0);
+        let from_y = usize::from(from.y.0);
+        let to_x = usize::from(to.x.0);
+        let to_y = usize::from(to.y.0);
     
-        let x_distance = ((from_x as SignedCount) - (to_x as SignedCount)).abs() as Count;
-        let y_distance = ((from_y as SignedCount) - (to_y as SignedCount)).abs() as Count;
+        let x_distance = ((from_x as isize) - (to_x as isize)).abs() as Count;
+        let y_distance = ((from_y as isize) - (to_y as isize)).abs() as Count;
         let x_dir = if from_x > to_x {
             Dir::Left
         } else {
@@ -1085,6 +1093,12 @@ mod tile {
                         Coord::$zero_variant => $zero_number,
                         $(Coord::$wrap_variants => $wrap_number,)+
                     }
+                }
+            }
+
+            impl From<Coord> for usize {
+                fn from(coord: Coord) -> Self {
+                    Self::from(u8::from(coord))
                 }
             }
 
@@ -2302,11 +2316,14 @@ impl MinimumOutcome {
 #[cfg(test)]
 mod between_tests;
 
-fn generate_all_paths(
+fn generate_paths(
     from: tile::XY,
     to: tile::XY,
+    xs: &[bool; tile::Coord::COUNT as usize],
+    ys: &[bool; tile::Coord::COUNT as usize],
 ) -> Vec<Vec<tile::Dir>> {
-    let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to);
+    // FIXME account for xs and ys
+    let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to, xs, ys);
 
     let distance = tile::manhattan_distance(from, to);
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
@@ -2346,36 +2363,82 @@ fn generate_all_paths(
 
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
-    xy_a: tile::XY,
-    xy_b: tile::XY,
+    from: tile::XY,
+    to: tile::XY,
     visual_kind: tile::VisualKind
 ) -> MinimumOutcome {
     // TODO: Make sure this whole function is not absurdly slow, as the first version
     // almost certainly is.
-    if !&tiles.tiles.iter().map(|tile_data| {
-        tile::VisualKind::from(tile_data.kind)
-    }).any(|v_k| v_k == visual_kind) {
-        return MinimumOutcome::NoMatchingTiles;
+    use tile::{Coord};
+
+    let mut xs = [false; Coord::COUNT as usize];
+    let mut ys = [false; Coord::COUNT as usize];
+
+    // TODO eliminate rows/columns with none of the target visual_kind and jump over
+    // them properly.
+
+    let from_x = usize::from(from.x);
+    let from_y = usize::from(from.y);
+    let to_x = usize::from(to.x);
+    let to_y = usize::from(to.y);
+
+    {
+        let mut saw_any = false;
+        for x in from_x..=to_x {
+            xs[x] = true;
+            saw_any = true;
+        }
+        if !saw_any {
+            return MinimumOutcome::NoMatchingTiles;
+        }
     }
+
+    {
+        let mut saw_any = false;
+        for y in from_y..=to_y {
+            ys[y] = true;
+            saw_any = true;
+        }
+        if !saw_any {
+            return MinimumOutcome::NoMatchingTiles;
+        }
+    }
+
+    let paths = generate_paths(
+        from,
+        to,
+        &xs,
+        &ys,
+    );
 
     let mut minimum = tile::Count::max_value();
 
-    let all_paths = generate_all_paths(
-        xy_a,
-        xy_b,
-    );
-
-    'outer: for path in all_paths {
+    'outer: for path in paths {
         let mut current_count = 0;
-        let mut xy = xy_a;
+        let mut xy = from;
         for dir in path {
-            let xy_opt = tile::apply_dir(dir, xy);
-            match xy_opt {
-                Some(new_xy) => {
-                    xy = new_xy
-                },
-                None => {
-                    continue 'outer;
+            loop {
+                let xy_opt = tile::apply_dir(dir, xy);
+                match xy_opt {
+                    Some(new_xy) => {
+                        xy = new_xy
+                    },
+                    None => {
+                        continue 'outer;
+                    }
+                }
+
+                match (
+                    xs.get(usize::from(xy.x)),
+                    ys.get(usize::from(xy.y)),
+                ) {
+                    (None, _)|(_, None) => {
+                        continue 'outer;
+                    },
+                    (Some(true), Some(true)) => {
+                        break;
+                    },
+                    (Some(false), _)|(_, Some(false)) => {}
                 }
             }
 

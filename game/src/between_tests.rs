@@ -1,11 +1,41 @@
 use super::*;
-use tile::VisualKind;
+use tile::{VisualKind, Dir, XY};
+
+fn get_long_and_short_dir(
+    from: XY,
+    to: XY
+) -> (Dir, Dir) {
+    //FIXME account for xs and ys.
+    let from_x = usize::from(from.x);
+    let from_y = usize::from(from.y);
+    let to_x = usize::from(to.x);
+    let to_y = usize::from(to.y);
+
+    let x_distance = ((from_x as isize) - (to_x as isize)).abs() as usize;
+    let y_distance = ((from_y as isize) - (to_y as isize)).abs() as usize;
+    let x_dir = if from_x > to_x {
+        Dir::Left
+    } else {
+        Dir::Right
+    };
+    let y_dir = if from_y > to_y {
+        Dir::Up
+    } else {
+        Dir::Down
+    };
+    
+    if x_distance > y_distance {
+        (x_dir, y_dir)
+    } else {
+        (y_dir, x_dir)
+    }
+}
 
 fn generate_all_paths(
     from: tile::XY,
     to: tile::XY,
 ) -> Vec<Vec<tile::Dir>> {
-    let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to);
+    let (long_dir, short_dir) = get_long_and_short_dir(from, to);
 
     let distance = tile::manhattan_distance(from, to);
     // If we don't add a limit somewhere this will allocate way too much memory.
@@ -51,8 +81,6 @@ fn minimum_between_of_visual_kind_slow(
     xy_b: tile::XY,
     visual_kind: tile::VisualKind
 ) -> MinimumOutcome {
-    // TODO: Make sure this whole function is not absurdly slow, as the first version
-    // almost certainly is.
     if !&tiles.tiles.iter().map(|tile_data| {
         tile::VisualKind::from(tile_data.kind)
     }).any(|v_k| v_k == visual_kind) {
