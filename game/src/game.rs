@@ -435,20 +435,27 @@ mod tile {
         }
     }
     
+    pub(crate) fn true_count(bools: &[bool]) -> usize {
+        bools.iter().fold(0, |acc, &b| if b {
+            acc + 1
+        } else {
+            acc
+        })
+    }
+
     pub(crate) fn get_long_and_short_dir(
         from: XY,
         to: XY,
-        _xs: &[bool; Coord::COUNT as usize],
-        _ys: &[bool; Coord::COUNT as usize],
+        xs: &[bool; Coord::COUNT as usize],
+        ys: &[bool; Coord::COUNT as usize],
     ) -> (Dir, Dir) {
-        //FIXME account for xs and ys.
         let from_x = usize::from(from.x.0);
         let from_y = usize::from(from.y.0);
         let to_x = usize::from(to.x.0);
         let to_y = usize::from(to.y.0);
     
-        let x_distance = ((from_x as isize) - (to_x as isize)).abs() as Count;
-        let y_distance = ((from_y as isize) - (to_y as isize)).abs() as Count;
+        let x_distance = true_count(xs);
+        let y_distance = true_count(ys);
         let x_dir = if from_x > to_x {
             Dir::Left
         } else {
@@ -2322,10 +2329,9 @@ fn generate_paths(
     xs: &[bool; tile::Coord::COUNT as usize],
     ys: &[bool; tile::Coord::COUNT as usize],
 ) -> Vec<Vec<tile::Dir>> {
-    // FIXME account for xs and ys
     let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to, xs, ys);
 
-    let distance = tile::manhattan_distance(from, to);
+    let distance = tile::true_count(xs) + tile::true_count(ys);
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
