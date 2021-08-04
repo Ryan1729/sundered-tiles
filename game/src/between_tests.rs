@@ -147,6 +147,8 @@ mod minimum_between_of_visual_kind_matches_slow_version {
             );
             let fast_end = Instant::now();
 
+            assert_eq!(fast, slow);
+
             let fast_duration = fast_end.duration_since(fast_start);
             let slow_duration = slow_end.duration_since(slow_start);
 
@@ -159,9 +161,26 @@ mod minimum_between_of_visual_kind_matches_slow_version {
                 fast_duration.as_nanos(),
                 slow_duration.as_nanos()
             );
-
-            assert_eq!(fast, slow);
         }}
+    }
+
+    macro_rules! xy {
+        ($x: literal, $y: literal) => {{
+            let mut x = tile::X::default();
+            for _ in 0..$x {
+                x = x.checked_add_one().unwrap();
+            }
+
+            let mut y = tile::Y::default();
+            for _ in 0..$y {
+                y = y.checked_add_one().unwrap();
+            }
+
+            tile::XY {
+                x,
+                y,
+            }
+        }};
     }
 
     #[test]
@@ -180,5 +199,23 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
         a!(&tiles, from, to, VisualKind::Empty);
         a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+
+    #[test]
+    fn on_this_instructive_example() {
+        let mut tiles = Tiles::default();
+
+        let wanted_tile_data = TileData {
+            kind: tile::Kind::Red(<_>::default(), <_>::default(), <_>::default()),
+        };
+
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = wanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = wanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 2))] = wanted_tile_data;
+
+        let from = tile::XY::default();
+        let to = xy!(2, 2);
+
+        a!(&tiles, from, to, VisualKind::Red);
     }
 }
