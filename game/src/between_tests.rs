@@ -201,7 +201,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     }
 
     #[test]
-    fn on_this_instructive_example() {
+    fn on_this_instructive_set_of_examples() {
         let mut tiles = Tiles::default();
 
         let wanted_tile_data = TileData {
@@ -214,6 +214,14 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
         let from = tile::XY::default();
         let to = xy!(2, 2);
+
+        a!(&tiles, from, to, VisualKind::Red);
+
+        let to = xy!(3, 2);
+
+        a!(&tiles, from, to, VisualKind::Red);
+
+        let to = xy!(5, 6);
 
         a!(&tiles, from, to, VisualKind::Red);
     }
