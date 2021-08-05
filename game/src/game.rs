@@ -2331,7 +2331,10 @@ fn generate_paths(
 ) -> Vec<Vec<tile::Dir>> {
     let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to, xs, ys);
 
-    let distance = tile::true_count(xs) + tile::true_count(ys);
+    // `- 2` because
+    // * When we turn, we don't want to count that tile twice. (- 1)
+    // * We don't want to count the starting tile. (- 1)
+    let distance = tile::true_count(xs) + tile::true_count(ys) - 2;
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
@@ -2377,6 +2380,10 @@ fn minimum_between_of_visual_kind(
     // almost certainly is.
     use tile::{Coord};
 
+    if from == to {
+        return MinimumOutcome::NoMatchingTiles;
+    }
+
     let mut xs = [false; Coord::COUNT as usize];
     let mut ys = [false; Coord::COUNT as usize];
 
@@ -2416,6 +2423,11 @@ fn minimum_between_of_visual_kind(
         &xs,
         &ys,
     );
+
+    // We can assert this because we've checked that from != to, and that at least
+    // some rows have the target kind. Given those checks, an assert failure here 
+    // suggests a bug in the path generation code.
+    debug_assert!(!paths.is_empty());
 
     let mut minimum = tile::Count::max_value();
 

@@ -36,7 +36,6 @@ fn generate_all_paths(
     to: tile::XY,
 ) -> Vec<Vec<tile::Dir>> {
     let (long_dir, short_dir) = get_long_and_short_dir(from, to);
-
     let distance = tile::manhattan_distance(from, to);
     // If we don't add a limit somewhere this will allocate way too much memory.
     // Also, 64k paths ought to be enough for anybody!
