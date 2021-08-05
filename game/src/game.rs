@@ -2370,6 +2370,15 @@ fn generate_paths(
     output
 }
 
+// TODO genericize?
+fn min_max(a: usize, b: usize) -> (usize, usize) {
+    if a > b {
+        (b, a)
+    } else {
+        (a, b)
+    }
+}
+
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
     from: tile::XY,
@@ -2396,8 +2405,10 @@ fn minimum_between_of_visual_kind(
     let to_y = usize::from(to.y);
 
     {
+        let (min_x, max_x) = min_max(from_x, to_x);
+
         let mut saw_any = false;
-        for x in from_x..=to_x {
+        for x in min_x..=max_x {
             xs[x] = true;
             saw_any = true;
         }
@@ -2407,8 +2418,10 @@ fn minimum_between_of_visual_kind(
     }
 
     {
+        let (min_y, max_y) = min_max(from_y, to_y);
+
         let mut saw_any = false;
-        for y in from_y..=to_y {
+        for y in min_y..=max_y {
             ys[y] = true;
             saw_any = true;
         }

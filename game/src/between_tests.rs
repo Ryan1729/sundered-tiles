@@ -146,7 +146,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
             );
             let fast_end = Instant::now();
 
-            assert_eq!(fast, slow);
+            assert_eq!(fast, slow, "mismatch when looking for {:?}", $visual_kind);
 
             let fast_duration = fast_end.duration_since(fast_start);
             let slow_duration = slow_end.duration_since(slow_start);
@@ -224,5 +224,21 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         let to = xy!(5, 6);
 
         a!(&tiles, from, to, VisualKind::Red);
+    }
+
+    #[test]
+    fn on_this_non_down_right_example() {
+        let mut tiles = Tiles::default();
+
+        let wanted_tile_data = TileData {
+            kind: tile::Kind::Red(<_>::default(), <_>::default(), <_>::default()),
+        };
+
+        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = wanted_tile_data;
+
+        let from = xy!(1, 1);
+        let to = xy!(0, 0);
+
+        a!(&tiles, from, to, VisualKind::Empty);
     }
 }
