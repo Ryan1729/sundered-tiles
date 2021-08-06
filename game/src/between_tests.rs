@@ -241,4 +241,14 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
         a!(&tiles, from, to, VisualKind::Empty);
     }
+
+    #[test]
+    fn on_this_no_matching_tiles_example() {
+        let tiles = Tiles::default();
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
 }

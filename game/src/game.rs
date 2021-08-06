@@ -932,8 +932,11 @@ mod tile {
     }
 
     pub fn xy_to_i(xy: XY) -> usize {
-        u8::from(xy.y.0) as usize * Coord::COUNT as usize
-        + u8::from(xy.x.0) as usize
+        xy_to_i_usize((usize::from(xy.x.0), usize::from(xy.y.0)))
+    }
+
+    pub fn xy_to_i_usize((x, y): (usize, usize)) -> usize {
+        y * Coord::COUNT as usize + x
     }
 
     pub fn i_to_xy(index: usize) -> XY {
@@ -2379,6 +2382,15 @@ fn min_max(a: usize, b: usize) -> (usize, usize) {
     }
 }
 
+fn visual_kind_matches(
+    tiles: &Tiles,
+    xy: (usize, usize),
+    visual_kind: tile::VisualKind
+) -> bool {
+    tile::VisualKind::from(tiles.tiles[tile::xy_to_i_usize(xy)].kind)
+    == visual_kind
+}
+
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
     from: tile::XY,
@@ -2404,13 +2416,19 @@ fn minimum_between_of_visual_kind(
     let to_x = usize::from(to.x);
     let to_y = usize::from(to.y);
 
-    {
-        let (min_x, max_x) = min_max(from_x, to_x);
+    let (min_x, max_x) = min_max(from_x, to_x);
+    let (min_y, max_y) = min_max(from_y, to_y);
 
+    {
         let mut saw_any = false;
         for x in min_x..=max_x {
-            xs[x] = true;
-            saw_any = true;
+            for y in min_y..=max_y {
+                if visual_kind_matches(tiles, (x, y), visual_kind) {
+                    xs[x] = true;
+                    break;
+                }
+            }
+            saw_any |= xs[x];
         }
         if !saw_any {
             return MinimumOutcome::NoMatchingTiles;
@@ -2418,12 +2436,15 @@ fn minimum_between_of_visual_kind(
     }
 
     {
-        let (min_y, max_y) = min_max(from_y, to_y);
-
         let mut saw_any = false;
         for y in min_y..=max_y {
-            ys[y] = true;
-            saw_any = true;
+            for x in min_x..=max_x {
+                if visual_kind_matches(tiles, (x, y), visual_kind) {
+                    ys[y] = true;
+                    break;
+                }
+            }
+            saw_any |= ys[y];
         }
         if !saw_any {
             return MinimumOutcome::NoMatchingTiles;
