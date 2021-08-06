@@ -213,17 +213,18 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         tiles.tiles[tile::xy_to_i(xy!(0, 2))] = wanted_tile_data;
 
         let from = tile::XY::default();
+/*
         let to = xy!(2, 2);
 
         a!(&tiles, from, to, VisualKind::Red);
-
+*/
         let to = xy!(3, 2);
 
         a!(&tiles, from, to, VisualKind::Red);
-
+/*
         let to = xy!(5, 6);
 
-        a!(&tiles, from, to, VisualKind::Red);
+        a!(&tiles, from, to, VisualKind::Red);*/
     }
 
     #[test]

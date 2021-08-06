@@ -2,6 +2,14 @@
 //#![no_std]
 #![deny(unused)]
 
+macro_rules! compile_time_assert {
+    ($assertion: expr) => {{
+        #[allow(unknown_lints, eq_op)]
+        // Based on the const_assert macro from static_assertions;
+        const _: [(); 0 - !{$assertion} as usize] = [];
+    }}
+}
+
 pub trait ClearableStorage<A> {
     fn clear(&mut self);
 
@@ -2334,14 +2342,15 @@ fn generate_paths(
 ) -> Vec<Vec<tile::Dir>> {
     let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to, xs, ys);
 
-    // `- 2` because
-    // * When we turn, we don't want to count that tile twice. (- 1)
-    // * We don't want to count the starting tile. (- 1)
-    let distance = tile::true_count(xs) + tile::true_count(ys) - 2;
+    // `- 1` because
+    // * When we turn, we don't want to count that tile twice.
+    // TODO This method of calculating the distance seems completely off.
+    //  Try drawing diagrams with skippable columns/rows and/or writing tests.
+    let distance = tile::true_count(xs) + tile::true_count(ys) - 1;
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
-    
+
     let mut output = Vec::with_capacity(two_to_the_distance as usize);
     'outer: for possibility in 0..two_to_the_distance {
         let mut path = Vec::with_capacity(distance as usize);
@@ -2362,6 +2371,7 @@ fn generate_paths(
                     continue 'outer;
                 }
             }
+
             path.push(dir);
         }
 
@@ -2467,6 +2477,7 @@ fn minimum_between_of_visual_kind(
 
     'outer: for path in paths {
         let mut current_count = 0;
+
         let mut xy = from;
         for dir in path {
             loop {
@@ -2485,12 +2496,16 @@ fn minimum_between_of_visual_kind(
                     ys.get(usize::from(xy.y)),
                 ) {
                     (None, _)|(_, None) => {
+                        debug_assert!(false, "unexpected case");
                         continue 'outer;
                     },
-                    (Some(true), Some(true)) => {
+                    (Some(true), _)|(_, Some(true)) => {
+                        // Consume the dir from the path.
                         break;
                     },
-                    (Some(false), _)|(_, Some(false)) => {}
+                    (Some(false), Some(false)) => {
+                        // Skip the skippable row or column.
+                    }
                 }
             }
 
@@ -2503,6 +2518,11 @@ fn minimum_between_of_visual_kind(
             minimum = current_count;
         }
     }
+
+    compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
+    // Given the compile-time assert above, we know that if we got 
+    // `tile::Count::max_value()` here, then it is because something is very wrong.
+    debug_assert!(minimum != tile::Count::max_value());
 
     MinimumOutcome::Count(minimum)
 }
@@ -3699,11 +3719,7 @@ pub fn update(
                     ) / HOLD_FRAMES;
 
                     // These indexes rely on the value of hint::TILES_COUNT being 25.
-                    {
-                        #[allow(unknown_lints, eq_op)]
-                        // The const_assert macro from static_assertions inlined
-                        const _: [(); 0 - !{hint::TILES_COUNT == 25} as usize] = [];
-                    }
+                    compile_time_assert!(hint::TILES_COUNT == 25);
                     let (mut hint_index, mut target_index) = match frame_number {
                          0 | 8 => (        0, 4 * 5 + 4),
                         1 |  9 => (        1, 4 * 5 + 3),
