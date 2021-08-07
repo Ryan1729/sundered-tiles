@@ -1,5 +1,5 @@
 use super::*;
-use tile::{VisualKind, Dir, XY};
+use tile::{VisualKind, XY};
 
 fn get_long_and_short_dir(
     from: XY,
@@ -34,7 +34,7 @@ fn get_long_and_short_dir(
 fn generate_all_paths(
     from: tile::XY,
     to: tile::XY,
-) -> Vec<Vec<tile::Dir>> {
+) -> Vec<Vec<Dir>> {
     let (long_dir, short_dir) = get_long_and_short_dir(from, to);
     let distance = tile::manhattan_distance(from, to);
     // If we don't add a limit somewhere this will allocate way too much memory.
@@ -55,7 +55,7 @@ fn generate_all_paths(
                 _ => short_dir
             };
 
-            match tile::apply_dir(dir, xy) {
+            match apply_dir(dir, xy) {
                 Some(new_xy) => {
                     xy = new_xy;
                 },
@@ -97,7 +97,7 @@ fn minimum_between_of_visual_kind_slow(
         let mut current_count = 0;
         let mut xy = xy_a;
         for dir in path {
-            let xy_opt = tile::apply_dir(dir, xy);
+            let xy_opt = apply_dir(dir, xy);
             match xy_opt {
                 Some(new_xy) => {
                     xy = new_xy
@@ -118,6 +118,33 @@ fn minimum_between_of_visual_kind_slow(
     }
 
     MinimumOutcome::Count(minimum)
+}
+
+const RED_TILE_DATA: TileData = TileData {
+    kind: tile::Kind::Red(
+        tile::HybridOffset::DEFAULT,
+        tile::Visibility::DEFAULT,
+        tile::DistanceIntel::DEFAULT,
+    ),
+};
+
+macro_rules! xy {
+    ($x: literal, $y: literal) => {{
+        let mut x = tile::X::default();
+        for _ in 0..$x {
+            x = x.checked_add_one().unwrap();
+        }
+
+        let mut y = tile::Y::default();
+        for _ in 0..$y {
+            y = y.checked_add_one().unwrap();
+        }
+
+        tile::XY {
+            x,
+            y,
+        }
+    }};
 }
 
 mod minimum_between_of_visual_kind_matches_slow_version {
@@ -163,25 +190,6 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         }}
     }
 
-    macro_rules! xy {
-        ($x: literal, $y: literal) => {{
-            let mut x = tile::X::default();
-            for _ in 0..$x {
-                x = x.checked_add_one().unwrap();
-            }
-
-            let mut y = tile::Y::default();
-            for _ in 0..$y {
-                y = y.checked_add_one().unwrap();
-            }
-
-            tile::XY {
-                x,
-                y,
-            }
-        }};
-    }
-
     #[test]
     fn on_this_random_example() {
         let mut rng = xs_from_seed([
@@ -204,38 +212,32 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     fn on_this_instructive_set_of_examples() {
         let mut tiles = Tiles::default();
 
-        let wanted_tile_data = TileData {
-            kind: tile::Kind::Red(<_>::default(), <_>::default(), <_>::default()),
-        };
+        let wanted_tile_data = RED_TILE_DATA;
 
         tiles.tiles[tile::xy_to_i(xy!(2, 0))] = wanted_tile_data;
         tiles.tiles[tile::xy_to_i(xy!(1, 1))] = wanted_tile_data;
         tiles.tiles[tile::xy_to_i(xy!(0, 2))] = wanted_tile_data;
 
         let from = tile::XY::default();
-/*
+
         let to = xy!(2, 2);
 
         a!(&tiles, from, to, VisualKind::Red);
-*/
+
         let to = xy!(3, 2);
 
         a!(&tiles, from, to, VisualKind::Red);
-/*
+
         let to = xy!(5, 6);
 
-        a!(&tiles, from, to, VisualKind::Red);*/
+        a!(&tiles, from, to, VisualKind::Red);
     }
 
     #[test]
     fn on_this_non_down_right_example() {
         let mut tiles = Tiles::default();
 
-        let wanted_tile_data = TileData {
-            kind: tile::Kind::Red(<_>::default(), <_>::default(), <_>::default()),
-        };
-
-        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = wanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = RED_TILE_DATA;
 
         let from = xy!(1, 1);
         let to = xy!(0, 0);
@@ -251,5 +253,60 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         let to = xy!(1, 1);
 
         a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+}
+
+mod manhattan_distance_given_masks_returns_the_expected_result {
+    use super::*;
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $tiles: expr, $from: expr, $to: expr, $visual_kind: expr 
+            => $expected: expr
+        ) => {{
+            let tiles = $tiles;
+            let from = $from;
+            let to = $to;
+            let visual_kind = $visual_kind;
+
+            let masks = get_masks(tiles, from, to, visual_kind)
+                .expect("get_masks retunrned an Err");
+
+            assert_eq!(
+                manhattan_distance_given_masks(&masks),
+                $expected
+            );
+        }}
+    }
+
+    #[test]
+    fn on_this_5x5_3_blank_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 4))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        a!(&tiles, from, to, VisualKind::Empty => 5);
+    }
+
+    #[test]
+    fn on_this_5x5_1_blank_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        a!(&tiles, from, to, VisualKind::Empty => 1);
     }
 }

@@ -414,74 +414,6 @@ mod tile {
         }
     }
 
-    #[derive(Copy, Clone, Debug)]
-    pub enum Dir {
-        Up,
-        Down,
-        Left,
-        Right
-    }
-    
-    pub(crate) fn apply_dir(dir: Dir, xy: XY) -> Option<XY> {
-        match dir {
-            Dir::Up => xy.y.checked_sub_one().map(|y| XY {
-                y,
-                ..xy
-            }),
-            Dir::Down => xy.y.checked_add_one().map(|y| XY {
-                y,
-                ..xy
-            }),
-            Dir::Left => xy.x.checked_sub_one().map(|x| XY {
-                x,
-                ..xy
-            }),
-            Dir::Right => xy.x.checked_add_one().map(|x| XY {
-                x,
-                ..xy
-            }),
-        }
-    }
-    
-    pub(crate) fn true_count(bools: &[bool]) -> usize {
-        bools.iter().fold(0, |acc, &b| if b {
-            acc + 1
-        } else {
-            acc
-        })
-    }
-
-    pub(crate) fn get_long_and_short_dir(
-        from: XY,
-        to: XY,
-        xs: &[bool; Coord::COUNT as usize],
-        ys: &[bool; Coord::COUNT as usize],
-    ) -> (Dir, Dir) {
-        let from_x = usize::from(from.x.0);
-        let from_y = usize::from(from.y.0);
-        let to_x = usize::from(to.x.0);
-        let to_y = usize::from(to.y.0);
-    
-        let x_distance = true_count(xs);
-        let y_distance = true_count(ys);
-        let x_dir = if from_x > to_x {
-            Dir::Left
-        } else {
-            Dir::Right
-        };
-        let y_dir = if from_y > to_y {
-            Dir::Up
-        } else {
-            Dir::Down
-        };
-        
-        if x_distance > y_distance {
-            (x_dir, y_dir)
-        } else {
-            (y_dir, x_dir)
-        }
-    }
-
     mod sprialish {
         use super::*;
 
@@ -1433,17 +1365,17 @@ mod tile {
                 pub const ALL: [Self; Self::COUNT as usize] = [
                     $(Self::$variants,)+
                 ];
-            }
 
-            impl HybridOffset {
                 pub fn from_rng(rng: &mut Xs) -> Self {
                     Self::ALL[xs_u32(rng, 0, Self::ALL.len() as u32) as usize]
                 }
-            }
 
+                pub(crate) const DEFAULT: HybridOffset = Self::ALL[0];
+            }
+        
             impl Default for HybridOffset {
                 fn default() -> Self {
-                    Self::ALL[0]
+                    Self::DEFAULT
                 }
             }
         }
@@ -1846,9 +1778,13 @@ mod tile {
         Shown
     }
 
+    impl Visibility {
+        pub(crate) const DEFAULT: Visibility = Self::Hidden;
+    }
+
     impl Default for Visibility {
         fn default() -> Self {
-            Self::Hidden
+            Self::DEFAULT
         }
     }
 
@@ -1925,11 +1861,13 @@ mod tile {
 
     impl Default for DistanceIntel {
         fn default() -> Self {
-            Self::Full
+            Self::DEFAULT
         }
     }
 
     impl DistanceIntel {
+        pub(crate) const DEFAULT: DistanceIntel = Self::Full;
+
         pub(crate) fn from_rng(rng: &mut Xs) -> Self {
             use DistanceIntel::*;
             match xs_u32(rng, 0, 4) {
@@ -2334,19 +2272,95 @@ impl MinimumOutcome {
 #[cfg(test)]
 mod between_tests;
 
-fn generate_paths(
+#[derive(Copy, Clone, Debug)]
+pub enum Dir {
+    Up,
+    Down,
+    Left,
+    Right
+}
+
+pub(crate) fn apply_dir(dir: Dir, xy: tile::XY) -> Option<tile::XY> {
+    use tile::XY;
+    match dir {
+        Dir::Up => xy.y.checked_sub_one().map(|y| XY {
+            y,
+            ..xy
+        }),
+        Dir::Down => xy.y.checked_add_one().map(|y| XY {
+            y,
+            ..xy
+        }),
+        Dir::Left => xy.x.checked_sub_one().map(|x| XY {
+            x,
+            ..xy
+        }),
+        Dir::Right => xy.x.checked_add_one().map(|x| XY {
+            x,
+            ..xy
+        }),
+    }
+}
+
+pub(crate) fn true_count(bools: &[bool]) -> usize {
+    bools.iter().fold(0, |acc, &b| if b {
+        acc + 1
+    } else {
+        acc
+    })
+}
+
+pub(crate) fn get_long_and_short_dir(
     from: tile::XY,
     to: tile::XY,
-    xs: &[bool; tile::Coord::COUNT as usize],
-    ys: &[bool; tile::Coord::COUNT as usize],
-) -> Vec<Vec<tile::Dir>> {
-    let (long_dir, short_dir) = tile::get_long_and_short_dir(from, to, xs, ys);
+    masks: &Masks,
+) -> (Dir, Dir) {
+    let from_x = usize::from(from.x);
+    let from_y = usize::from(from.y);
+    let to_x = usize::from(to.x);
+    let to_y = usize::from(to.y);
 
+    let x_distance = true_count(&masks.xs);
+    let y_distance = true_count(&masks.ys);
+    let x_dir = if from_x > to_x {
+        Dir::Left
+    } else {
+        Dir::Right
+    };
+    let y_dir = if from_y > to_y {
+        Dir::Up
+    } else {
+        Dir::Down
+    };
+    
+    if x_distance > y_distance {
+        (x_dir, y_dir)
+    } else {
+        (y_dir, x_dir)
+    }
+}
+
+fn manhattan_distance_given_masks(
+    Masks {
+        xs,
+        ys
+    }: &Masks,
+) -> usize {
     // `- 1` because
     // * When we turn, we don't want to count that tile twice.
     // TODO This method of calculating the distance seems completely off.
     //  Try drawing diagrams with skippable columns/rows and/or writing tests.
-    let distance = tile::true_count(xs) + tile::true_count(ys) - 1;
+    true_count(xs) + true_count(ys) - 1
+}
+
+fn generate_paths(
+    from: tile::XY,
+    to: tile::XY,
+    masks: &Masks,
+) -> Vec<Vec<Dir>> {
+    let (long_dir, short_dir) = get_long_and_short_dir(from, to, masks);
+
+    let distance = manhattan_distance_given_masks(masks);
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
@@ -2363,7 +2377,7 @@ fn generate_paths(
                 _ => short_dir
             };
 
-            match tile::apply_dir(dir, xy) {
+            match apply_dir(dir, xy) {
                 Some(new_xy) => {
                     xy = new_xy;
                 },
@@ -2401,22 +2415,19 @@ fn visual_kind_matches(
     == visual_kind
 }
 
-fn minimum_between_of_visual_kind(
+pub(crate) struct Masks {
+    pub(crate) xs: [bool; tile::Coord::COUNT as usize],
+    pub(crate) ys: [bool; tile::Coord::COUNT as usize]
+}
+
+fn get_masks(
     tiles: &Tiles,
     from: tile::XY,
     to: tile::XY,
     visual_kind: tile::VisualKind
-) -> MinimumOutcome {
-    // TODO: Make sure this whole function is not absurdly slow, as the first version
-    // almost certainly is.
-    use tile::{Coord};
-
-    if from == to {
-        return MinimumOutcome::NoMatchingTiles;
-    }
-
-    let mut xs = [false; Coord::COUNT as usize];
-    let mut ys = [false; Coord::COUNT as usize];
+) -> Result<Masks, MinimumOutcome> {
+    let mut xs = [false; tile::Coord::COUNT as usize];
+    let mut ys = [false; tile::Coord::COUNT as usize];
 
     // TODO eliminate rows/columns with none of the target visual_kind and jump over
     // them properly.
@@ -2441,7 +2452,7 @@ fn minimum_between_of_visual_kind(
             saw_any |= xs[x];
         }
         if !saw_any {
-            return MinimumOutcome::NoMatchingTiles;
+            return Err(MinimumOutcome::NoMatchingTiles);
         }
     }
 
@@ -2457,15 +2468,45 @@ fn minimum_between_of_visual_kind(
             saw_any |= ys[y];
         }
         if !saw_any {
-            return MinimumOutcome::NoMatchingTiles;
+            return Err(MinimumOutcome::NoMatchingTiles);
         }
     }
+
+    Ok(Masks{
+        xs,
+        ys
+    })
+}
+
+fn minimum_between_of_visual_kind(
+    tiles: &Tiles,
+    from: tile::XY,
+    to: tile::XY,
+    visual_kind: tile::VisualKind
+) -> MinimumOutcome {
+    // TODO: Make sure this whole function is not absurdly slow, as the first version
+    // almost certainly is.
+
+    if from == to {
+        return MinimumOutcome::NoMatchingTiles;
+    }
+
+    let masks_result = get_masks(
+        tiles,
+        from,
+        to,
+        visual_kind
+    );
+
+    let masks = match masks_result { 
+        Err(outcome) => return outcome,
+        Ok(ms) => ms,
+    };
 
     let paths = generate_paths(
         from,
         to,
-        &xs,
-        &ys,
+        &masks,
     );
 
     // We can assert this because we've checked that from != to, and that at least
@@ -2481,7 +2522,7 @@ fn minimum_between_of_visual_kind(
         let mut xy = from;
         for dir in path {
             loop {
-                let xy_opt = tile::apply_dir(dir, xy);
+                let xy_opt = apply_dir(dir, xy);
                 match xy_opt {
                     Some(new_xy) => {
                         xy = new_xy
@@ -2492,8 +2533,8 @@ fn minimum_between_of_visual_kind(
                 }
 
                 match (
-                    xs.get(usize::from(xy.x)),
-                    ys.get(usize::from(xy.y)),
+                    masks.xs.get(usize::from(xy.x)),
+                    masks.ys.get(usize::from(xy.y)),
                 ) {
                     (None, _)|(_, None) => {
                         debug_assert!(false, "unexpected case");
