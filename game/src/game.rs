@@ -2391,6 +2391,11 @@ fn generate_paths(
         masks
     );
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
+
+    if distance == 0 {
+        return vec![vec![]];
+    }
+
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
 
