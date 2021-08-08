@@ -271,10 +271,10 @@ mod manhattan_distance_given_masks_returns_the_expected_result {
             let visual_kind = $visual_kind;
 
             let masks = get_masks(tiles, from, to, visual_kind)
-                .expect("get_masks retunrned an Err");
+                .expect("get_masks returned an Err");
 
             assert_eq!(
-                manhattan_distance_given_masks(&masks),
+                manhattan_distance_given_masks(from, to, &masks),
                 $expected
             );
         }}
@@ -307,6 +307,73 @@ mod manhattan_distance_given_masks_returns_the_expected_result {
         let from = xy!(0, 0);
         let to = xy!(4, 4);
 
+        // Not super sure about this expectation anymore
         a!(&tiles, from, to, VisualKind::Empty => 1);
+    }
+}
+
+mod get_masks_returns_the_expected_result {
+    use super::*;
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $tiles: expr, $from: expr, $to: expr, $visual_kind: expr 
+            => $expected: expr
+        ) => {{
+            let tiles = $tiles;
+            let from = $from;
+            let to = $to;
+            let visual_kind = $visual_kind;
+
+            assert_eq!(
+                get_masks(tiles, from, to, visual_kind),
+                Ok($expected)
+            );
+        }}
+    }
+
+    #[test]
+    fn on_this_5x5_3_blank_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 4))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        let mut expected = Masks::default();
+        expected.xs[0] = true;
+        expected.xs[2] = true;
+        expected.xs[4] = true;
+
+        expected.ys[0] = true;
+        expected.ys[2] = true;
+        expected.ys[4] = true;
+
+        a!(&tiles, from, to, VisualKind::Empty => expected);
+    }
+
+    #[test]
+    fn on_this_5x5_1_blank_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        let mut expected = Masks::default();
+        expected.xs[2] = true;
+
+        expected.ys[2] = true;
+
+        a!(&tiles, from, to, VisualKind::Empty => expected);
     }
 }

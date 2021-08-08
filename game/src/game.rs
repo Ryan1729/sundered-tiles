@@ -2341,16 +2341,19 @@ pub(crate) fn get_long_and_short_dir(
 }
 
 fn manhattan_distance_given_masks(
+    from: tile::XY,
+    to: tile::XY,
     Masks {
         xs,
         ys
     }: &Masks,
 ) -> usize {
-    // `- 1` because
-    // * When we turn, we don't want to count that tile twice.
-    // TODO This method of calculating the distance seems completely off.
-    //  Try drawing diagrams with skippable columns/rows and/or writing tests.
-    true_count(xs) + true_count(ys) - 1
+    let (min_x, max_x) = min_max(usize::from(from.x), usize::from(to.x));
+    let (min_y, max_y) = min_max(usize::from(from.y), usize::from(to.y));
+
+    // We either start or end on (min_x, min_y), so we don't count that one.
+    true_count(&xs[(min_x + 1)..=max_x])
+    + true_count(&ys[(min_y + 1)..=max_y])
 }
 
 fn generate_paths(
@@ -2360,7 +2363,11 @@ fn generate_paths(
 ) -> Vec<Vec<Dir>> {
     let (long_dir, short_dir) = get_long_and_short_dir(from, to, masks);
 
-    let distance = manhattan_distance_given_masks(masks);
+    let distance = manhattan_distance_given_masks(
+        from,
+        to,
+        masks
+    );
     assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
     let two_to_the_distance = 1 << (distance as u64);
     // Yes this is O(2^n). Yes we will all but certainly need to replace this.
@@ -2415,9 +2422,19 @@ fn visual_kind_matches(
     == visual_kind
 }
 
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Masks {
     pub(crate) xs: [bool; tile::Coord::COUNT as usize],
     pub(crate) ys: [bool; tile::Coord::COUNT as usize]
+}
+
+impl Default for Masks {
+    fn default() -> Self {
+        Self {
+            xs: [false; tile::Coord::COUNT as usize],
+            ys: [false; tile::Coord::COUNT as usize]
+        }
+    }
 }
 
 fn get_masks(
@@ -2437,6 +2454,7 @@ fn get_masks(
     let to_x = usize::from(to.x);
     let to_y = usize::from(to.y);
 
+    // TODO store in Masks?
     let (min_x, max_x) = min_max(from_x, to_x);
     let (min_y, max_y) = min_max(from_y, to_y);
 
@@ -2444,6 +2462,7 @@ fn get_masks(
         let mut saw_any = false;
         for x in min_x..=max_x {
             for y in min_y..=max_y {
+                dbg!(x, y, visual_kind, tile::VisualKind::from(tiles.tiles[tile::xy_to_i_usize((x, y))].kind));
                 if visual_kind_matches(tiles, (x, y), visual_kind) {
                     xs[x] = true;
                     break;
