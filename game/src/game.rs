@@ -2460,31 +2460,15 @@ fn get_masks(
 
     {
         let mut saw_any = false;
-        for x in min_x..=max_x {
-            for y in min_y..=max_y {
-                dbg!(x, y, visual_kind, tile::VisualKind::from(tiles.tiles[tile::xy_to_i_usize((x, y))].kind));
-                if visual_kind_matches(tiles, (x, y), visual_kind) {
-                    xs[x] = true;
-                    break;
-                }
-            }
-            saw_any |= xs[x];
-        }
-        if !saw_any {
-            return Err(MinimumOutcome::NoMatchingTiles);
-        }
-    }
-
-    {
-        let mut saw_any = false;
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 if visual_kind_matches(tiles, (x, y), visual_kind) {
+                    dbg!(x, y);
+                    xs[x] = true;
                     ys[y] = true;
-                    break;
+                    saw_any = true;
                 }
             }
-            saw_any |= ys[y];
         }
         if !saw_any {
             return Err(MinimumOutcome::NoMatchingTiles);
