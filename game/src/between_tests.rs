@@ -286,14 +286,14 @@ mod manhattan_distance_given_masks_returns_the_expected_result {
         assert!(
             visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
         );
-        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(0, 2))] = RED_TILE_DATA;
         tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
-        tiles.tiles[tile::xy_to_i(xy!(2, 4))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(4, 2))] = RED_TILE_DATA;
 
         let from = xy!(0, 0);
         let to = xy!(4, 4);
 
-        a!(&tiles, from, to, VisualKind::Empty => 5);
+        a!(&tiles, from, to, VisualKind::Empty => 8);
     }
 
     #[test]
@@ -307,8 +307,72 @@ mod manhattan_distance_given_masks_returns_the_expected_result {
         let from = xy!(0, 0);
         let to = xy!(4, 4);
 
-        // Not super sure about this expectation anymore
-        a!(&tiles, from, to, VisualKind::Empty => 1);
+        a!(&tiles, from, to, VisualKind::Empty => 8);
+    }
+
+    #[test]
+    fn on_this_5x5_3_wanted_horizontal_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(0, 2))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(4, 2))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        let mut expected = Masks::default();
+        expected.xs[0] = true;
+        expected.xs[2] = true;
+        expected.xs[4] = true;
+
+        expected.ys[2] = true;
+
+        a!(&tiles, from, to, VisualKind::Red => 2);
+    }
+
+    #[test]
+    fn on_this_5x5_3_wanted_vertical_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(2, 4))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        let mut expected = Masks::default();
+        expected.xs[2] = true;
+
+        expected.ys[0] = true;
+        expected.ys[2] = true;
+        expected.ys[4] = true;
+
+        a!(&tiles, from, to, VisualKind::Red => 2);
+    }
+
+    #[test]
+    fn on_this_5x5_1_wanted_example() {
+        let mut tiles = Tiles::default();
+        assert!(
+            visual_kind_matches(&tiles, <_>::default(), VisualKind::Empty)
+        );
+        tiles.tiles[tile::xy_to_i(xy!(2, 2))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(4, 4);
+
+        let mut expected = Masks::default();
+        expected.xs[2] = true;
+
+        expected.ys[2] = true;
+
+        a!(&tiles, from, to, VisualKind::Red => 0);
     }
 }
 

@@ -952,8 +952,18 @@ mod tile {
     // `Coord`'s design. If this ever becomes a problem we can enforce this.
     pub type Distance = u8;
     pub(crate) fn manhattan_distance(a: XY, b: XY) -> Distance {
-        ((u8::from(a.x.0) as i8 - u8::from(b.x.0) as i8).abs() 
-        + (u8::from(a.y.0) as i8 - u8::from(b.y.0) as i8).abs()) as Distance
+        manhattan_distance_count_tuples(
+            (Count::from(a.x.0), Count::from(a.y.0)),
+            (Count::from(b.x.0), Count::from(b.y.0)),
+        )
+    }
+
+    pub(crate) fn manhattan_distance_count_tuples(
+        a: (Count, Count),
+        b: (Count, Count)
+    ) -> Distance {
+        ((a.0 as i8 - b.0 as i8).abs() 
+        + (a.1 as i8 - b.1 as i8).abs()) as Distance
     }
 
     pub const PRIMES_BELOW_100: [Distance; 25] = [
@@ -2348,12 +2358,24 @@ fn manhattan_distance_given_masks(
         ys
     }: &Masks,
 ) -> usize {
+    use std::convert::TryInto;
+    use tile::Count;
+
     let (min_x, max_x) = min_max(usize::from(from.x), usize::from(to.x));
     let (min_y, max_y) = min_max(usize::from(from.y), usize::from(to.y));
+    
+    // TODO avoid needing .try_into().unwrap()
+    let x_count: Count = true_count(&xs[min_x..=max_x]).try_into().unwrap();
+    let y_count: Count = true_count(&ys[min_y..=max_y]).try_into().unwrap();
 
-    // We either start or end on (min_x, min_y), so we don't count that one.
-    true_count(&xs[(min_x + 1)..=max_x])
-    + true_count(&ys[(min_y + 1)..=max_y])
+    if x_count == 0 || y_count == 0 {
+        return 0;
+    }
+
+    tile::manhattan_distance_count_tuples(
+        <_>::default(),
+        (x_count - 1, y_count - 1),
+    ) as usize
 }
 
 fn generate_paths(
@@ -2463,7 +2485,6 @@ fn get_masks(
         for y in min_y..=max_y {
             for x in min_x..=max_x {
                 if visual_kind_matches(tiles, (x, y), visual_kind) {
-                    dbg!(x, y);
                     xs[x] = true;
                     ys[y] = true;
                     saw_any = true;
