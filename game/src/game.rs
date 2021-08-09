@@ -174,6 +174,7 @@ mod tile {
         },
         Xs,
         xs_u32,
+        Masks,
     };
 
     // An amount of tiles, which are usually arranged in a line.
@@ -207,6 +208,21 @@ mod tile {
                 #[allow(unused)] // Desired in the tests
                 pub(crate) const CENTER: $struct_name = $struct_name(Coord::CENTER);
                 pub(crate) const MAX: $struct_name = $struct_name(Coord::MAX);
+                
+                pub(crate) const COUNT: Count = Coord::COUNT;
+
+                pub (crate) const ALL: [$struct_name; Self::COUNT as usize] = {
+                    let mut all = [$struct_name(Coord::ALL[0]); Self::COUNT as usize];
+
+                    let mut coord = Coord::ALL[0];
+                    while let Some(c) = coord.const_checked_add_one() {
+                        all[Coord::const_to_count(c) as usize] = $struct_name(c);
+
+                        coord = c;
+                    }
+
+                    all
+                };
 
                 #[allow(unused)] // desired in tests
                 pub fn from_rng(rng: &mut Xs) -> Self {
@@ -966,6 +982,26 @@ mod tile {
         + (a.1 as i8 - b.1 as i8).abs()) as Distance
     }
 
+    type MaskArray = [bool; Coord::COUNT as usize];
+
+    pub(crate) fn true_count_coord(bools: &MaskArray) -> Coord {
+        bools.iter().fold(Coord::default(), |acc, &b| if b {
+            acc.checked_add_one().unwrap_or(Coord::ALL[Coord::MAX_INDEX as usize])
+        } else {
+            acc
+        })
+    }
+
+    pub(crate) fn masked_size(masks: &Masks) -> XY {
+        let width = true_count_coord(&masks.xs);
+        let height = true_count_coord(&masks.ys);
+        
+        XY {
+            x: X(width),
+            y: Y(height)
+        }
+    }
+
     pub const PRIMES_BELOW_100: [Distance; 25] = [
         2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
         73, 79, 83, 89, 97
@@ -1049,7 +1085,13 @@ mod tile {
 
             impl From<Coord> for u8 {
                 fn from(coord: Coord) -> u8 {
-                    match coord {
+                    coord.const_to_count()
+                }
+            }
+
+            impl Coord {
+                const fn const_to_count(self) -> Count {
+                    match self {
                         Coord::$zero_variant => $zero_number,
                         $(Coord::$wrap_variants => $wrap_number,)+
                     }
@@ -1066,6 +1108,12 @@ mod tile {
                 type Error = ();
 
                 fn try_from(byte: u8) -> Result<Self, Self::Error> {
+                    Self::const_try_from(byte)
+                }
+            }
+
+            impl Coord {
+                const fn const_try_from(byte: u8) -> Result<Self, ()> {
                     match byte {
                         $zero_number => Ok(Coord::$zero_variant),
                         $($wrap_number => Ok(Coord::$wrap_variants),)+
@@ -1207,8 +1255,19 @@ mod tile {
 
     impl AddOne for Coord {
         fn checked_add_one(&self) -> Option<Self> {
-            (*self as u8).checked_add(1)
-                .and_then(|byte| byte.try_into().ok())
+            self.const_checked_add_one()
+        }
+    }
+
+    impl Coord {
+        const fn const_checked_add_one(&self) -> Option<Self> {
+            match (*self as u8).checked_add(1) {
+                Some(byte) => match Self::const_try_from(byte) {
+                    Ok(x) => Some(x),
+                    Err(_) => None,
+                },
+                None => None,
+            }
         }
     }
 
@@ -2320,6 +2379,7 @@ pub(crate) fn true_count(bools: &[bool]) -> usize {
     })
 }
 
+/*
 pub(crate) fn get_long_and_short_dir(
     from: tile::XY,
     to: tile::XY,
@@ -2348,7 +2408,7 @@ pub(crate) fn get_long_and_short_dir(
     } else {
         (y_dir, x_dir)
     }
-}
+}*/
 
 fn manhattan_distance_given_masks(
     from: tile::XY,
@@ -2378,6 +2438,59 @@ fn manhattan_distance_given_masks(
     ) as usize
 }
 
+fn generate_paths_from_zero(
+    to: tile::XY,
+    long_dir: Dir,
+    short_dir: Dir,
+) -> Vec<Vec<Dir>> {
+    let from = <_>::default();
+
+    let distance = tile::manhattan_distance(
+        from,
+        to
+    );
+    assert!(distance <= 16, "distance: {}", distance); // Just until we make this fast, to avoid locking up the machine.
+
+    if distance == 0 {
+        return vec![vec![]];
+    }
+
+    let two_to_the_distance = 1 << (distance as u64);
+    // Yes this is O(2^n). Yes we will all but certainly need to replace this.
+
+    let mut output = Vec::with_capacity(two_to_the_distance as usize);
+    'outer: for possibility in 0..two_to_the_distance {
+        let mut path = Vec::with_capacity(distance as usize);
+        let mut xy = from;
+        for bit_index in 0..distance {
+            let bit = (possibility >> bit_index) & 1;
+
+            let dir = match bit {
+                0 => long_dir,
+                _ => short_dir
+            };
+
+            match apply_dir(dir, xy) {
+                Some(new_xy) => {
+                    xy = new_xy;
+                },
+                None => {
+                    continue 'outer;
+                }
+            }
+
+            path.push(dir);
+        }
+
+        if xy == to {
+            output.push(path);
+        }   
+    }
+
+    output
+}
+
+/*
 fn generate_paths(
     from: tile::XY,
     to: tile::XY,
@@ -2430,6 +2543,7 @@ fn generate_paths(
 
     output
 }
+*/
 
 // TODO genericize?
 fn min_max(a: usize, b: usize) -> (usize, usize) {
@@ -2507,6 +2621,71 @@ fn get_masks(
     })
 }
 
+fn minimum_between_of_visual_kind_given_masks(
+    tiles: &Tiles,
+    _from: tile::XY,
+    _to: tile::XY,
+    visual_kind: tile::VisualKind,
+    masks: Masks,
+) -> tile::Count {
+    let mut minimum = tile::Count::max_value();
+
+    let shrunk_to = tile::masked_size(&masks);
+
+    let mut shrunk_tiles: Vec<tile::VisualKind> = Vec::with_capacity(tiles.tiles.len());
+
+    for &y in tile::Y::ALL.iter() {
+        for &x in tile::X::ALL.iter() {
+            if masks.ys[usize::from(y)] || masks.xs[usize::from(x)] {
+                let xy = tile::XY{x, y};
+                shrunk_tiles.push(get_tile_visual_kind(tiles, xy));
+            }
+        }
+    }
+
+    let width = usize::from(shrunk_to.x);
+    let height = usize::from(shrunk_to.y);
+
+    assert_eq!(
+        shrunk_tiles.len(),
+        width * height
+    );
+
+    // TODO use the actual directions if that seems easier/better.
+    let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, masks);
+
+    let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
+
+    'outer: for path in shrunk_paths {
+        let mut current_count = 0;
+
+        let mut xy: tile::XY = <_>::default();
+        for dir in path {
+            let xy_opt = apply_dir(dir, xy);
+            match xy_opt {
+                Some(new_xy) => {
+                    xy = new_xy
+                },
+                None => {
+                    continue 'outer;
+                }
+            }
+
+            let i = usize::from(xy.y) * width as usize + usize::from(xy.x);
+
+            if visual_kind == shrunk_tiles[i] {
+                current_count += 1;
+            }
+        }
+
+        if current_count < minimum {
+            minimum = current_count;
+        }
+    }
+    
+    minimum
+}
+
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
     from: tile::XY,
@@ -2532,6 +2711,15 @@ fn minimum_between_of_visual_kind(
         Ok(ms) => ms,
     };
 
+    let minimum = minimum_between_of_visual_kind_given_masks(
+        tiles,
+        from,
+        to,
+        visual_kind,
+        masks
+    );
+
+/*
     let paths = generate_paths(
         from,
         to,
@@ -2588,7 +2776,7 @@ fn minimum_between_of_visual_kind(
             minimum = current_count;
         }
     }
-
+*/
     compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
     // Given the compile-time assert above, we know that if we got 
     // `tile::Count::max_value()` here, then it is because something is very wrong.
