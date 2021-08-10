@@ -145,7 +145,7 @@ macro_rules! xy {
             y,
         }
     }};
-}
+} use xy;
 
 mod minimum_between_of_visual_kind_matches_slow_version {
     use super::*;
@@ -183,7 +183,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
             // effects, and/or OS task switching or something?
             assert!(
                 fast_duration <= (slow_duration + (slow_duration/20)),
-                "{} > {}",
+                "{} > {}: too slow",
                 fast_duration.as_nanos(),
                 slow_duration.as_nanos()
             );
@@ -253,6 +253,22 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         let to = xy!(1, 1);
 
         a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+
+    #[test]
+    fn on_this_2x2_example() {
+        let mut tiles = Tiles::default();
+
+        let wanted_tile_data = RED_TILE_DATA;
+
+        tiles.tiles[tile::xy_to_i(xy!(1, 0))] = wanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 1))] = wanted_tile_data;
+
+        let from = tile::XY::default();
+
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Red);
     }
 }
 

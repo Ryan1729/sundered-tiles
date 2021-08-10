@@ -2636,7 +2636,7 @@ fn minimum_between_of_visual_kind_given_masks(
 
     for &y in tile::Y::ALL.iter() {
         for &x in tile::X::ALL.iter() {
-            if masks.ys[usize::from(y)] || masks.xs[usize::from(x)] {
+            if masks.ys[usize::from(y)] && masks.xs[usize::from(x)] {
                 let xy = tile::XY{x, y};
                 shrunk_tiles.push(get_tile_visual_kind(tiles, xy));
             }
@@ -2646,9 +2646,11 @@ fn minimum_between_of_visual_kind_given_masks(
     let width = usize::from(shrunk_to.x);
     let height = usize::from(shrunk_to.y);
 
-    assert_eq!(
+    debug_assert_eq!(
         shrunk_tiles.len(),
-        width * height
+        width * height,
+        "shrunk_tiles was the wrong size: {:#?}",
+        shrunk_tiles
     );
 
     // TODO use the actual directions if that seems easier/better.
@@ -2673,7 +2675,7 @@ fn minimum_between_of_visual_kind_given_masks(
 
             let i = usize::from(xy.y) * width as usize + usize::from(xy.x);
 
-            if visual_kind == shrunk_tiles[i] {
+            if Some(&visual_kind) == shrunk_tiles.get(i) {
                 current_count += 1;
             }
         }
