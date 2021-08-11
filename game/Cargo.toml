@@ -9,3 +9,6 @@ path = "./src/game.rs"
 
 [dependencies]
 floats = { path = "../floats" }
+
+[features]
+skip-speed-tests = []

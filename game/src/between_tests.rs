@@ -112,6 +112,12 @@ fn minimum_between_of_visual_kind_slow(
             }
         }
 
+        // We arte getting the `minimum_between`, so we don't want to count the 
+        // end tile, so decrement it if it was incremented.
+        if visual_kind == get_tile_visual_kind(tiles, xy) {
+            current_count -= 1;
+        }
+
         if current_count < minimum {
             minimum = current_count;
         }
@@ -153,6 +159,8 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     // Short for assert. We can be this brief becasue this is local to this module
     macro_rules! a {
         ($tiles: expr, $from: expr, $to: expr, $visual_kind: expr) => {{
+            #![allow(unused)]
+
             use std::time::Instant;
 
             let slow_start = Instant::now();
@@ -175,18 +183,20 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
             assert_eq!(fast, slow, "mismatch when looking for {:?}", $visual_kind);
 
-            let fast_duration = fast_end.duration_since(fast_start);
-            let slow_duration = slow_end.duration_since(slow_start);
-
-            // Without the margin added to the slow duration, this fails sometimes,
-            // even with identical implementations. I guess this is due to cache 
-            // effects, and/or OS task switching or something?
-            assert!(
-                fast_duration <= (slow_duration + (slow_duration/20)),
-                "{} > {}: too slow",
-                fast_duration.as_nanos(),
-                slow_duration.as_nanos()
-            );
+            if !cfg!(feature = "skip-speed-tests") {
+                let fast_duration = fast_end.duration_since(fast_start);
+                let slow_duration = slow_end.duration_since(slow_start);
+    
+                // Without the margin added to the slow duration, this fails sometimes,
+                // even with identical implementations. I guess this is due to cache 
+                // effects, and/or OS task switching or something?
+                assert!(
+                    fast_duration <= (slow_duration + (slow_duration/20)),
+                    "{} > {}: too slow",
+                    fast_duration.as_nanos(),
+                    slow_duration.as_nanos()
+                );
+            }
         }}
     }
 
@@ -234,10 +244,82 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     }
 
     #[test]
-    fn on_this_non_down_right_example() {
+    fn on_this_to_not_wanted_example() {
         let mut tiles = Tiles::default();
 
         tiles.tiles[tile::xy_to_i(xy!(1, 1))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_all_but_to_red_down_right_example() {
+        let mut tiles = Tiles::default();
+
+        tiles.tiles[tile::xy_to_i(xy!(0, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(1, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(0, 1))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_all_but_from_red_down_right_example() {
+        let mut tiles = Tiles::default();
+
+        tiles.tiles[tile::xy_to_i(xy!(1, 0))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(0, 1))] = RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_from_red_down_right_example() {
+        let mut tiles = Tiles::default();
+
+        tiles.tiles[tile::xy_to_i(xy!(0, 0))] = RED_TILE_DATA;
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_from_red_non_down_right_example() {
+        let mut tiles = Tiles::default();
+
+        tiles.tiles[tile::xy_to_i(xy!(1, 1))] = RED_TILE_DATA;
+
+        let from = xy!(1, 1);
+        let to = xy!(0, 0);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_all_empty_down_right_example() {
+        let tiles = Tiles::default();
+
+        let from = xy!(0, 0);
+        let to = xy!(1, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_all_empty_non_down_right_example() {
+        let tiles = Tiles::default();
 
         let from = xy!(1, 1);
         let to = xy!(0, 0);
