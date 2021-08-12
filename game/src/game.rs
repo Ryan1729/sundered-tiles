@@ -2444,7 +2444,8 @@ fn generate_paths_from_zero(
     short_dir: Dir,
 ) -> Vec<Vec<Dir>> {
     let from = <_>::default();
-
+dbg!(from,
+        to);
     let distance = tile::manhattan_distance(
         from,
         to

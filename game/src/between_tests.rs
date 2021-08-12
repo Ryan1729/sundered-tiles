@@ -136,6 +136,11 @@ const RED_TILE_DATA: TileData = TileData {
 
 macro_rules! xy {
     ($x: literal, $y: literal) => {{
+        let x = $x;
+        let y = $y;
+        xy!(x, y)
+    }};
+    ($x: expr, $y: expr) => {{
         let mut x = tile::X::default();
         for _ in 0..$x {
             x = x.checked_add_one().unwrap();
@@ -216,6 +221,41 @@ mod minimum_between_of_visual_kind_matches_slow_version {
 
         a!(&tiles, from, to, VisualKind::Empty);
         a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+
+    #[test]
+    fn on_this_largish_mostly_empty_example() {
+        let mut tiles = Tiles::default();
+
+        let unwanted_tile_data = RED_TILE_DATA;
+
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(3, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(4, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(5, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 1))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 2))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 4))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 6))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 7))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 8))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 9))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 10))] = unwanted_tile_data;
+
+        let from = xy!(0, 0);
+        let to = xy!(5, 11);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_largish_empty_example() {
+        let tiles = Tiles::default();
+
+        let from = xy!(0, 0);
+        let to = xy!(5, 11);
+
+        a!(&tiles, from, to, VisualKind::Empty);
     }
 
     #[test]
