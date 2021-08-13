@@ -992,14 +992,17 @@ mod tile {
         })
     }
 
-    pub(crate) fn masked_size(masks: &Masks) -> XY {
+    pub(crate) fn masked_maxes(masks: &Masks) -> Result<XY, ()> {
         let width = true_count_coord(&masks.xs);
         let height = true_count_coord(&masks.ys);
         
-        XY {
-            x: X(width),
-            y: Y(height)
-        }
+        width.checked_sub_one().ok_or(()).and_then(|x| 
+            height.checked_sub_one()
+                .ok_or(())
+                .map(|y| 
+                    XY { x: X(x), y: Y(y) }
+                )
+        )
     }
 
     pub const PRIMES_BELOW_100: [Distance; 25] = [
@@ -2624,14 +2627,18 @@ fn get_masks(
 
 fn minimum_between_of_visual_kind_given_masks(
     tiles: &Tiles,
-    _from: tile::XY,
-    _to: tile::XY,
     visual_kind: tile::VisualKind,
     masks: Masks,
-) -> tile::Count {
+) -> MinimumOutcome {
     let mut minimum = tile::Count::max_value();
 
-    let shrunk_to = tile::masked_size(&masks);
+    let shrunk_to_result = tile::masked_maxes(&masks);
+    let shrunk_to = match shrunk_to_result {
+        Err(_) => {
+            return MinimumOutcome::NoMatchingTiles;
+        }
+        Ok(s_t) => s_t,
+    };
 
     let mut shrunk_tiles: Vec<tile::VisualKind> = Vec::with_capacity(tiles.tiles.len());
 
@@ -2644,8 +2651,8 @@ fn minimum_between_of_visual_kind_given_masks(
         }
     }
 
-    let width = usize::from(shrunk_to.x);
-    let height = usize::from(shrunk_to.y);
+    let width = usize::from(shrunk_to.x) + 1;
+    let height = usize::from(shrunk_to.y) + 1;
 
     debug_assert_eq!(
         shrunk_tiles.len(),
@@ -2660,7 +2667,7 @@ fn minimum_between_of_visual_kind_given_masks(
     let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
 
     'outer: for path in shrunk_paths {
-        let mut current_count = 0;
+        let mut current_count: tile::Count = 0;
 
         let mut xy: tile::XY = <_>::default();
         for dir in path {
@@ -2681,12 +2688,23 @@ fn minimum_between_of_visual_kind_given_masks(
             }
         }
 
+        // We are getting the `minimum_between`, so we don't want to count the 
+        // end tile, so decrement it if it was incremented.
+        if visual_kind == get_tile_visual_kind(tiles, xy) {
+            current_count = current_count.saturating_sub(1);
+        }
+
         if current_count < minimum {
             minimum = current_count;
         }
     }
     
-    minimum
+    compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
+    // Given the compile-time assert above, we know that if we got 
+    // `tile::Count::max_value()` here, then it is because something is very wrong.
+    debug_assert!(minimum != tile::Count::max_value());
+
+    MinimumOutcome::Count(minimum)
 }
 
 fn minimum_between_of_visual_kind(
@@ -2714,78 +2732,11 @@ fn minimum_between_of_visual_kind(
         Ok(ms) => ms,
     };
 
-    let minimum = minimum_between_of_visual_kind_given_masks(
+    minimum_between_of_visual_kind_given_masks(
         tiles,
-        from,
-        to,
         visual_kind,
         masks
-    );
-
-/*
-    let paths = generate_paths(
-        from,
-        to,
-        &masks,
-    );
-
-    // We can assert this because we've checked that from != to, and that at least
-    // some rows have the target kind. Given those checks, an assert failure here 
-    // suggests a bug in the path generation code.
-    debug_assert!(!paths.is_empty());
-
-    let mut minimum = tile::Count::max_value();
-
-    'outer: for path in paths {
-        let mut current_count = 0;
-
-        let mut xy = from;
-        for dir in path {
-            loop {
-                let xy_opt = apply_dir(dir, xy);
-                match xy_opt {
-                    Some(new_xy) => {
-                        xy = new_xy
-                    },
-                    None => {
-                        continue 'outer;
-                    }
-                }
-
-                match (
-                    masks.xs.get(usize::from(xy.x)),
-                    masks.ys.get(usize::from(xy.y)),
-                ) {
-                    (None, _)|(_, None) => {
-                        debug_assert!(false, "unexpected case");
-                        continue 'outer;
-                    },
-                    (Some(true), _)|(_, Some(true)) => {
-                        // Consume the dir from the path.
-                        break;
-                    },
-                    (Some(false), Some(false)) => {
-                        // Skip the skippable row or column.
-                    }
-                }
-            }
-
-            if visual_kind == get_tile_visual_kind(tiles, xy) {
-                current_count += 1;
-            }
-        }
-
-        if current_count < minimum {
-            minimum = current_count;
-        }
-    }
-*/
-    compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
-    // Given the compile-time assert above, we know that if we got 
-    // `tile::Count::max_value()` here, then it is because something is very wrong.
-    debug_assert!(minimum != tile::Count::max_value());
-
-    MinimumOutcome::Count(minimum)
+    )
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);

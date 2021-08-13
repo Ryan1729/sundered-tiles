@@ -112,7 +112,7 @@ fn minimum_between_of_visual_kind_slow(
             }
         }
 
-        // We arte getting the `minimum_between`, so we don't want to count the 
+        // We are getting the `minimum_between`, so we don't want to count the 
         // end tile, so decrement it if it was incremented.
         if visual_kind == get_tile_visual_kind(tiles, xy) {
             current_count -= 1;
