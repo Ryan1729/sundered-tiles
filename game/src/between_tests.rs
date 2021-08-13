@@ -224,6 +224,59 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     }
 
     #[test]
+    fn on_this_random_example_reduction() {
+        let mut tiles = Tiles::default();
+
+        let unwanted_tile_data = RED_TILE_DATA;
+
+        tiles.tiles[tile::xy_to_i(xy!(2, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(3, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(4, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(5, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(6, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(8, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(10, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(11, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(14, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(15, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(16, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(18, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(21, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(22, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(23, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(24, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(25, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(26, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(27, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(28, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(29, 0))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(34, 0))] = unwanted_tile_data;
+        
+        tiles.tiles[tile::xy_to_i(xy!(0, 1))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 2))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 4))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 6))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 7))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 8))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 9))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 10))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 12))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 13))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 15))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 16))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 17))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 19))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 21))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 22))] = unwanted_tile_data;
+        tiles.tiles[tile::xy_to_i(xy!(0, 23))] = unwanted_tile_data;
+
+        let from = xy!(0, 34);
+        let to = xy!(5, 23);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
     fn on_this_largish_mostly_empty_example() {
         let mut tiles = Tiles::default();
 
