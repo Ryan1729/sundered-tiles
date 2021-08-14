@@ -277,6 +277,34 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     }
 
     #[test]
+    fn on_this_random_example_reduction_2() {
+        let mut tiles = Tiles::default();
+
+        let unwanted_tile_data = RED_TILE_DATA;
+        
+        let y_max = 23;
+
+        tiles.tiles[tile::xy_to_i(xy!(0, y_max))] = unwanted_tile_data;
+
+        let from = xy!(0, 34);
+        let to = xy!(5, y_max);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_2x2_non_down_right_example() {
+        let mut tiles = Tiles::default();
+        
+        tiles.tiles[tile::xy_to_i(xy!(0, 0))] = RED_TILE_DATA;
+
+        let from = xy!(1, 0);
+        let to = xy!(0, 1);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
     fn on_this_largish_mostly_empty_example() {
         let mut tiles = Tiles::default();
 
