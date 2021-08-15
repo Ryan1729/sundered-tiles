@@ -2381,7 +2381,6 @@ pub(crate) fn true_count(bools: &[bool]) -> usize {
         acc
     })
 }
-
 /*
 pub(crate) fn get_long_and_short_dir(
     from: tile::XY,
@@ -2627,11 +2626,11 @@ fn get_masks(
 
 fn minimum_between_of_visual_kind_given_masks(
     tiles: &Tiles,
+    from: tile::XY,
+    to: tile::XY,
     visual_kind: tile::VisualKind,
     masks: Masks,
 ) -> MinimumOutcome {
-    let mut minimum = tile::Count::max_value();
-
     let shrunk_to_result = tile::masked_maxes(&masks);
     let shrunk_to = match shrunk_to_result {
         Err(_) => {
@@ -2661,11 +2660,38 @@ fn minimum_between_of_visual_kind_given_masks(
         shrunk_tiles
     );
 
+    let xy_to_i = |x, y| {
+        y * width as usize + x
+    };
+
     // TODO use the actual directions if that seems easier/better.
-    let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, masks);
+    let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
 
     let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
 
+    enum Diagonal {
+        DownRight,
+        DownLeft,
+        UpLeft,
+        UpRight,
+    }
+    use Diagonal::*;
+
+    let diagonal = {
+        let from_x = usize::from(from.x);
+        let from_y = usize::from(from.y);
+        let to_x = usize::from(to.x);
+        let to_y = usize::from(to.y);
+
+        match (from_x > to_x, from_y > to_y) {
+            (false, false) => UpRight,
+            (false, true) => DownRight,
+            (true, false) => UpLeft,
+            (true, true) => DownLeft,
+        }
+    };
+
+    let mut minimum = tile::Count::max_value();
     'outer: for path in shrunk_paths {
         let mut current_count: tile::Count = 0;
 
@@ -2681,7 +2707,23 @@ fn minimum_between_of_visual_kind_given_masks(
                 }
             }
 
-            let i = usize::from(xy.y) * width as usize + usize::from(xy.x);
+            // conditioned x/y
+            let (cx, cy) = match diagonal {
+                DownRight => {
+                    (usize::from(xy.x), usize::from(xy.y))
+                },
+                DownLeft => {
+                    (width as usize - usize::from(xy.x), usize::from(xy.y))
+                },
+                UpLeft => {
+                    (width as usize - usize::from(xy.x), height as usize - usize::from(xy.y))
+                },
+                UpRight => {
+                    (usize::from(xy.x), height as usize - usize::from(xy.y))
+                },                
+            };
+
+            let i = xy_to_i(cx, cy);
 
             if Some(&visual_kind) == shrunk_tiles.get(i) {
                 current_count += 1;
@@ -2734,6 +2776,8 @@ fn minimum_between_of_visual_kind(
 
     minimum_between_of_visual_kind_given_masks(
         tiles,
+        from,
+        to,
         visual_kind,
         masks
     )
