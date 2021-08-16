@@ -2624,6 +2624,33 @@ fn get_masks(
     })
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Diagonal {
+    DownRight,
+    DownLeft,
+    UpLeft,
+    UpRight,
+}
+
+fn get_diagonal(
+    from: tile::XY,
+    to: tile::XY,
+) -> Diagonal {
+    use Diagonal::*;
+
+    let from_x = usize::from(from.x);
+    let from_y = usize::from(from.y);
+    let to_x = usize::from(to.x);
+    let to_y = usize::from(to.y);
+
+    match (from_x > to_x, from_y > to_y) {
+        (false, false) => DownRight,
+        (false, true) => UpRight,
+        (true, false) => DownLeft,
+        (true, true) => UpLeft,
+    }
+}
+
 fn minimum_between_of_visual_kind_given_masks(
     tiles: &Tiles,
     from: tile::XY,
@@ -2669,27 +2696,7 @@ fn minimum_between_of_visual_kind_given_masks(
 
     let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
 
-    enum Diagonal {
-        DownRight,
-        DownLeft,
-        UpLeft,
-        UpRight,
-    }
-    use Diagonal::*;
-
-    let diagonal = {
-        let from_x = usize::from(from.x);
-        let from_y = usize::from(from.y);
-        let to_x = usize::from(to.x);
-        let to_y = usize::from(to.y);
-
-        match (from_x > to_x, from_y > to_y) {
-            (false, false) => UpRight,
-            (false, true) => DownRight,
-            (true, false) => UpLeft,
-            (true, true) => DownLeft,
-        }
-    };
+    let diagonal = get_diagonal(from, to);
 
     let mut minimum = tile::Count::max_value();
     'outer: for path in shrunk_paths {
@@ -2706,6 +2713,8 @@ fn minimum_between_of_visual_kind_given_masks(
                     continue 'outer;
                 }
             }
+
+            use Diagonal::*;
 
             // conditioned x/y
             let (cx, cy) = match diagonal {

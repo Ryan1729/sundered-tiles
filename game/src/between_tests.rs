@@ -737,3 +737,59 @@ mod get_masks_returns_the_expected_result {
         a!(&tiles, from, to, VisualKind::Red => expected);
     }
 }
+
+
+mod get_diagonal_returns_the_expected_result {
+    use super::*;
+    use Diagonal::*;
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $from: expr, $to: expr $(,)?
+            => $($expected: pat)|+
+        ) => {{
+            let from = $from;
+            let to = $to;
+
+            let actual = get_diagonal(from, to);
+
+            if let $($expected)|+ = actual {
+                assert!(true);
+            } else {
+                assert!(
+                    false,
+                    "{} did not match {:?}\nfrom: {:?},\nto: {:?}",
+                    stringify!($($expected)|+),
+                    actual,
+                    from,
+                    to
+                );
+            }
+        }}
+    }
+
+    #[test]
+    fn on_these_instructive_examples() {
+        a!(xy!(0, 0), xy!(1, 1) => DownRight);
+        a!(xy!(1, 0), xy!(0, 1) => DownLeft);
+        a!(xy!(0, 1), xy!(1, 0) => UpRight);
+        a!(xy!(1, 1), xy!(0, 0) => UpLeft);
+    }
+
+    #[test]
+    fn on_these_same_x_examples() {
+        a!(xy!(0, 0), xy!(0, 1) => DownRight|DownLeft);
+        a!(xy!(1, 0), xy!(1, 1) => DownRight|DownLeft);
+        a!(xy!(0, 1), xy!(0, 0) => UpRight|UpLeft);
+        a!(xy!(1, 1), xy!(1, 0) => UpRight|UpLeft);
+    }
+
+    #[test]
+    fn on_these_same_y_examples() {
+        a!(xy!(0, 0), xy!(1, 0) => DownRight|UpRight);
+        a!(xy!(1, 0), xy!(0, 0) => DownLeft|UpLeft);
+        a!(xy!(0, 1), xy!(1, 1) => DownRight|UpRight);
+        a!(xy!(1, 1), xy!(0, 1) => DownLeft|UpLeft);
+    }
+}
