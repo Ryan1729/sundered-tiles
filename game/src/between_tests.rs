@@ -793,3 +793,37 @@ mod get_diagonal_returns_the_expected_result {
         a!(xy!(1, 1), xy!(0, 1) => DownLeft|UpLeft);
     }
 }
+
+mod shrunk_tiles_index_returns_the_expected_result {
+    use super::*;
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $diagonal: expr, $xy: expr, $wh: expr $(,)?
+            => $expected: expr
+        ) => {{
+            assert_eq!(
+                shrunk_tiles_index($diagonal, $xy, $wh),
+                $expected
+            );
+        }}
+    }
+
+    #[test]
+    fn on_this_2x2_up_left_example() {
+        let diag = Diagonal::UpLeft;
+        let wh = (2, 2);
+
+        // [
+        //   0, 1
+        //   2, 3
+        // ] 
+        // where (0,0) is 3, and x points left and y points up
+
+        a!(diag, xy!(0, 0), wh => 3);
+        a!(diag, xy!(1, 0), wh => 2);
+        a!(diag, xy!(0, 1), wh => 1);
+        a!(diag, xy!(1, 1), wh => 0);
+    }
+}

@@ -2651,6 +2651,32 @@ fn get_diagonal(
     }
 }
 
+fn shrunk_tiles_index(
+    diagonal: Diagonal,
+    xy: tile::XY,
+    (width, height): (usize, usize)
+) -> usize {
+    use Diagonal::*;
+
+    // conditioned x/y
+    let (cx, cy) = match diagonal {
+        DownRight => {
+            (usize::from(xy.x), usize::from(xy.y))
+        },
+        DownLeft => {
+            (width as usize - usize::from(xy.x) - 1, usize::from(xy.y))
+        },
+        UpLeft => {
+            (width as usize - usize::from(xy.x) - 1, height as usize - usize::from(xy.y) - 1)
+        },
+        UpRight => {
+            (usize::from(xy.x), height as usize - usize::from(xy.y) - 1)
+        },                
+    };
+
+    cy * width + cx
+}
+
 fn minimum_between_of_visual_kind_given_masks(
     tiles: &Tiles,
     from: tile::XY,
@@ -2676,10 +2702,10 @@ fn minimum_between_of_visual_kind_given_masks(
             }
         }
     }
-
+dbg!(&shrunk_tiles);
     let width = usize::from(shrunk_to.x) + 1;
     let height = usize::from(shrunk_to.y) + 1;
-
+dbg!(width, height);
     debug_assert_eq!(
         shrunk_tiles.len(),
         width * height,
@@ -2687,9 +2713,7 @@ fn minimum_between_of_visual_kind_given_masks(
         shrunk_tiles
     );
 
-    let xy_to_i = |x, y| {
-        y * width as usize + x
-    };
+    
 
     // TODO use the actual directions if that seems easier/better.
     let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
@@ -2714,25 +2738,11 @@ fn minimum_between_of_visual_kind_given_masks(
                 }
             }
 
-            use Diagonal::*;
-
-            // conditioned x/y
-            let (cx, cy) = match diagonal {
-                DownRight => {
-                    (usize::from(xy.x), usize::from(xy.y))
-                },
-                DownLeft => {
-                    (width as usize - usize::from(xy.x), usize::from(xy.y))
-                },
-                UpLeft => {
-                    (width as usize - usize::from(xy.x), height as usize - usize::from(xy.y))
-                },
-                UpRight => {
-                    (usize::from(xy.x), height as usize - usize::from(xy.y))
-                },                
-            };
-
-            let i = xy_to_i(cx, cy);
+            let i = shrunk_tiles_index(
+                diagonal,
+                xy,
+                (width, height)
+            );
 
             if Some(&visual_kind) == shrunk_tiles.get(i) {
                 current_count += 1;
