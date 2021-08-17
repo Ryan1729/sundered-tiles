@@ -2446,8 +2446,7 @@ fn generate_paths_from_zero(
     short_dir: Dir,
 ) -> Vec<Vec<Dir>> {
     let from = <_>::default();
-dbg!(from,
-        to);
+
     let distance = tile::manhattan_distance(
         from,
         to
@@ -2702,18 +2701,16 @@ fn minimum_between_of_visual_kind_given_masks(
             }
         }
     }
-dbg!(&shrunk_tiles);
+
     let width = usize::from(shrunk_to.x) + 1;
     let height = usize::from(shrunk_to.y) + 1;
-dbg!(width, height);
+
     debug_assert_eq!(
         shrunk_tiles.len(),
         width * height,
         "shrunk_tiles was the wrong size: {:#?}",
         shrunk_tiles
-    );
-
-    
+    );    
 
     // TODO use the actual directions if that seems easier/better.
     let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
@@ -2749,9 +2746,14 @@ dbg!(width, height);
             }
         }
 
+        let i = shrunk_tiles_index(
+            diagonal,
+            xy,
+            (width, height)
+        );
         // We are getting the `minimum_between`, so we don't want to count the 
         // end tile, so decrement it if it was incremented.
-        if visual_kind == get_tile_visual_kind(tiles, xy) {
+        if Some(&visual_kind) == shrunk_tiles.get(i) {
             current_count = current_count.saturating_sub(1);
         }
 
