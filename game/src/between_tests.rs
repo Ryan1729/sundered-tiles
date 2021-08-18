@@ -475,6 +475,112 @@ mod minimum_between_of_visual_kind_matches_slow_version {
     }
 }
 
+mod minimum_between_of_visual_kind_takes_an_acceptable_time {
+    use super::*;
+
+    use std::time::{Duration};
+
+    #[allow(unused)]
+    const ACCEPTABLE_TIME: Duration = Duration::from_millis(8);
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $tiles: expr, $from: expr, $to: expr, $visual_kind: expr
+        ) => {{
+            #![allow(unused)]
+
+            use std::time::Instant;
+
+            if !cfg!(feature = "skip-speed-tests") {
+                let actual_start = Instant::now();
+                let _actual = minimum_between_of_visual_kind(
+                    $tiles,
+                    $from,
+                    $to,
+                    $visual_kind,
+                );
+                let actual_end = Instant::now();
+
+                let actual_duration = actual_end.duration_since(actual_start);
+
+                assert!(
+                    actual_duration <= ACCEPTABLE_TIME,
+                    "{} > {}: too slow",
+                    actual_duration.as_nanos(),
+                    ACCEPTABLE_TIME.as_nanos()
+                );
+            }
+        }}
+    }
+
+    #[test]
+    fn on_this_all_wanted_example() {
+        let tiles = Tiles::default();
+
+        let from = xy!(0, 0);
+        let to = xy!(49, 49);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+    }
+
+    #[test]
+    fn on_this_all_unwanted_example() {
+        let tiles = Tiles::default();
+
+        let from = xy!(0, 0);
+        let to = xy!(49, 49);
+
+        a!(&tiles, from, to, VisualKind::Red);
+    }
+
+    #[test]
+    fn on_this_checkerboard_example() {
+        let mut tiles = Tiles::default();
+
+        for y in 0..=tile::Coord::MAX_INDEX {
+            for x in 0..=tile::Coord::MAX_INDEX {
+                if x.wrapping_add(y) % 2 == 0 {
+                    tiles.tiles[y as usize * (tile::Coord::MAX_INDEX + 1) as usize + x as usize]
+                        = RED_TILE_DATA;
+                }
+            }
+        }
+
+        let from = xy!(0, 0);
+        let to = xy!(49, 49);
+
+        a!(&tiles, from, to, VisualKind::Red);
+    }
+
+    #[test]
+    fn on_this_50_50_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        for y in 0..=tile::Coord::MAX_INDEX {
+            for x in 0..=tile::Coord::MAX_INDEX {
+                if xs_u32(&mut rng, 0, 2) == 1 {
+                    tiles.tiles[y as usize * (tile::Coord::MAX_INDEX + 1) as usize + x as usize]
+                        = RED_TILE_DATA;
+                }
+            }
+        }
+
+        let from = xy!(0, 0);
+        let to = xy!(49, 49);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+        a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+}
+
 mod manhattan_distance_given_masks_returns_the_expected_result {
     use super::*;
 
