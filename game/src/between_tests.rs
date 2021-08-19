@@ -510,6 +510,15 @@ mod minimum_between_of_visual_kind_takes_an_acceptable_time {
                     actual_duration.as_nanos(),
                     ACCEPTABLE_TIME.as_nanos()
                 );
+            } else {
+                // Run this just for asserts in the tested code itself
+
+                let _actual = minimum_between_of_visual_kind(
+                    $tiles,
+                    $from,
+                    $to,
+                    $visual_kind,
+                );
             }
         }}
     }
