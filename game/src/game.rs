@@ -984,25 +984,21 @@ mod tile {
 
     type MaskArray = [bool; Coord::COUNT as usize];
 
-    pub(crate) fn true_count_coord(bools: &MaskArray) -> Coord {
-        bools.iter().fold(Coord::default(), |acc, &b| if b {
-            acc.checked_add_one().unwrap_or(Coord::ALL[Coord::MAX_INDEX as usize])
+    pub(crate) fn true_count_saturating_minus_one_coord(bools: &MaskArray) -> Coord {
+        bools.iter().fold(Option::None, |acc: Option<Coord>, &b| if b {
+            Some(
+                acc.as_ref().and_then(Coord::checked_add_one).unwrap_or_default()
+            )
         } else {
             acc
-        })
+        }).unwrap_or_default()
     }
 
-    pub(crate) fn masked_maxes(masks: &Masks) -> Result<XY, ()> {
-        let width = true_count_coord(&masks.xs);
-        let height = true_count_coord(&masks.ys);
-        
-        width.checked_sub_one().ok_or(()).and_then(|x| 
-            height.checked_sub_one()
-                .ok_or(())
-                .map(|y| 
-                    XY { x: X(x), y: Y(y) }
-                )
-        )
+    pub(crate) fn masked_maxes(masks: &Masks) -> XY {
+        let max_x = true_count_saturating_minus_one_coord(&masks.xs);
+        let max_y = true_count_saturating_minus_one_coord(&masks.ys);
+
+        XY { x: X(max_x), y: Y(max_y) }
     }
 
     pub const PRIMES_BELOW_100: [Distance; 25] = [
@@ -2683,13 +2679,7 @@ fn minimum_between_of_visual_kind_given_masks(
     visual_kind: tile::VisualKind,
     masks: Masks,
 ) -> MinimumOutcome {
-    let shrunk_to_result = tile::masked_maxes(&masks);
-    let shrunk_to = match shrunk_to_result {
-        Err(_) => {
-            return MinimumOutcome::NoMatchingTiles;
-        }
-        Ok(s_t) => s_t,
-    };
+    let shrunk_to = tile::masked_maxes(&masks);
 
     let mut shrunk_tiles: Vec<tile::VisualKind> = Vec::with_capacity(tiles.tiles.len());
 
