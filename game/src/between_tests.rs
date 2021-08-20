@@ -524,6 +524,60 @@ mod minimum_between_of_visual_kind_takes_an_acceptable_time {
     }
 
     #[test]
+    fn on_this_random_8x8_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        for y in 0..=8 {
+            for x in 0..=8 {
+                if xs_u32(&mut rng, 0, 2) == 1 {
+                    tiles.tiles[y as usize * (tile::Coord::MAX_INDEX + 1) as usize + x as usize]
+                        = RED_TILE_DATA;
+                }
+            }
+        }
+
+        let from = xy!(0, 0);
+        let to = xy!(8, 8);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+        a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+
+    #[test]
+    fn on_this_random_16x16_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        for y in 0..=16 {
+            for x in 0..=16 {
+                if xs_u32(&mut rng, 0, 2) == 1 {
+                    tiles.tiles[y as usize * (tile::Coord::MAX_INDEX + 1) as usize + x as usize]
+                        = RED_TILE_DATA;
+                }
+            }
+        }
+
+        let from = xy!(0, 0);
+        let to = xy!(16, 16);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+        a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+
+    #[test]
     fn on_this_all_wanted_example() {
         let tiles = Tiles::default();
 
@@ -563,7 +617,7 @@ mod minimum_between_of_visual_kind_takes_an_acceptable_time {
     }
 
     #[test]
-    fn on_this_50_50_example() {
+    fn on_this_random_50x50_example() {
         let mut rng = xs_from_seed([
             0xb, 0xee, 0xfa, 0xce,
             0xb, 0xee, 0xfa, 0xce,
@@ -940,5 +994,82 @@ mod shrunk_tiles_index_returns_the_expected_result {
         a!(diag, xy!(1, 0), wh => 2);
         a!(diag, xy!(0, 1), wh => 1);
         a!(diag, xy!(1, 1), wh => 0);
+    }
+}
+
+// This is just for comparision purposes and can be deleted if it is in the way
+mod minimum_between_of_visual_kind_slow_takes_an_acceptable_time {
+    use super::*;
+
+    use std::time::{Duration};
+
+    #[allow(unused)]
+    const ACCEPTABLE_TIME: Duration = Duration::from_millis(8);
+
+    // Short for assert. We can be this brief becasue this is local to this module
+    macro_rules! a {
+        (
+            $tiles: expr, $from: expr, $to: expr, $visual_kind: expr
+        ) => {{
+            #![allow(unused)]
+
+            use std::time::Instant;
+
+            if !cfg!(feature = "skip-speed-tests") {
+                let actual_start = Instant::now();
+                let _actual = minimum_between_of_visual_kind_slow(
+                    $tiles,
+                    $from,
+                    $to,
+                    $visual_kind,
+                );
+                let actual_end = Instant::now();
+
+                let actual_duration = actual_end.duration_since(actual_start);
+
+                assert!(
+                    actual_duration <= ACCEPTABLE_TIME,
+                    "{} > {}: too slow",
+                    actual_duration.as_nanos(),
+                    ACCEPTABLE_TIME.as_nanos()
+                );
+            } else {
+                // Run this just for asserts in the tested code itself
+
+                let _actual = minimum_between_of_visual_kind(
+                    $tiles,
+                    $from,
+                    $to,
+                    $visual_kind,
+                );
+            }
+        }}
+    }
+
+    #[test]
+    fn on_this_random_8x8_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        for y in 0..=8 {
+            for x in 0..=8 {
+                if xs_u32(&mut rng, 0, 2) == 1 {
+                    tiles.tiles[y as usize * (tile::Coord::MAX_INDEX + 1) as usize + x as usize]
+                        = RED_TILE_DATA;
+                }
+            }
+        }
+
+        let from = xy!(0, 0);
+        let to = xy!(8, 8);
+
+        a!(&tiles, from, to, VisualKind::Empty);
+        a!(&tiles, from, to, VisualKind::ALL[1]);
     }
 }
