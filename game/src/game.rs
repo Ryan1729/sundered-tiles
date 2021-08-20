@@ -2705,10 +2705,17 @@ fn minimum_between_of_visual_kind_given_masks(
     // TODO use the actual directions if that seems easier/better.
     let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
 
+    use std::time::{Instant};
+
+    let gen_start = Instant::now();
+
     let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
+
+    let gen_end = Instant::now();
 
     let diagonal = get_diagonal(from, to);
 
+    let iter_start = Instant::now();
     let mut minimum = tile::Count::max_value();
     'outer: for path in shrunk_paths {
         let mut current_count: tile::Count = 0;
@@ -2756,6 +2763,22 @@ fn minimum_between_of_visual_kind_given_masks(
     // Given the compile-time assert above, we know that if we got 
     // `tile::Count::max_value()` here, then it is because something is very wrong.
     debug_assert!(minimum != tile::Count::max_value());
+
+    let iter_end = Instant::now();
+
+    println!(
+        "gen:  {} - {} = {}",
+        gen_end.duration_since(gen_start).as_nanos(),
+        std::time::Duration::from_millis(8).as_nanos(),
+        gen_end.duration_since(gen_start).as_nanos() - std::time::Duration::from_millis(8).as_nanos()
+    );
+
+    println!(
+        "iter: {} - {} = {}",
+        iter_end.duration_since(iter_start).as_nanos(),
+        std::time::Duration::from_millis(8).as_nanos(),
+        iter_end.duration_since(iter_start).as_nanos() - std::time::Duration::from_millis(8).as_nanos()
+    );
 
     MinimumOutcome::Count(minimum)
 }
