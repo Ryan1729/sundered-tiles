@@ -2436,6 +2436,7 @@ fn manhattan_distance_given_masks(
     ) as usize
 }
 
+/*
 fn generate_paths_from_zero(
     to: tile::XY,
     long_dir: Dir,
@@ -2488,7 +2489,6 @@ fn generate_paths_from_zero(
     output
 }
 
-/*
 fn generate_paths(
     from: tile::XY,
     to: tile::XY,
@@ -2672,6 +2672,24 @@ fn shrunk_tiles_index(
     cy * width + cx
 }
 
+/// Used for an algorithm resembling https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm.
+#[derive(Clone, Copy)]
+struct DykstrasTileData {
+    tentative_count: tile::Count,
+    visited: bool,
+}
+
+impl Default for DykstrasTileData {
+    fn default() -> Self {
+        Self {
+            tentative_count: tile::Count::max_value(),
+            visited: false,
+        }
+    }
+}
+
+type DykstrasTileSet = [DykstrasTileData; TILES_LENGTH as usize];
+
 fn minimum_between_of_visual_kind_given_masks(
     tiles: &Tiles,
     from: tile::XY,
@@ -2700,32 +2718,41 @@ fn minimum_between_of_visual_kind_given_masks(
         width * height,
         "shrunk_tiles was the wrong size: {:#?}",
         shrunk_tiles
-    );    
+    );
 
     // TODO use the actual directions if that seems easier/better.
     let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
-
-    use std::time::{Instant};
-
-    let gen_start = Instant::now();
-
-    let shrunk_paths = generate_paths_from_zero(shrunk_to, long_dir, short_dir);
-
-    let gen_end = Instant::now();
-
     let diagonal = get_diagonal(from, to);
 
-    let iter_start = Instant::now();
-    let mut minimum = tile::Count::max_value();
-    'outer: for path in shrunk_paths {
-        let mut current_count: tile::Count = 0;
 
-        let mut xy: tile::XY = <_>::default();
-        for dir in path {
-            let xy_opt = apply_dir(dir, xy);
+    let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
+    let mut current_xy: tile::XY = <_>::default();
+
+    // We know that the index corresponding to xy is currently 0, so we can skip
+    // calling shrunk_tiles_index.
+    set[0].tentative_count = 0;
+
+    // Similarly, this takes advantage of the starting xy being 0 and the 
+    // `shrunk_to` being >+ to that.
+    let max_x = usize::from(shrunk_to.x);
+    let max_y = usize::from(shrunk_to.y);
+
+    let mut minimum = tile::Count::max_value();
+
+    'outer: loop {
+        let current_index = shrunk_tiles_index(
+            diagonal,
+            current_xy,
+            (width, height)
+        );
+
+        for &dir in [long_dir, short_dir].iter() {
+            let mut current_count: tile::Count = set[current_index].tentative_count;
+
+            let xy_opt = apply_dir(dir, current_xy);
             match xy_opt {
                 Some(new_xy) => {
-                    xy = new_xy
+                    current_xy = new_xy
                 },
                 None => {
                     continue 'outer;
@@ -2734,28 +2761,65 @@ fn minimum_between_of_visual_kind_given_masks(
 
             let i = shrunk_tiles_index(
                 diagonal,
-                xy,
+                current_xy,
                 (width, height)
             );
+
+            if set[i].visited {
+                continue;
+            }
 
             if Some(&visual_kind) == shrunk_tiles.get(i) {
                 current_count += 1;
             }
+
+            if current_count < set[i].tentative_count {
+                set[i].tentative_count = current_count;
+            }
         }
 
-        let i = shrunk_tiles_index(
+        set[current_index].visited = true;
+
+        let target = set[shrunk_tiles_index(
             diagonal,
-            xy,
+            shrunk_to,
             (width, height)
-        );
-        // We are getting the `minimum_between`, so we don't want to count the 
-        // end tile, so decrement it if it was incremented.
-        if Some(&visual_kind) == shrunk_tiles.get(i) {
-            current_count = current_count.saturating_sub(1);
+        )];
+
+        if target.visited {
+            minimum = target.tentative_count;
+            break;
         }
 
-        if current_count < minimum {
-            minimum = current_count;
+        // find the next current xy: an unvisited node with smallest count.
+        let mut next_xy = None;
+        let mut next_count = tile::Count::max_value();
+        // TODO bound this iteration since we know the visited front will advance
+        // in a triangular shape.
+        for y in 0..=max_y {
+            for x in 0..=max_x {
+                let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
+                let i = shrunk_tiles_index(
+                    diagonal,
+                    xy,
+                    (width, height)
+                );
+
+                if set[i].visited {
+                    continue;
+                }
+
+                if set[i].tentative_count < next_count {
+                    next_count = set[i].tentative_count;
+                    next_xy = Some(xy);
+                }
+            }
+        }
+
+        if let Some(next_xy) = next_xy {
+            current_xy = next_xy;
+        } else {
+            break;
         }
     }
     
@@ -2763,22 +2827,6 @@ fn minimum_between_of_visual_kind_given_masks(
     // Given the compile-time assert above, we know that if we got 
     // `tile::Count::max_value()` here, then it is because something is very wrong.
     debug_assert!(minimum != tile::Count::max_value());
-
-    let iter_end = Instant::now();
-
-    println!(
-        "gen:  {} - {} = {}",
-        gen_end.duration_since(gen_start).as_nanos(),
-        std::time::Duration::from_millis(8).as_nanos(),
-        gen_end.duration_since(gen_start).as_nanos() - std::time::Duration::from_millis(8).as_nanos()
-    );
-
-    println!(
-        "iter: {} - {} = {}",
-        iter_end.duration_since(iter_start).as_nanos(),
-        std::time::Duration::from_millis(8).as_nanos(),
-        iter_end.duration_since(iter_start).as_nanos() - std::time::Duration::from_millis(8).as_nanos()
-    );
 
     MinimumOutcome::Count(minimum)
 }
