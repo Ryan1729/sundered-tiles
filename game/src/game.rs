@@ -184,7 +184,7 @@ mod tile {
 
     macro_rules! tuple_new_type {
         ($struct_name: ident) => {
-            #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+            #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
             pub struct $struct_name(Coord);
         
             impl AddOne for $struct_name {
@@ -1036,7 +1036,7 @@ mod tile {
             ($zero_variant: ident => $zero_number: literal),
             $( ($wrap_variants: ident => $wrap_number: literal) ),+ $(,)?
         ) => {
-            #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+            #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
             #[repr(u8)]
             /// We only want to handle displaying at most 2 decimal digits for any 
             /// distance from one tile to another. Since we're using Manhattan 
@@ -2724,22 +2724,25 @@ fn minimum_between_of_visual_kind_given_masks(
     let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
     let diagonal = get_diagonal(from, to);
 
-
     let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
     let mut current_xy: tile::XY = <_>::default();
 
-    // We know that the index corresponding to xy is currently 0, so we can skip
-    // calling shrunk_tiles_index.
-    set[0].tentative_count = 0;
+    // We don't know that the index corresponding to xy is 0, since that depends
+    // on the value of `diagonal` so we cannot skip calling shrunk_tiles_index.
+    set[shrunk_tiles_index(
+        diagonal,
+        current_xy,
+        (width, height)
+    )].tentative_count = 0;
 
-    // Similarly, this takes advantage of the starting xy being 0 and the 
+    // This takes advantage of the starting xy being 0 and the 
     // `shrunk_to` being >= to that.
     let max_x = usize::from(shrunk_to.x);
     let max_y = usize::from(shrunk_to.y);
 
     let mut minimum = tile::Count::max_value();
 
-    'outer: loop {
+    loop {
         let current_index = shrunk_tiles_index(
             diagonal,
             current_xy,
@@ -2751,9 +2754,15 @@ fn minimum_between_of_visual_kind_given_masks(
 
             let xy_opt = apply_dir(dir, current_xy);
             let new_xy = match xy_opt {
-                Some(new_xy) => new_xy,
+                Some(new_xy) => {
+                    if new_xy.x > shrunk_to.x || new_xy.y > shrunk_to.y {
+                        continue;
+                    }
+
+                    new_xy
+                },
                 None => {
-                    continue 'outer;
+                    continue;
                 }
             };
 
