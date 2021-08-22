@@ -2673,7 +2673,7 @@ fn shrunk_tiles_index(
 }
 
 /// Used for an algorithm resembling https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct DykstrasTileData {
     tentative_count: tile::Count,
     visited: bool,
@@ -2733,7 +2733,7 @@ fn minimum_between_of_visual_kind_given_masks(
     set[0].tentative_count = 0;
 
     // Similarly, this takes advantage of the starting xy being 0 and the 
-    // `shrunk_to` being >+ to that.
+    // `shrunk_to` being >= to that.
     let max_x = usize::from(shrunk_to.x);
     let max_y = usize::from(shrunk_to.y);
 
@@ -2750,18 +2750,16 @@ fn minimum_between_of_visual_kind_given_masks(
             let mut current_count: tile::Count = set[current_index].tentative_count;
 
             let xy_opt = apply_dir(dir, current_xy);
-            match xy_opt {
-                Some(new_xy) => {
-                    current_xy = new_xy
-                },
+            let new_xy = match xy_opt {
+                Some(new_xy) => new_xy,
                 None => {
                     continue 'outer;
                 }
-            }
+            };
 
             let i = shrunk_tiles_index(
                 diagonal,
-                current_xy,
+                new_xy,
                 (width, height)
             );
 
