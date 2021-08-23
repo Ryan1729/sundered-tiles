@@ -2698,6 +2698,11 @@ fn minimum_between_of_visual_kind_given_masks(
     masks: Masks,
 ) -> MinimumOutcome {
     let shrunk_to = tile::masked_maxes(&masks);
+    let mut current_xy: tile::XY = <_>::default();
+
+    if shrunk_to == current_xy {
+        return MinimumOutcome::Count(0);
+    }
 
     let mut shrunk_tiles: Vec<tile::VisualKind> = Vec::with_capacity(tiles.tiles.len());
 
@@ -2725,7 +2730,6 @@ fn minimum_between_of_visual_kind_given_masks(
     let diagonal = get_diagonal(from, to);
 
     let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
-    let mut current_xy: tile::XY = <_>::default();
 
     // We don't know that the index corresponding to xy is 0, since that depends
     // on the value of `diagonal` so we cannot skip calling shrunk_tiles_index.
@@ -2794,9 +2798,7 @@ fn minimum_between_of_visual_kind_given_masks(
         )];
 
         if target.visited {
-            if target.tentative_count < minimum {
-                minimum = target.tentative_count;
-            }
+            minimum = target.tentative_count;
             break;
         }
 
