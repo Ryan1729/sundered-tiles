@@ -2837,6 +2837,13 @@ fn minimum_between_of_visual_kind_given_masks(
     // `tile::Count::max_value()` here, then it is because something is very wrong.
     debug_assert!(minimum != tile::Count::max_value());
 
+    // We are getting the `minimum_between`, so we don't want to count the 
+    // end tile, so decrement it if it was incremented.
+    if visual_kind == get_tile_visual_kind(tiles, to) {
+        debug_assert!(minimum != 0);
+        minimum = minimum.saturating_sub(1);
+    }
+
     MinimumOutcome::Count(minimum)
 }
 
