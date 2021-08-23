@@ -2794,7 +2794,9 @@ fn minimum_between_of_visual_kind_given_masks(
         )];
 
         if target.visited {
-            minimum = target.tentative_count;
+            if target.tentative_count < minimum {
+                minimum = target.tentative_count;
+            }
             break;
         }
 
