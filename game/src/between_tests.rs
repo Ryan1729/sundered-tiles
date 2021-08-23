@@ -195,11 +195,14 @@ mod minimum_between_of_visual_kind_matches_slow_version {
                 // Without the margin added to the slow duration, this fails sometimes,
                 // even with identical implementations. I guess this is due to cache 
                 // effects, and/or OS task switching or something?
+                let slow_with_margin = (slow_duration + (slow_duration/20));
                 assert!(
-                    fast_duration <= (slow_duration + (slow_duration/20)),
-                    "{} > {}: too slow",
+                    fast_duration <= slow_with_margin,
+                    "{} > {}: too slow by {} (no margin {})",
                     fast_duration.as_nanos(),
-                    slow_duration.as_nanos()
+                    slow_duration.as_nanos(),
+                    (fast_duration - slow_with_margin).as_nanos(),
+                    (fast_duration - slow_duration).as_nanos(),
                 );
             }
         }}
@@ -506,9 +509,10 @@ mod minimum_between_of_visual_kind_takes_an_acceptable_time {
 
                 assert!(
                     actual_duration <= ACCEPTABLE_TIME,
-                    "{} > {}: too slow",
+                    "{} > {}: too slow by {}",
                     actual_duration.as_nanos(),
-                    ACCEPTABLE_TIME.as_nanos()
+                    ACCEPTABLE_TIME.as_nanos(),
+                    (actual_duration - ACCEPTABLE_TIME).as_nanos()
                 );
             } else {
                 // Run this just for asserts in the tested code itself
@@ -1029,9 +1033,10 @@ mod minimum_between_of_visual_kind_slow_takes_an_acceptable_time {
 
                 assert!(
                     actual_duration <= ACCEPTABLE_TIME,
-                    "{} > {}: too slow",
+                    "{} > {}: too slow by {}",
                     actual_duration.as_nanos(),
-                    ACCEPTABLE_TIME.as_nanos()
+                    ACCEPTABLE_TIME.as_nanos(),
+                    (actual_duration - ACCEPTABLE_TIME).as_nanos()
                 );
             } else {
                 // Run this just for asserts in the tested code itself
