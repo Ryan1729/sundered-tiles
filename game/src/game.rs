@@ -2669,12 +2669,19 @@ impl Default for DykstrasTileData {
 
 type DykstrasTileSet = [DykstrasTileData; TILES_LENGTH as usize];
 
-fn minimum_between_of_visual_kind_given_masks(
+fn minimum_between_of_visual_kind(
     tiles: &Tiles,
     from: tile::XY,
     to: tile::XY,
-    visual_kind: tile::VisualKind,
+    visual_kind: tile::VisualKind
 ) -> MinimumOutcome {
+    // TODO: Make sure this whole function is not absurdly slow, as the first version
+    // almost certainly is.
+
+    if from == to {
+        return MinimumOutcome::NoMatchingTiles;
+    }
+
     let (long_dir, short_dir) = get_long_and_short_dir(from, to);
 
     let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
@@ -2779,27 +2786,6 @@ fn minimum_between_of_visual_kind_given_masks(
     }
 
     MinimumOutcome::Count(minimum)
-}
-
-fn minimum_between_of_visual_kind(
-    tiles: &Tiles,
-    from: tile::XY,
-    to: tile::XY,
-    visual_kind: tile::VisualKind
-) -> MinimumOutcome {
-    // TODO: Make sure this whole function is not absurdly slow, as the first version
-    // almost certainly is.
-
-    if from == to {
-        return MinimumOutcome::NoMatchingTiles;
-    }
-
-    minimum_between_of_visual_kind_given_masks(
-        tiles,
-        from,
-        to,
-        visual_kind
-    )
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);
