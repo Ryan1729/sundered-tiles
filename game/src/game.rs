@@ -174,7 +174,6 @@ mod tile {
         },
         Xs,
         xs_u32,
-        Masks,
     };
 
     // An amount of tiles, which are usually arranged in a line.
@@ -980,25 +979,6 @@ mod tile {
     ) -> Distance {
         ((a.0 as i8 - b.0 as i8).abs() 
         + (a.1 as i8 - b.1 as i8).abs()) as Distance
-    }
-
-    type MaskArray = [bool; Coord::COUNT as usize];
-
-    pub(crate) fn true_count_saturating_minus_one_coord(bools: &MaskArray) -> Coord {
-        bools.iter().fold(Option::None, |acc: Option<Coord>, &b| if b {
-            Some(
-                acc.as_ref().and_then(Coord::checked_add_one).unwrap_or_default()
-            )
-        } else {
-            acc
-        }).unwrap_or_default()
-    }
-
-    pub(crate) fn masked_maxes(masks: &Masks) -> XY {
-        let max_x = true_count_saturating_minus_one_coord(&masks.xs);
-        let max_y = true_count_saturating_minus_one_coord(&masks.ys);
-
-        XY { x: X(max_x), y: Y(max_y) }
     }
 
     pub const PRIMES_BELOW_100: [Distance; 25] = [
@@ -2377,19 +2357,18 @@ pub(crate) fn true_count(bools: &[bool]) -> usize {
         acc
     })
 }
-/*
+
 pub(crate) fn get_long_and_short_dir(
     from: tile::XY,
-    to: tile::XY,
-    masks: &Masks,
+    to: tile::XY
 ) -> (Dir, Dir) {
     let from_x = usize::from(from.x);
     let from_y = usize::from(from.y);
     let to_x = usize::from(to.x);
     let to_y = usize::from(to.y);
 
-    let x_distance = true_count(&masks.xs);
-    let y_distance = true_count(&masks.ys);
+    let x_distance = (from_x as isize - to_x as isize).abs();
+    let y_distance = (from_y as isize - to_y as isize).abs();
     let x_dir = if from_x > to_x {
         Dir::Left
     } else {
@@ -2406,7 +2385,7 @@ pub(crate) fn get_long_and_short_dir(
     } else {
         (y_dir, x_dir)
     }
-}*/
+}
 
 fn manhattan_distance_given_masks(
     from: tile::XY,
@@ -2695,63 +2674,26 @@ fn minimum_between_of_visual_kind_given_masks(
     from: tile::XY,
     to: tile::XY,
     visual_kind: tile::VisualKind,
-    masks: Masks,
 ) -> MinimumOutcome {
-    let shrunk_to = tile::masked_maxes(&masks);
-    let mut current_xy: tile::XY = <_>::default();
-
-    if shrunk_to == current_xy {
-        return MinimumOutcome::Count(0);
-    }
-
-    let mut shrunk_tiles: Vec<tile::VisualKind> = Vec::with_capacity(tiles.tiles.len());
-
-    for &y in tile::Y::ALL.iter() {
-        for &x in tile::X::ALL.iter() {
-            if masks.ys[usize::from(y)] && masks.xs[usize::from(x)] {
-                let xy = tile::XY{x, y};
-                shrunk_tiles.push(get_tile_visual_kind(tiles, xy));
-            }
-        }
-    }
-
-    let width = usize::from(shrunk_to.x) + 1;
-    let height = usize::from(shrunk_to.y) + 1;
-
-    debug_assert_eq!(
-        shrunk_tiles.len(),
-        width * height,
-        "shrunk_tiles was the wrong size: {:#?}",
-        shrunk_tiles
-    );
-
-    // TODO use the actual directions if that seems easier/better.
-    let (long_dir, short_dir) = (Dir::Right, Dir::Down);//get_long_and_short_dir(from, to, &masks);
-    let diagonal = get_diagonal(from, to);
+    let (long_dir, short_dir) = get_long_and_short_dir(from, to);
 
     let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
 
     // We don't know that the index corresponding to xy is 0, since that depends
     // on the value of `diagonal` so we cannot skip calling shrunk_tiles_index.
-    set[shrunk_tiles_index(
-        diagonal,
-        current_xy,
-        (width, height)
-    )].tentative_count = 0;
+    set[tile::xy_to_i(from)].tentative_count = 0;
 
-    // This takes advantage of the starting xy being 0 and the 
-    // `shrunk_to` being >= to that.
-    let max_x = usize::from(shrunk_to.x);
-    let max_y = usize::from(shrunk_to.y);
+    let max_xy = tile::XY {x: core::cmp::max(from.x, to.x), y: core::cmp::max(from.y, to.y)};
+    let min_xy = tile::XY {x: core::cmp::min(from.x, to.x), y: core::cmp::min(from.y, to.y)};
+
+    let max_x = usize::from(max_xy.x);
+    let max_y = usize::from(max_xy.y);
 
     let mut minimum = tile::Count::max_value();
+    let mut current_xy = from;
 
     loop {
-        let current_index = shrunk_tiles_index(
-            diagonal,
-            current_xy,
-            (width, height)
-        );
+        let current_index = tile::xy_to_i(current_xy);
 
         for &dir in [long_dir, short_dir].iter() {
             let mut current_count: tile::Count = set[current_index].tentative_count;
@@ -2759,10 +2701,12 @@ fn minimum_between_of_visual_kind_given_masks(
             let xy_opt = apply_dir(dir, current_xy);
             let new_xy = match xy_opt {
                 Some(new_xy) => {
-                    if new_xy.x > shrunk_to.x || new_xy.y > shrunk_to.y {
+                    if new_xy.x > max_xy.x
+                    || new_xy.y > max_xy.y
+                    || new_xy.x < min_xy.x
+                    || new_xy.y < min_xy.y {
                         continue;
                     }
-
                     new_xy
                 },
                 None => {
@@ -2770,17 +2714,13 @@ fn minimum_between_of_visual_kind_given_masks(
                 }
             };
 
-            let i = shrunk_tiles_index(
-                diagonal,
-                new_xy,
-                (width, height)
-            );
+            let i = tile::xy_to_i(new_xy);
 
             if set[i].visited {
                 continue;
             }
 
-            if Some(&visual_kind) == shrunk_tiles.get(i) {
+            if visual_kind == get_tile_visual_kind(tiles, new_xy) {
                 current_count += 1;
             }
 
@@ -2791,11 +2731,7 @@ fn minimum_between_of_visual_kind_given_masks(
 
         set[current_index].visited = true;
 
-        let target = set[shrunk_tiles_index(
-            diagonal,
-            shrunk_to,
-            (width, height)
-        )];
+        let target = set[tile::xy_to_i(to)];
 
         if target.visited {
             minimum = target.tentative_count;
@@ -2810,11 +2746,7 @@ fn minimum_between_of_visual_kind_given_masks(
         for y in 0..=max_y {
             for x in 0..=max_x {
                 let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
-                let i = shrunk_tiles_index(
-                    diagonal,
-                    xy,
-                    (width, height)
-                );
+                let i = tile::xy_to_i(xy);
 
                 if set[i].visited {
                     continue;
@@ -2862,24 +2794,11 @@ fn minimum_between_of_visual_kind(
         return MinimumOutcome::NoMatchingTiles;
     }
 
-    let masks_result = get_masks(
-        tiles,
-        from,
-        to,
-        visual_kind
-    );
-
-    let masks = match masks_result { 
-        Err(outcome) => return outcome,
-        Ok(ms) => ms,
-    };
-
     minimum_between_of_visual_kind_given_masks(
         tiles,
         from,
         to,
-        visual_kind,
-        masks
+        visual_kind
     )
 }
 
