@@ -2699,8 +2699,16 @@ fn minimum_between_of_visual_kind(
     let mut minimum = tile::Count::max_value();
     let mut current_xy = from;
 
+    let mut dir_duration = std::time::Duration::default();
+    let mut xy_duration = std::time::Duration::default();
+
     loop {
         let current_index = tile::xy_to_i(current_xy);
+        use std::time::Instant;
+        let dir_loop_start = Instant::now();
+        let dir_loop_end;
+        let xy_loop_start;
+        let xy_loop_end;
 
         for &dir in [long_dir, short_dir].iter() {
             let mut current_count: tile::Count = set[current_index].tentative_count;
@@ -2735,6 +2743,8 @@ fn minimum_between_of_visual_kind(
                 set[i].tentative_count = current_count;
             }
         }
+        dir_loop_end = Instant::now();
+        dir_duration += dir_loop_end - dir_loop_start;
 
         set[current_index].visited = true;
 
@@ -2750,6 +2760,8 @@ fn minimum_between_of_visual_kind(
         let mut next_count = tile::Count::max_value();
         // TODO bound this iteration since we know the visited front will advance
         // in a triangular shape.
+// TODO figure out what is slow. Maybe this loop?
+        xy_loop_start = Instant::now();
         for y in 0..=max_y {
             for x in 0..=max_x {
                 let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
@@ -2765,6 +2777,8 @@ fn minimum_between_of_visual_kind(
                 }
             }
         }
+        xy_loop_end = Instant::now();
+        xy_duration += xy_loop_end - xy_loop_start;
 
         if let Some(next_xy) = next_xy {
             current_xy = next_xy;
@@ -2772,7 +2786,15 @@ fn minimum_between_of_visual_kind(
             break;
         }
     }
-    
+    macro_rules! output {
+        () => {
+            println!(
+                "dir_duration {}\n xy_duration {}\n",
+                (dir_duration).as_nanos(),
+                (xy_duration).as_nanos(),
+            );
+        }
+    }output!();
     compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
     // Given the compile-time assert above, we know that if we got 
     // `tile::Count::max_value()` here, then it is because something is very wrong.
