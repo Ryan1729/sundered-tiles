@@ -210,6 +210,7 @@ mod tile {
                 
                 pub(crate) const COUNT: Count = Coord::COUNT;
 
+                #[allow(unused)]
                 pub (crate) const ALL: [$struct_name; Self::COUNT as usize] = {
                     let mut all = [$struct_name(Coord::ALL[0]); Self::COUNT as usize];
 
@@ -2686,8 +2687,7 @@ fn minimum_between_of_visual_kind(
 
     let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
 
-    // We don't know that the index corresponding to xy is 0, since that depends
-    // on the value of `diagonal` so we cannot skip calling shrunk_tiles_index.
+
     set[tile::xy_to_i(from)].tentative_count = 0;
 
     let max_xy = tile::XY {x: core::cmp::max(from.x, to.x), y: core::cmp::max(from.y, to.y)};
@@ -2699,16 +2699,11 @@ fn minimum_between_of_visual_kind(
     let mut minimum = tile::Count::max_value();
     let mut current_xy = from;
 
-    let mut dir_duration = std::time::Duration::default();
-    let mut xy_duration = std::time::Duration::default();
+    // TODO Capacity bound could be tighter.
+    let mut next_xys = std::collections::VecDeque::with_capacity(max_x * max_y);
 
     loop {
         let current_index = tile::xy_to_i(current_xy);
-        use std::time::Instant;
-        let dir_loop_start = Instant::now();
-        let dir_loop_end;
-        let xy_loop_start;
-        let xy_loop_end;
 
         for &dir in [long_dir, short_dir].iter() {
             let mut current_count: tile::Count = set[current_index].tentative_count;
@@ -2734,6 +2729,7 @@ fn minimum_between_of_visual_kind(
             if set[i].visited {
                 continue;
             }
+            next_xys.push_back(new_xy);
 
             if visual_kind == get_tile_visual_kind(tiles, new_xy) {
                 current_count += 1;
@@ -2743,8 +2739,6 @@ fn minimum_between_of_visual_kind(
                 set[i].tentative_count = current_count;
             }
         }
-        dir_loop_end = Instant::now();
-        dir_duration += dir_loop_end - dir_loop_start;
 
         set[current_index].visited = true;
 
@@ -2757,28 +2751,20 @@ fn minimum_between_of_visual_kind(
 
         // find the next current xy: an unvisited node with smallest count.
         let mut next_xy = None;
-        let mut next_count = tile::Count::max_value();
-        // TODO bound this iteration since we know the visited front will advance
-        // in a triangular shape.
-// TODO figure out what is slow. Maybe this loop?
-        xy_loop_start = Instant::now();
-        for y in 0..=max_y {
-            for x in 0..=max_x {
-                let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
-                let i = tile::xy_to_i(xy);
 
-                if set[i].visited {
-                    continue;
-                }
+        while let Some(xy) = next_xys.pop_front() {
+            let i = tile::xy_to_i(xy);
 
-                if set[i].tentative_count < next_count {
-                    next_count = set[i].tentative_count;
-                    next_xy = Some(xy);
-                }
+            if set[i].visited {
+                continue;
+            }
+
+            // TODO Is this ever false?
+            if set[i].tentative_count < tile::Count::max_value() {
+                next_xy = Some(xy);
+                break;
             }
         }
-        xy_loop_end = Instant::now();
-        xy_duration += xy_loop_end - xy_loop_start;
 
         if let Some(next_xy) = next_xy {
             current_xy = next_xy;
@@ -2786,15 +2772,7 @@ fn minimum_between_of_visual_kind(
             break;
         }
     }
-    macro_rules! output {
-        () => {
-            println!(
-                "dir_duration {}\n xy_duration {}\n",
-                (dir_duration).as_nanos(),
-                (xy_duration).as_nanos(),
-            );
-        }
-    }output!();
+
     compile_time_assert!(tile::Count::max_value() > tile::Coord::COUNT);
     // Given the compile-time assert above, we know that if we got 
     // `tile::Count::max_value()` here, then it is because something is very wrong.
