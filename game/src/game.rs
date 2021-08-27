@@ -2676,9 +2676,6 @@ fn minimum_between_of_visual_kind(
     to: tile::XY,
     visual_kind: tile::VisualKind
 ) -> MinimumOutcome {
-    // TODO: Make sure this whole function is not absurdly slow, as the first version
-    // almost certainly is.
-
     if from == to {
         return MinimumOutcome::NoMatchingTiles;
     }
@@ -2695,6 +2692,9 @@ fn minimum_between_of_visual_kind(
 
     let max_x = usize::from(max_xy.x);
     let max_y = usize::from(max_xy.y);
+
+    let min_x = usize::from(min_xy.x);
+    let min_y = usize::from(min_xy.y);
 
     let mut minimum = tile::Count::max_value();
     let mut current_xy = from;
@@ -2783,6 +2783,20 @@ fn minimum_between_of_visual_kind(
     if visual_kind == get_tile_visual_kind(tiles, to) {
         debug_assert!(minimum != 0);
         minimum = minimum.saturating_sub(1);
+    }
+
+    if minimum == 0 {
+        for y in min_y..=max_y {
+            for x in min_x..=max_x {
+                let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
+
+                if visual_kind == get_tile_visual_kind(tiles, xy) {
+                    return MinimumOutcome::Count(minimum);
+                }
+            }
+        }
+
+        return MinimumOutcome::NoMatchingTiles;
     }
 
     MinimumOutcome::Count(minimum)
