@@ -166,7 +166,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
         ($tiles: expr, $from: expr, $to: expr, $visual_kind: expr) => {{
             #![allow(unused)]
 
-            use std::time::Instant;
+            use std::time::{Instant, Duration};
 
             let slow_start = Instant::now();
             let slow = minimum_between_of_visual_kind_slow(
@@ -195,7 +195,7 @@ mod minimum_between_of_visual_kind_matches_slow_version {
                 // Without the margin added to the slow duration, this fails sometimes,
                 // even with identical implementations. I guess this is due to cache 
                 // effects, and/or OS task switching or something?
-                let slow_with_margin = (slow_duration + (slow_duration/20));
+                let slow_with_margin = (slow_duration + Duration::from_micros(500));
                 assert!(
                     fast_duration <= slow_with_margin,
                     "{} > {}: too slow by {} (no margin {})",
