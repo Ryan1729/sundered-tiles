@@ -2382,12 +2382,12 @@ pub(crate) fn get_long_and_short_dir(
 
 /// Used for an algorithm resembling https://en.wikipedia.org/wiki/Dijkstra%27s_algorithm.
 #[derive(Clone, Copy, Debug)]
-struct DykstrasTileData {
+struct DijkstrasTileData {
     tentative_count: tile::Count,
     visited: bool,
 }
 
-impl Default for DykstrasTileData {
+impl Default for DijkstrasTileData {
     fn default() -> Self {
         Self {
             tentative_count: tile::Count::max_value(),
@@ -2396,7 +2396,7 @@ impl Default for DykstrasTileData {
     }
 }
 
-type DykstrasTileSet = [DykstrasTileData; TILES_LENGTH as usize];
+type DijkstrasTileSet = [DijkstrasTileData; TILES_LENGTH as usize];
 
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
@@ -2410,8 +2410,7 @@ fn minimum_between_of_visual_kind(
 
     let (long_dir, short_dir) = get_long_and_short_dir(from, to);
 
-    let mut set: DykstrasTileSet = [DykstrasTileData::default(); TILES_LENGTH as usize];
-
+    let mut set: DijkstrasTileSet = [DijkstrasTileData::default(); TILES_LENGTH as usize];
 
     set[tile::xy_to_i(from)].tentative_count = 0;
 
