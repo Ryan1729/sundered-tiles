@@ -3690,28 +3690,38 @@ pub fn update(
                 Between(Shown, spec) => {
                     use tile::{HintTile, BetweenSpec::*};
                     let (between_count, description, target_hint_tile) = match spec {
-                        Minimum(delta, visual_kind) => {
+                        Minimum(delta, bewteen_visual_kind) => {
+                            let target_xy = tile::apply_wrap_around_delta(delta, txy);
+
+                            let distance = tile::manhattan_distance(txy, target_xy);
+
+                            let distance_visual_kind = get_tile_visual_kind(tiles, target_xy);
+
                             let minimum = minimum_between_of_visual_kind(
                                 tiles,
                                 txy,
-                                tile::apply_wrap_around_delta(delta, txy),
-                                visual_kind
+                                target_xy,
+                                bewteen_visual_kind
                             );
 
                             (
                                 minimum.unwrap_or_default(),
                                 match minimum {
                                     MinimumOutcome::Count(minimum) => format!(
-                                        "The miniumum number of tiles between here and the nearest {} tile is {}.",
-                                        tile::hint_tile_adjective(visual_kind.into()),
+                                        "There is a {} tile {} tiles away from here and the minimum number of {} tiles between here and there is {}.",
+                                        tile::hint_tile_adjective(distance_visual_kind.into()),
+                                        distance,
+                                        tile::hint_tile_adjective(bewteen_visual_kind.into()),
                                         minimum
                                     ),
                                     MinimumOutcome::NoMatchingTiles => format!(
-                                        "There are no {} tiles!",
-                                        tile::hint_tile_adjective(visual_kind.into())
+                                        "There is a {} tile {} tiles away from here and there are no {} tiles between here and there!",
+                                        tile::hint_tile_adjective(distance_visual_kind.into()),
+                                        distance,
+                                        tile::hint_tile_adjective(bewteen_visual_kind.into()),                                        
                                     )
                                 },
-                                HintTile::from(visual_kind),
+                                HintTile::from(bewteen_visual_kind),
                             )
                         }
                     };
