@@ -1351,8 +1351,8 @@ mod tile {
         /// The minumum number of tiles matching the visual kind that must be
         /// traversed between this tile and the target tile.
         Minimum(WrappingDeltaXY, VisualKind),
+        Maximum(WrappingDeltaXY, VisualKind),
         // TODO
-        // Maximum(VisualKind),
         // Less sure about these ones. They seem too computationally intensive 
         // for the player.
         // Mean(VisualKind),
@@ -2258,6 +2258,11 @@ impl Tiles {
                     tile::WrappingDeltaXY::from_rng(rng),
                     visual_kind
                 ));
+
+                set_between_hint!(Maximum(
+                    tile::WrappingDeltaXY::from_rng(rng),
+                    visual_kind
+                ));
             }
         }
 
@@ -2300,21 +2305,6 @@ fn get_star_xy(tiles: &Tiles, colour: tile::Colour) -> tile::XY {
         Red => tiles.red_star_xy,
         Green => tiles.green_star_xy,
         Blue => tiles.blue_star_xy,
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum MinimumOutcome {
-    NoMatchingTiles,
-    Count(tile::Count)
-}
-
-impl MinimumOutcome {
-    fn unwrap_or_default(&self) -> tile::Count {
-        match self {
-            Self::NoMatchingTiles => <_>::default(),
-            Self::Count(count) => *count,
-        }
     }
 }
 
@@ -2398,11 +2388,40 @@ impl Default for DijkstrasTileData {
 
 type DijkstrasTileSet = [DijkstrasTileData; TILES_LENGTH as usize];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MinimumOutcome {
+    NoMatchingTiles,
+    Count(tile::Count)
+}
+
+impl MinimumOutcome {
+    fn unwrap_or_default(&self) -> tile::Count {
+        match self {
+            Self::NoMatchingTiles => <_>::default(),
+            Self::Count(count) => *count,
+        }
+    }
+}
+
 fn minimum_between_of_visual_kind(
     tiles: &Tiles,
     from: tile::XY,
     to: tile::XY,
     visual_kind: tile::VisualKind
+) -> MinimumOutcome {
+    minimum_between_of_visual_kind_closure(
+        tiles,
+        from,
+        to,
+        &|v_k| v_k == visual_kind
+    )
+}
+
+fn minimum_between_of_visual_kind_closure(
+    tiles: &Tiles,
+    from: tile::XY,
+    to: tile::XY,
+    visual_kind_matches: &dyn Fn(tile::VisualKind) -> bool
 ) -> MinimumOutcome {
     if from == to {
         return MinimumOutcome::NoMatchingTiles;
@@ -2458,7 +2477,7 @@ fn minimum_between_of_visual_kind(
             }
             next_xys.push_back(new_xy);
 
-            if visual_kind == get_tile_visual_kind(tiles, new_xy) {
+            if visual_kind_matches(get_tile_visual_kind(tiles, new_xy)) {
                 current_count += 1;
             }
 
@@ -2507,7 +2526,7 @@ fn minimum_between_of_visual_kind(
 
     // We are getting the `minimum_between`, so we don't want to count the 
     // end tile, so decrement it if it was incremented.
-    if visual_kind == get_tile_visual_kind(tiles, to) {
+    if visual_kind_matches(get_tile_visual_kind(tiles, to)) {
         debug_assert!(minimum != 0);
         minimum = minimum.saturating_sub(1);
     }
@@ -2517,7 +2536,7 @@ fn minimum_between_of_visual_kind(
             for x in min_x..=max_x {
                 let xy = tile::XY{x: tile::X::ALL[x], y: tile::Y::ALL[y]};
 
-                if visual_kind == get_tile_visual_kind(tiles, xy) {
+                if visual_kind_matches(get_tile_visual_kind(tiles, xy)) {
                     return MinimumOutcome::Count(minimum);
                 }
             }
@@ -2527,6 +2546,44 @@ fn minimum_between_of_visual_kind(
     }
 
     MinimumOutcome::Count(minimum)
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum MaximumOutcome {
+    NoMatchingTiles,
+    Count(tile::Count)
+}
+
+impl MaximumOutcome {
+    fn unwrap_or_default(&self) -> tile::Count {
+        match self {
+            Self::NoMatchingTiles => <_>::default(),
+            Self::Count(count) => *count,
+        }
+    }
+}
+
+fn maximum_between_of_visual_kind(
+    tiles: &Tiles,
+    from: tile::XY,
+    to: tile::XY,
+    visual_kind: tile::VisualKind
+) -> MaximumOutcome {
+    // Calling `minimum_between_of_visual_kind_closure` like this follows the
+    // maximum path and produces the path length minus the maximum amount of tiles
+    // of `visual_kind` that were on that path. I think this only works because the
+    // weights are only ever 1 and 0.
+    match minimum_between_of_visual_kind_closure(
+        tiles,
+        from,
+        to,
+        &|v_k| v_k != visual_kind
+    ) {
+        MinimumOutcome::Count(length_minus_tiles) => MaximumOutcome::Count(
+            tile::manhattan_distance(from, to) - length_minus_tiles
+        ),
+        MinimumOutcome::NoMatchingTiles => MaximumOutcome::NoMatchingTiles,
+    }
 }
 
 type DistanceInfo = (tile::XY, tile::DistanceIntel);
@@ -3714,6 +3771,40 @@ pub fn update(
                                         minimum
                                     ),
                                     MinimumOutcome::NoMatchingTiles => format!(
+                                        "There is a {} tile {} tiles away from here and there are no {} tiles between here and there!",
+                                        tile::hint_tile_adjective(distance_visual_kind.into()),
+                                        distance,
+                                        tile::hint_tile_adjective(bewteen_visual_kind.into()),                                        
+                                    )
+                                },
+                                HintTile::from(bewteen_visual_kind),
+                            )
+                        },
+                        Maximum(delta, bewteen_visual_kind) => {
+                            let target_xy = tile::apply_wrap_around_delta(delta, txy);
+
+                            let distance = tile::manhattan_distance(txy, target_xy);
+
+                            let distance_visual_kind = get_tile_visual_kind(tiles, target_xy);
+
+                            let maximum = maximum_between_of_visual_kind(
+                                tiles,
+                                txy,
+                                target_xy,
+                                bewteen_visual_kind
+                            );
+
+                            (
+                                maximum.unwrap_or_default(),
+                                match maximum {
+                                    MaximumOutcome::Count(maximum) => format!(
+                                        "There is a {} tile {} tiles away from here and the maximum number of {} tiles between here and there is {}.",
+                                        tile::hint_tile_adjective(distance_visual_kind.into()),
+                                        distance,
+                                        tile::hint_tile_adjective(bewteen_visual_kind.into()),
+                                        maximum
+                                    ),
+                                    MaximumOutcome::NoMatchingTiles => format!(
                                         "There is a {} tile {} tiles away from here and there are no {} tiles between here and there!",
                                         tile::hint_tile_adjective(distance_visual_kind.into()),
                                         distance,
