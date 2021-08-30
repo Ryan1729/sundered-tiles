@@ -2000,7 +2000,7 @@ impl Tiles {
         };
 
 
-        let mut xy_iter = match 1 {//xs_u32(rng, 0, 5) {
+        let mut xy_iter = match 0 {//xs_u32(rng, 0, 5) {
             0 => tile::XY::all_center_spiralish(),
             /*
             1 => tile::XY::upper_left_quadrant_spiralish(),
