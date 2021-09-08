@@ -161,7 +161,7 @@ macro_rules! xy {
 mod minimum_between_of_visual_kind_matches_slow_version {
     use super::*;
 
-    // Short for assert. We can be this brief becasue this is local to this module
+    // Short for assert. We can be this brief because this is local to this module
     macro_rules! a {
         ($tiles: expr, $from: expr, $to: expr, $visual_kind: expr) => {{
             #![allow(unused)]
@@ -646,5 +646,75 @@ mod minimum_between_of_visual_kind_takes_an_acceptable_time {
 
         a!(&tiles, from, to, VisualKind::Empty);
         a!(&tiles, from, to, VisualKind::ALL[1]);
+    }
+}
+
+mod maximum_between_of_visual_kind_returns_the_expected_result {
+    use super::*;
+    // Short for assert. We can be this brief because this is local to this module
+    macro_rules! a {
+        ($tiles: expr, $from: expr, $to: expr, $visual_kind: expr => $expected: expr) => {{
+            let actual = maximum_between_of_visual_kind(
+                $tiles,
+                $from,
+                $to,
+                $visual_kind,
+            );
+
+            assert_eq!(actual, $expected, "mismatch when looking for {:?}", $visual_kind);
+        }}
+    }
+
+    #[test]
+    fn on_this_random_example_reduction() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        let from = xy!(14, 22);
+        let to = xy!(30, 14);
+
+        let maximum_tile_data: TileData = TileData {
+            kind: tile::Kind::Between(
+                tile::Visibility::DEFAULT,
+                tile::BetweenSpec::Maximum(
+                    // I think this part doesn't matter for this test
+                    tile::WrappingDeltaXY::from_rng(&mut rng),
+                    VisualKind::BlueStar,
+                ),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
+
+        let blue_red_tile_data: TileData = TileData {
+            kind: tile::Kind::Red(
+                tile::HybridOffset::Two,
+                tile::Visibility::DEFAULT,
+                tile::DistanceIntel::default(),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
+
+        const BLUE_STAR_TILE_DATA: TileData = TileData {
+            kind: tile::Kind::BlueStar(
+                tile::Visibility::DEFAULT,
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(xy!(32, 31))] = BLUE_STAR_TILE_DATA;
+
+        a!(
+            &tiles,
+            from,
+            to,
+            VisualKind::BlueStar => MaximumOutcome::Count(0)
+        );
     }
 }
