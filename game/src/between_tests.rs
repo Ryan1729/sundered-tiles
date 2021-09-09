@@ -134,6 +134,22 @@ const RED_TILE_DATA: TileData = TileData {
     ),
 };
 
+const BLUE_RED_TILE_DATA: TileData = TileData {
+    kind: tile::Kind::Red(
+        tile::HybridOffset::Two,
+        tile::Visibility::DEFAULT,
+        tile::DistanceIntel::DEFAULT,
+    ),
+};
+
+const GREEN_TILE_DATA: TileData = TileData {
+    kind: tile::Kind::Green(
+        tile::HybridOffset::Zero,
+        tile::Visibility::DEFAULT,
+        tile::DistanceIntel::DEFAULT,
+    ),
+};
+
 macro_rules! xy {
     ($x: literal, $y: literal) => {{
         let x = $x;
@@ -678,7 +694,9 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
 
         let from = xy!(14, 22);
         let to = xy!(30, 14);
-        let blue_star = xy!(32, 31);
+        let target = xy!(32, 31);
+
+        const TARGET_KIND: VisualKind = VisualKind::Green;
 
         let maximum_tile_data: TileData = TileData {
             kind: tile::Kind::Between(
@@ -686,36 +704,20 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
                 tile::BetweenSpec::Maximum(
                     // I think this part doesn't matter for this test
                     tile::WrappingDeltaXY::from_rng(&mut rng),
-                    VisualKind::BlueStar,
+                    TARGET_KIND,
                 ),
             ),
         };
 
         tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
-
-        let blue_red_tile_data: TileData = TileData {
-            kind: tile::Kind::Red(
-                tile::HybridOffset::Two,
-                tile::Visibility::DEFAULT,
-                tile::DistanceIntel::default(),
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
-
-        const BLUE_STAR_TILE_DATA: TileData = TileData {
-            kind: tile::Kind::BlueStar(
-                tile::Visibility::DEFAULT,
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(blue_star)] = BLUE_STAR_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(to)] = BLUE_RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target)] = GREEN_TILE_DATA;
 
         a!(
             &tiles,
             from,
             to,
-            VisualKind::BlueStar => MaximumOutcome::Count(0)
+            TARGET_KIND => MaximumOutcome::Count(0)
         );
     }
 
@@ -733,7 +735,9 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
         let from = xy!(14, 22);
         let to = xy!(30, 14);
         // somewhere between the other two
-        let blue_star = xy!(14 + 10, 22 - 4);
+        let target = xy!(14 + 10, 22 - 4);
+
+        const TARGET_KIND: VisualKind = VisualKind::Green;
 
         let maximum_tile_data: TileData = TileData {
             kind: tile::Kind::Between(
@@ -741,36 +745,65 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
                 tile::BetweenSpec::Maximum(
                     // I think this part doesn't matter for this test
                     tile::WrappingDeltaXY::from_rng(&mut rng),
-                    VisualKind::BlueStar,
+                    TARGET_KIND,
                 ),
             ),
         };
 
         tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
-
-        let blue_red_tile_data: TileData = TileData {
-            kind: tile::Kind::Red(
-                tile::HybridOffset::Two,
-                tile::Visibility::DEFAULT,
-                tile::DistanceIntel::default(),
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
-
-        const BLUE_STAR_TILE_DATA: TileData = TileData {
-            kind: tile::Kind::BlueStar(
-                tile::Visibility::DEFAULT,
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(blue_star)] = BLUE_STAR_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(to)] = BLUE_RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target)] = GREEN_TILE_DATA;
 
         a!(
             &tiles,
             from,
             to,
-            VisualKind::BlueStar => MaximumOutcome::Count(1)
+            TARGET_KIND => MaximumOutcome::Count(1)
+        );
+    }
+
+    #[test]
+    fn on_this_multiple_within_range_but_far_apart_targets_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        let from = xy!(14, 22);
+        let to = xy!(30, 14);
+        // somewhere between the other two
+        let target_1 = xy!(30 - 1, 22 - 1);
+        // somewhere else between the other two, far away so it cannot be on 
+        // the same path
+        let target_2 = xy!(14 + 1, 14 + 1);
+
+        const TARGET_KIND: VisualKind = VisualKind::Green;
+
+        let maximum_tile_data: TileData = TileData {
+            kind: tile::Kind::Between(
+                tile::Visibility::DEFAULT,
+                tile::BetweenSpec::Maximum(
+                    // I think this part doesn't matter for this test
+                    tile::WrappingDeltaXY::from_rng(&mut rng),
+                    TARGET_KIND,
+                ),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
+        tiles.tiles[tile::xy_to_i(to)] = BLUE_RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target_1)] = GREEN_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target_2)] = GREEN_TILE_DATA;
+
+        a!(
+            &tiles,
+            from,
+            to,
+            TARGET_KIND => MaximumOutcome::Count(1)
         );
     }
 
@@ -788,9 +821,11 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
         let from = xy!(14, 22);
         let to = xy!(30, 14);
         // somewhere between the other two
-        let blue_star_1 = xy!(14 + 10, 22 - 4);
-        // somewhere else between the other two
-        let blue_star_2 = xy!(14 + 4, 22 - 6);
+        let target_1 = xy!(14 + 10, 22 - 4);
+        // right beside the last one, so it can be on the same path
+        let target_2 = xy!(14 + 9, 22 - 4);
+
+        const TARGET_KIND: VisualKind = VisualKind::Green;
 
         let maximum_tile_data: TileData = TileData {
             kind: tile::Kind::Between(
@@ -798,37 +833,21 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
                 tile::BetweenSpec::Maximum(
                     // I think this part doesn't matter for this test
                     tile::WrappingDeltaXY::from_rng(&mut rng),
-                    VisualKind::BlueStar,
+                    TARGET_KIND,
                 ),
             ),
         };
 
         tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
-
-        let blue_red_tile_data: TileData = TileData {
-            kind: tile::Kind::Red(
-                tile::HybridOffset::Two,
-                tile::Visibility::DEFAULT,
-                tile::DistanceIntel::default(),
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
-
-        const BLUE_STAR_TILE_DATA: TileData = TileData {
-            kind: tile::Kind::BlueStar(
-                tile::Visibility::DEFAULT,
-            ),
-        };
-
-        tiles.tiles[tile::xy_to_i(blue_star_1)] = BLUE_STAR_TILE_DATA;
-        tiles.tiles[tile::xy_to_i(blue_star_2)] = BLUE_STAR_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(to)] = BLUE_RED_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target_1)] = GREEN_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(target_2)] = GREEN_TILE_DATA;
 
         a!(
             &tiles,
             from,
             to,
-            VisualKind::BlueStar => MaximumOutcome::Count(2)
+            TARGET_KIND => MaximumOutcome::Count(2)
         );
     }
 }
