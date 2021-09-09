@@ -2571,16 +2571,17 @@ fn maximum_between_of_visual_kind(
 ) -> MaximumOutcome {
     // Calling `minimum_between_of_visual_kind_closure` like this follows the
     // maximum path and produces the path length minus the maximum amount of tiles
-    // of `visual_kind` that were on that path. I think this only works because the
-    // weights are only ever 1 and 0.
+    // of `visual_kind` that were on that path, plus one. (The plus one is because
+    // we do not count the `from` and `to` tiles in the count).
+    // I think this only works because the weights are only ever 1 and 0.
     match minimum_between_of_visual_kind_closure(
         tiles,
         from,
         to,
         &|v_k| v_k != visual_kind
     ) {
-        MinimumOutcome::Count(length_minus_tiles) => MaximumOutcome::Count(
-            tile::manhattan_distance(from, to) - length_minus_tiles
+        MinimumOutcome::Count(length_minus_tiles_plus_one) => MaximumOutcome::Count(
+            tile::manhattan_distance(from, to) - length_minus_tiles_plus_one - 1
         ),
         MinimumOutcome::NoMatchingTiles => MaximumOutcome::NoMatchingTiles,
     }

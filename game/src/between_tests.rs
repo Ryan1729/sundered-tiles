@@ -666,7 +666,7 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
     }
 
     #[test]
-    fn on_this_random_example_reduction() {
+    fn on_this_farther_away_target_example() {
         let mut rng = xs_from_seed([
             0xb, 0xee, 0xfa, 0xce,
             0xb, 0xee, 0xfa, 0xce,
@@ -678,6 +678,7 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
 
         let from = xy!(14, 22);
         let to = xy!(30, 14);
+        let blue_star = xy!(32, 31);
 
         let maximum_tile_data: TileData = TileData {
             kind: tile::Kind::Between(
@@ -708,13 +709,126 @@ mod maximum_between_of_visual_kind_returns_the_expected_result {
             ),
         };
 
-        tiles.tiles[tile::xy_to_i(xy!(32, 31))] = BLUE_STAR_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(blue_star)] = BLUE_STAR_TILE_DATA;
 
         a!(
             &tiles,
             from,
             to,
             VisualKind::BlueStar => MaximumOutcome::Count(0)
+        );
+    }
+
+    #[test]
+    fn on_this_nearer_target_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        let from = xy!(14, 22);
+        let to = xy!(30, 14);
+        // somewhere between the other two
+        let blue_star = xy!(14 + 10, 22 - 4);
+
+        let maximum_tile_data: TileData = TileData {
+            kind: tile::Kind::Between(
+                tile::Visibility::DEFAULT,
+                tile::BetweenSpec::Maximum(
+                    // I think this part doesn't matter for this test
+                    tile::WrappingDeltaXY::from_rng(&mut rng),
+                    VisualKind::BlueStar,
+                ),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
+
+        let blue_red_tile_data: TileData = TileData {
+            kind: tile::Kind::Red(
+                tile::HybridOffset::Two,
+                tile::Visibility::DEFAULT,
+                tile::DistanceIntel::default(),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
+
+        const BLUE_STAR_TILE_DATA: TileData = TileData {
+            kind: tile::Kind::BlueStar(
+                tile::Visibility::DEFAULT,
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(blue_star)] = BLUE_STAR_TILE_DATA;
+
+        a!(
+            &tiles,
+            from,
+            to,
+            VisualKind::BlueStar => MaximumOutcome::Count(1)
+        );
+    }
+
+    #[test]
+    fn on_this_multiple_near_targets_example() {
+        let mut rng = xs_from_seed([
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+            0xb, 0xee, 0xfa, 0xce,
+        ]);
+
+        let mut tiles = Tiles::default();
+
+        let from = xy!(14, 22);
+        let to = xy!(30, 14);
+        // somewhere between the other two
+        let blue_star_1 = xy!(14 + 10, 22 - 4);
+        // somewhere else between the other two
+        let blue_star_2 = xy!(14 + 4, 22 - 6);
+
+        let maximum_tile_data: TileData = TileData {
+            kind: tile::Kind::Between(
+                tile::Visibility::DEFAULT,
+                tile::BetweenSpec::Maximum(
+                    // I think this part doesn't matter for this test
+                    tile::WrappingDeltaXY::from_rng(&mut rng),
+                    VisualKind::BlueStar,
+                ),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(from)] = maximum_tile_data;
+
+        let blue_red_tile_data: TileData = TileData {
+            kind: tile::Kind::Red(
+                tile::HybridOffset::Two,
+                tile::Visibility::DEFAULT,
+                tile::DistanceIntel::default(),
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(to)] = blue_red_tile_data;
+
+        const BLUE_STAR_TILE_DATA: TileData = TileData {
+            kind: tile::Kind::BlueStar(
+                tile::Visibility::DEFAULT,
+            ),
+        };
+
+        tiles.tiles[tile::xy_to_i(blue_star_1)] = BLUE_STAR_TILE_DATA;
+        tiles.tiles[tile::xy_to_i(blue_star_2)] = BLUE_STAR_TILE_DATA;
+
+        a!(
+            &tiles,
+            from,
+            to,
+            VisualKind::BlueStar => MaximumOutcome::Count(2)
         );
     }
 }
